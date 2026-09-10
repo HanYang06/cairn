@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# 测试 / 缓存
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# 打包产物
+*.spec
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/settings.json
+
+# 本地数据 / 密钥
+.env
+*.local
