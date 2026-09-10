@@ -7,17 +7,22 @@ put/open/info/delete/iter、space/create_space。所有内容都是对象。
 from __future__ import annotations
 
 import base64
+import contextlib
 import io
+import os
 import secrets
+import shutil
+import tempfile
 import tomllib
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import TYPE_CHECKING, Any, BinaryIO
 
 import tomli_w
+from blake3 import blake3
 
-from .chunker import iter_chunks
+from .chunker import Chunk, Source, iter_chunks
 from .codec import (
     FORMAT_VERSION,
     chunk_aad,
@@ -59,6 +64,9 @@ from .types import (
     Visibility,
     now_ms,
 )
+
+if TYPE_CHECKING:
+    from .index import Index
 
 _TOML_NAME = "cairn.toml"
 _CTX_VAULT_META = "cairn/v1/vault/meta"
@@ -128,10 +136,19 @@ class _ObjectReader(io.RawIOBase):
         return count
 
 
-def _read_all(src: bytes | bytearray | memoryview | BinaryIO) -> bytes:
-    if isinstance(src, (bytes, bytearray, memoryview)):
-        return bytes(src)
-    return src.read()
+def _iter_source(src: Source | BinaryIO) -> Iterator[Chunk]:
+    """字节/路径直接分块；其余流先落临时文件再经 mmap 分块，避免整块进内存。"""
+    if isinstance(src, (bytes, bytearray, memoryview, str, Path)):
+        yield from iter_chunks(src)
+        return
+    with tempfile.NamedTemporaryFile(delete=False) as handle:
+        name = handle.name
+        shutil.copyfileobj(src, handle)
+    try:
+        yield from iter_chunks(name)
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(name)
 
 
 def _envelope(space_id: SpaceId, sealed_manifest: bytes) -> bytes:
@@ -166,6 +183,7 @@ class Vault:
         self._identity: Identity | None = None
         self._spaces: dict[str, _SpaceKeys] = {}
         self._by_id: dict[SpaceId, _SpaceKeys] = {}
+        self._index: Index | None = None
 
     @classmethod
     def create(cls, path: Path | str, passphrase: str) -> Vault:
@@ -243,8 +261,16 @@ class Vault:
             kex_seed=unseal(vault_key, _unb64(identity["kex"])),
         )
         self._load_spaces()
+        index_path = self.root / ".cairn" / "index.sqlite"
+        if index_path.exists():
+            from .index import Index
+
+            self._index = Index(index_path)
 
     def lock(self) -> None:
+        if self._index is not None:
+            self._index.close()
+            self._index = None
         self._master_key = None
         self._vault_key = None
         self._identity = None
@@ -269,7 +295,7 @@ class Vault:
 
     def put(
         self,
-        src: bytes | bytearray | memoryview | BinaryIO,
+        src: Source | BinaryIO,
         *,
         space: str = _DEFAULT_SPACE,
         type: str = "blob",
@@ -278,12 +304,23 @@ class Vault:
         oid: Oid | str | None = None,
     ) -> Oid:
         self._require_unlocked()
+        if self._identity is None:
+            raise VaultLockedError("库已锁定")
         keys = self._keys(space)
-        data = _read_all(src)
-        new_oid = Oid.parse(str(oid)) if oid is not None else Oid.new()
 
+        previous: Manifest | None = None
+        if oid is not None:
+            new_oid = Oid.parse(str(oid))
+            previous = self._try_load_manifest(new_oid)
+            if previous is not None and previous.space_id != keys.space.space_id:
+                raise VaultError("对象已存在于其他空间")
+        else:
+            new_oid = Oid.new()
+
+        total = 0
         refs: list[ChunkRef] = []
-        for chunk in iter_chunks(data):
+        for chunk in _iter_source(src):
+            total += len(chunk.data)
             cid = Cid.from_digest(keyed_hash(keys.addr_key, chunk.data))
             if not self.pool.has_chunk(cid):
                 sealed = seal(keys.data_key, chunk.data, chunk_aad())
@@ -291,26 +328,33 @@ class Vault:
             refs.append(ChunkRef(cid=cid, size=len(chunk.data)))
 
         timestamp = now_ms()
+        archive_blob: bytes | None = None
+        prev_hash: str | None = None
+        if previous is not None:
+            archive_blob = self.pool.read_object(new_oid)
+            prev_hash = blake3(archive_blob).hexdigest()
+
         manifest = Manifest(
             oid=new_oid,
             space_id=keys.space.space_id,
             type=type,
             mime=mime,
-            size=len(data),
-            created=timestamp,
+            size=total,
+            created=previous.created if previous is not None else timestamp,
             updated=timestamp,
             chunks=tuple(refs),
             meta=dict(meta or {}),
-            seq=1,
-            prev=None,
+            seq=(previous.seq + 1) if previous is not None else 1,
+            prev=prev_hash,
             author=b"",
             sig=b"",
         )
-        if self._identity is None:
-            raise VaultLockedError("库已锁定")
         signed = sign_manifest(manifest, self._identity)
         sealed_manifest = seal(keys.meta_key, signed.to_cbor(), manifest_aad(new_oid))
+        if archive_blob is not None and prev_hash is not None:
+            self.pool.write_manifest(prev_hash, archive_blob)
         self.pool.write_object(new_oid, _envelope(keys.space.space_id, sealed_manifest))
+        self._index_add(signed, previous)
         return new_oid
 
     def open(self, oid: Oid | str) -> io.RawIOBase:
@@ -329,6 +373,9 @@ class Vault:
         self._require_unlocked()
         target = Oid.parse(str(oid))
         self.pool.delete_object(target)
+        if self._index is not None:
+            self._index.remove(target)
+            self._index.commit()
 
     def iter(
         self,
@@ -356,22 +403,62 @@ class Vault:
         self._require_unlocked()
         from .index import Index
 
-        index = Index(self.root / ".cairn" / "index.sqlite")
-        try:
-            return index.rebuild(self)
-        finally:
-            index.close()
+        if self._index is None:
+            self._index = Index(self.root / ".cairn" / "index.sqlite")
+        return self._index.rebuild(self)
 
     def gc(self) -> int:
         self._require_unlocked()
-        live = {str(ref.cid) for manifest in self.iter_manifests() for ref in manifest.chunks}
+        live_cids: set[str] = set()
+        live_archives: set[str] = set()
+
+        for oid in self.pool.iter_object_ids():
+            try:
+                blob = self.pool.read_object(oid)
+            except FileNotFoundError:
+                continue
+            self._collect_chain(self._manifest_from_envelope(oid, blob), live_cids, live_archives)
+
+        for digest in list(self.pool.iter_manifest_digests()):
+            if digest not in live_archives:
+                self.pool.delete_manifest(digest)
+
         removed = 0
         for cid in list(self.pool.iter_chunk_cids()):
-            if str(cid) not in live:
+            if str(cid) not in live_cids:
                 self.pool.delete_chunk(cid)
                 removed += 1
         prune_empty_dirs(self.pool.chunks_dir)
+        prune_empty_dirs(self.pool.manifests_dir)
         return removed
+
+    def _collect_chain(
+        self,
+        manifest: Manifest,
+        live_cids: set[str],
+        live_archives: set[str],
+    ) -> None:
+        while True:
+            live_cids.update(str(ref.cid) for ref in manifest.chunks)
+            prev = manifest.prev
+            if not prev or prev in live_archives:
+                return
+            live_archives.add(prev)
+            try:
+                blob = self.pool.read_manifest(prev)
+            except FileNotFoundError:
+                return
+            manifest = self._manifest_from_envelope(manifest.oid, blob)
+
+    def _index_add(self, manifest: Manifest, previous: Manifest | None) -> None:
+        if self._index is None:
+            return
+        try:
+            mtime = int(self.pool.object_path(manifest.oid).stat().st_mtime * 1000)
+        except OSError:
+            mtime = None
+        self._index.add(manifest, mtime_ms=mtime, previous=previous)
+        self._index.commit()
 
     def _create_space(self, name: str, visibility: Visibility) -> _SpaceKeys:
         assert self._vault_key is not None
@@ -435,12 +522,22 @@ class Vault:
             blob = self.pool.read_object(oid)
         except FileNotFoundError as exc:
             raise ObjectNotFoundError(str(oid)) from exc
+        manifest = self._manifest_from_envelope(oid, blob)
+        return self._keys_by_id(manifest.space_id), manifest
+
+    def _try_load_manifest(self, oid: Oid) -> Manifest | None:
+        try:
+            return self._load_manifest(oid)[1]
+        except ObjectNotFoundError:
+            return None
+
+    def _manifest_from_envelope(self, oid: Oid, blob: bytes) -> Manifest:
         space_id, sealed = _open_envelope(blob)
         keys = self._keys_by_id(space_id)
         manifest = Manifest.from_cbor(unseal(keys.meta_key, sealed, manifest_aad(oid)))
         if not verify_manifest(manifest):
             raise CorruptObjectError(f"manifest 签名无效: {oid}")
-        return keys, manifest
+        return manifest
 
     def _fetch(self, keys: _SpaceKeys, ref: ChunkRef) -> bytes:
         try:

@@ -113,7 +113,15 @@ class Index:
             (str(space.space_id), space.name, space.visibility.value, space.created),
         )
 
-    def add(self, manifest: Manifest, *, mtime_ms: int | None = None) -> None:
+    def add(
+        self,
+        manifest: Manifest,
+        *,
+        mtime_ms: int | None = None,
+        previous: Manifest | None = None,
+    ) -> None:
+        if previous is not None:
+            self._decref(previous.oid)
         meta = manifest.meta or {}
         oid = str(manifest.oid)
         self.conn.execute(
@@ -145,11 +153,39 @@ class Index:
                 "INSERT OR REPLACE INTO obj_chunks(oid, idx, cid, size) VALUES(?, ?, ?, ?)",
                 (oid, position, str(ref.cid), ref.size),
             )
+        self._incref(manifest)
 
     def remove(self, oid: Oid | str) -> None:
         target = str(oid)
+        self._decref(target)
         for table in ("objects", "obj_tags", "obj_chunks"):
             self.conn.execute(f"DELETE FROM {table} WHERE oid = ?", (target,))
+
+    def _incref(self, manifest: Manifest) -> None:
+        for ref in manifest.chunks:
+            cid = str(ref.cid)
+            self.conn.execute(
+                "INSERT OR IGNORE INTO chunks(cid, size, refcount) VALUES(?, ?, 0)",
+                (cid, ref.size),
+            )
+            self.conn.execute(
+                "UPDATE chunks SET refcount = refcount + 1 WHERE cid = ?", (cid,)
+            )
+
+    def _decref(self, oid: Oid | str) -> None:
+        rows = self.conn.execute(
+            "SELECT cid FROM obj_chunks WHERE oid = ?", (str(oid),)
+        ).fetchall()
+        for row in rows:
+            self.conn.execute(
+                "UPDATE chunks SET refcount = refcount - 1 WHERE cid = ?", (row["cid"],)
+            )
+            self.conn.execute(
+                "DELETE FROM chunks WHERE cid = ? AND refcount <= 0", (row["cid"],)
+            )
+
+    def commit(self) -> None:
+        self.conn.commit()
 
     def recount_chunks(self) -> None:
         self.conn.execute("DELETE FROM chunks")

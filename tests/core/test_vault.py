@@ -108,3 +108,62 @@ def test_space_persists_after_reopen(tmp_path: Path) -> None:
     reopened = Vault.load(tmp_path / "vault")
     reopened.unlock(PASSPHRASE)
     assert reopened.info(oid).space_id == space.space_id
+
+
+def test_put_from_path_streams(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    source = tmp_path / "big.bin"
+    data = b"pathy bytes " * 100_000
+    source.write_bytes(data)
+
+    oid = vault.put(source)
+    with vault.open(oid) as handle:
+        assert handle.read() == data
+
+
+def test_put_from_file_object(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    source = tmp_path / "obj.bin"
+    data = b"object bytes " * 100_000
+    source.write_bytes(data)
+
+    with source.open("rb") as handle:
+        oid = vault.put(handle)
+    with vault.open(oid) as handle:
+        assert handle.read() == data
+
+
+def test_update_creates_version_chain(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    oid = vault.put(b"v1", type="note", meta={"title": "v1"})
+    before = vault.info(oid)
+
+    same = vault.put(b"v2", oid=oid, type="note", meta={"title": "v2"})
+    assert same == oid
+
+    after = vault.info(oid)
+    assert after.title == "v2"
+    assert after.created == before.created
+    assert after.updated >= before.updated
+
+    _, manifest = vault._load_manifest(oid)
+    assert manifest.seq == 2
+    assert manifest.prev is not None
+
+
+def test_history_chunks_survive_until_delete(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    oid = vault.put(b"old content " * 100_000)
+    first_gen = len(list(vault.pool.iter_chunk_cids()))
+
+    vault.put(b"brand new " * 100_000, oid=oid)
+    second_gen = len(list(vault.pool.iter_chunk_cids()))
+    assert second_gen > first_gen
+
+    assert vault.gc() == 0
+    assert len(list(vault.pool.iter_chunk_cids())) == second_gen
+
+    vault.delete(oid)
+    assert vault.gc() == second_gen
+    assert list(vault.pool.iter_chunk_cids()) == []
+

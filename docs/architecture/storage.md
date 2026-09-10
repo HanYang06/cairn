@@ -202,7 +202,7 @@ meta(key PK, value)                     -- index_format_version, built_at ...
 search_fts(oid, body)                   -- FTS5，供可提取纯文本的对象
 ```
 
-- 全量重建是恢复兜底；增量走文件监听或 `manifest_mtime` 差量。
+- 全量重建是恢复兜底；增量在**写入路径**即时维护（put/delete 直接更新受影响对象及其引用计数）。
 - 索引与磁盘冲突时，以磁盘 manifest 为准。
 
 ---

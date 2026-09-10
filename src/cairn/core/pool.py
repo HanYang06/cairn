@@ -113,6 +113,13 @@ class Pool:
     def read_manifest(self, digest: str) -> bytes:
         return self.manifest_path(digest).read_bytes()
 
+    def delete_manifest(self, digest: str) -> None:
+        with contextlib.suppress(FileNotFoundError):
+            self.manifest_path(digest).unlink()
+
+    def iter_manifest_digests(self) -> Iterator[str]:
+        yield from self._iter_sharded(self.manifests_dir, str)
+
     @staticmethod
     def _iter_sharded(directory: Path, factory: type) -> Iterator:
         if not directory.exists():

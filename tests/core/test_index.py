@@ -92,3 +92,28 @@ def test_gc_keeps_live_chunks(tmp_path: Path) -> None:
     assert vault.gc() == 0
     with vault.open(oid) as handle:
         assert handle.read() == b"live " * 50_000
+
+
+def test_index_updates_incrementally(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    vault.rebuild_index()
+
+    note = vault.put(b"a", type="note")
+    vault.put(b"b", type="image")
+
+    index = Index(tmp_path / "vault" / ".cairn" / "index.sqlite")
+    try:
+        assert index.count() == 2
+        assert index.count("spaces") == 1
+    finally:
+        index.close()
+
+    vault.delete(note)
+
+    index = Index(tmp_path / "vault" / ".cairn" / "index.sqlite")
+    try:
+        assert index.count() == 1
+        assert index.list_objects(type="note") == []
+    finally:
+        index.close()
+
