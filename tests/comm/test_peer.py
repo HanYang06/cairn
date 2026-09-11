@@ -7,7 +7,7 @@ from typing import Any
 
 from cairn.core import Vault
 from cairn.core.types import Cid
-from cairn.net import ChunkServer, PeerClient
+from comm import ChunkServer, PeerClient
 
 PASSPHRASE = "correct horse battery staple"
 

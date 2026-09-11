@@ -8,7 +8,7 @@ from __future__ import annotations
 import struct
 from typing import Any, Protocol
 
-from ..core.codec import decode_cbor, encode_cbor
+from cairn.core.codec import decode_cbor, encode_cbor
 
 _HEADER = struct.Struct("!I")
 MAX_FRAME_BYTES = 64 * 1024 * 1024

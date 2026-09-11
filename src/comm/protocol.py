@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
-from ..core.types import Cid, Oid
+from cairn.core.types import Cid, Oid
 
 OP_WANT = "want"
 OP_CHUNK = "chunk"

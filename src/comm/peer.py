@@ -8,7 +8,8 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from typing import Any, Protocol
 
-from ..core.types import Cid, Oid
+from cairn.core.types import Cid, Oid
+
 from . import protocol as proto
 from .framing import recv_message, send_message
 
