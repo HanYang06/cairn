@@ -46,6 +46,17 @@ from .crypto import (
     seal,
     unseal,
 )
+from .events import (
+    Event,
+    EventBus,
+    Handler,
+    ObjectDeleted,
+    ObjectPut,
+    SpaceCreated,
+    Subscription,
+    VaultLocked,
+    VaultUnlocked,
+)
 from .manifest import Manifest, sign_manifest, verify_manifest
 from .pool import Pool, atomic_write, prune_empty_dirs
 from .types import (
@@ -184,6 +195,7 @@ class Vault:
         self._spaces: dict[str, _SpaceKeys] = {}
         self._by_id: dict[SpaceId, _SpaceKeys] = {}
         self._index: Index | None = None
+        self._events = EventBus()
 
     @classmethod
     def create(cls, path: Path | str, passphrase: str) -> Vault:
@@ -266,8 +278,10 @@ class Vault:
             from .index import Index
 
             self._index = Index(index_path)
+        self._events.emit(VaultUnlocked(vault_id=self._vault_id()))
 
     def lock(self) -> None:
+        vault_id = self._vault_id()
         if self._index is not None:
             self._index.close()
             self._index = None
@@ -276,6 +290,18 @@ class Vault:
         self._identity = None
         self._spaces.clear()
         self._by_id.clear()
+        self._events.emit(VaultLocked(vault_id=vault_id))
+
+    def subscribe(
+        self,
+        handler: Handler,
+        event_type: type[Event] = Event,
+    ) -> Subscription:
+        """订阅内核事件；返回可取消的句柄。"""
+        return self._events.subscribe(handler, event_type)
+
+    def _vault_id(self) -> str:
+        return str(self._header.get("vault_id", ""))
 
     @property
     def is_locked(self) -> bool:
@@ -355,6 +381,15 @@ class Vault:
             self.pool.write_manifest(prev_hash, archive_blob)
         self.pool.write_object(new_oid, _envelope(keys.space.space_id, sealed_manifest))
         self._index_add(signed, previous)
+        self._events.emit(
+            ObjectPut(
+                oid=new_oid,
+                space_id=keys.space.space_id,
+                type=type,
+                seq=signed.seq,
+                created=previous is None,
+            )
+        )
         return new_oid
 
     def open(self, oid: Oid | str) -> io.RawIOBase:
@@ -372,10 +407,13 @@ class Vault:
     def delete(self, oid: Oid | str) -> None:
         self._require_unlocked()
         target = Oid.parse(str(oid))
+        existed = self.pool.object_path(target).is_file()
         self.pool.delete_object(target)
         if self._index is not None:
             self._index.remove(target)
             self._index.commit()
+        if existed:
+            self._events.emit(ObjectDeleted(oid=target))
 
     def iter(
         self,
@@ -482,6 +520,7 @@ class Vault:
         )
         self._spaces[name] = keys
         self._by_id[space_id] = keys
+        self._events.emit(SpaceCreated(space=keys.space))
         return keys
 
     def _load_spaces(self) -> None:

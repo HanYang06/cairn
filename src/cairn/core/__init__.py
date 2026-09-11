@@ -5,6 +5,15 @@
 
 from __future__ import annotations
 
+from .events import (
+    Event,
+    ObjectDeleted,
+    ObjectPut,
+    SpaceCreated,
+    Subscription,
+    VaultLocked,
+    VaultUnlocked,
+)
 from .types import (
     CairnError,
     CorruptObjectError,
@@ -23,14 +32,21 @@ from .vault import Vault
 __all__ = [
     "CairnError",
     "CorruptObjectError",
+    "Event",
+    "ObjectDeleted",
     "ObjectInfo",
     "ObjectNotFoundError",
+    "ObjectPut",
     "Oid",
     "Space",
+    "SpaceCreated",
     "SpaceId",
     "SpaceNotFoundError",
+    "Subscription",
     "Vault",
     "VaultError",
+    "VaultLocked",
     "VaultLockedError",
+    "VaultUnlocked",
     "Visibility",
 ]
