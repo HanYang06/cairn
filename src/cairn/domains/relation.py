@@ -74,12 +74,13 @@ class Relation(DomainObject):
         vault: Any,
         target: Oid | str,
         *,
+        relation: str | None = None,
         space: str | SpaceId | None = None,
     ) -> Iterator[Self]:
         wanted = str(target)
-        for relation in cls.list(vault, space=space):
-            if str(relation.target) == wanted:
-                yield relation
+        for item in cls.list(vault, space=space):
+            if str(item.target) == wanted and (relation is None or item.relation == relation):
+                yield item
 
     @classmethod
     def outbound(
@@ -87,9 +88,10 @@ class Relation(DomainObject):
         vault: Any,
         source: Oid | str,
         *,
+        relation: str | None = None,
         space: str | SpaceId | None = None,
     ) -> Iterator[Self]:
         wanted = str(source)
-        for relation in cls.list(vault, space=space):
-            if str(relation.source) == wanted:
-                yield relation
+        for item in cls.list(vault, space=space):
+            if str(item.source) == wanted and (relation is None or item.relation == relation):
+                yield item

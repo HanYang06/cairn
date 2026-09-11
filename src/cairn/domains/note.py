@@ -5,11 +5,21 @@
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from ..core.types import Oid, SpaceId
 from .base import UNSET, DomainObject, get_handler, register
-from .substrate import decode_substrate, encode_substrate, plain_text, text_fragment
+from .substrate import (
+    decode_substrate,
+    embed_fragment,
+    encode_substrate,
+    plain_text,
+    referenced_oids,
+    text_fragment,
+)
+
+if TYPE_CHECKING:
+    from .relation import Relation
 
 NOTE_KIND = "cairn.note"
 NOTE_MIME = "application/x-cairn-note"
@@ -64,6 +74,14 @@ class Note(DomainObject):
     def fragments(self) -> list[dict[str, Any]]:
         return decode_substrate(self.read())
 
+    @property
+    def embeds(self) -> list[dict[str, Any]]:
+        return [fragment for fragment in self.fragments if fragment.get("kind") == "embed"]
+
+    @property
+    def references(self) -> tuple[Oid, ...]:
+        return referenced_oids(self.fragments)
+
     def update(
         self,
         *,
@@ -86,10 +104,35 @@ class Note(DomainObject):
         self._refresh()
         return self
 
-    @property
-    def relation_targets(self) -> tuple[Oid, ...]:
-        return tuple(
-            Oid.parse(str(fragment["oid"]))
-            for fragment in self.fragments
-            if fragment.get("kind") == "ref"
+    def add_embed(
+        self,
+        oid: Oid | str,
+        *,
+        role: str = "embed",
+        caption: str | None = None,
+    ) -> Self:
+        fragments = self.fragments
+        fragments.append(embed_fragment(oid, role=role, caption=caption))
+        self._rewrite(fragments)
+        return self
+
+    def link(self, target: Oid | str, relation: str = "references") -> Relation:
+        from .relation import Relation
+
+        return Relation.create(
+            self._vault,
+            self._oid,
+            target,
+            relation=relation,
+            space=self._info.space_id,
         )
+
+    def _rewrite(self, fragments: list[dict[str, Any]]) -> None:
+        current = self.meta()
+        meta = get_handler(self.kind).normalize_meta(
+            title=current.get("title"),
+            tags=current.get("tags"),
+            props=current.get("props"),
+        )
+        self._put(encode_substrate(fragments), meta=meta)
+        self._refresh()
