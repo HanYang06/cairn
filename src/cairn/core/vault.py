@@ -82,6 +82,7 @@ if TYPE_CHECKING:
 _TOML_NAME = "cairn.toml"
 _CTX_VAULT_META = "cairn/v1/vault/meta"
 _DEFAULT_SPACE = "default"
+_VERSION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 
 def _space_contexts(space_id: SpaceId) -> tuple[str, str, str]:
@@ -323,7 +324,7 @@ class Vault:
         self,
         src: Source | BinaryIO,
         *,
-        space: str = _DEFAULT_SPACE,
+        space: str | SpaceId = _DEFAULT_SPACE,
         type: str = "blob",
         mime: str | None = None,
         meta: dict[str, Any] | None = None,
@@ -332,7 +333,7 @@ class Vault:
         self._require_unlocked()
         if self._identity is None:
             raise VaultLockedError("库已锁定")
-        keys = self._keys(space)
+        keys = self._resolve_keys(space)
 
         previous: Manifest | None = None
         if oid is not None:
@@ -418,11 +419,11 @@ class Vault:
     def iter(
         self,
         *,
-        space: str | None = None,
+        space: str | SpaceId | None = None,
         type: str | None = None,
     ) -> Any:
         self._require_unlocked()
-        wanted = self._keys(space).space.space_id if space is not None else None
+        wanted = self._resolve_keys(space).space.space_id if space is not None else None
         for oid in self.pool.iter_object_ids():
             _, manifest = self._load_manifest(oid)
             if wanted is not None and manifest.space_id != wanted:
@@ -445,8 +446,11 @@ class Vault:
             self._index = Index(self.root / ".cairn" / "index.sqlite")
         return self._index.rebuild(self)
 
-    def gc(self) -> int:
+    def gc(self, *, retention_ms: int | None = None) -> int:
+        """标记清除：保留 head 及其时间窗内的历史，回收其余块与归档。"""
         self._require_unlocked()
+        window = _VERSION_WINDOW_MS if retention_ms is None else retention_ms
+        cutoff = now_ms() - window
         live_cids: set[str] = set()
         live_archives: set[str] = set()
 
@@ -455,7 +459,9 @@ class Vault:
                 blob = self.pool.read_object(oid)
             except FileNotFoundError:
                 continue
-            self._collect_chain(self._manifest_from_envelope(oid, blob), live_cids, live_archives)
+            self._collect_chain(
+                self._manifest_from_envelope(oid, blob), live_cids, live_archives, cutoff
+            )
 
         for digest in list(self.pool.iter_manifest_digests()):
             if digest not in live_archives:
@@ -475,18 +481,22 @@ class Vault:
         manifest: Manifest,
         live_cids: set[str],
         live_archives: set[str],
+        cutoff: int,
     ) -> None:
         while True:
             live_cids.update(str(ref.cid) for ref in manifest.chunks)
             prev = manifest.prev
-            if not prev or prev in live_archives:
+            if not prev:
                 return
-            live_archives.add(prev)
             try:
                 blob = self.pool.read_manifest(prev)
             except FileNotFoundError:
                 return
-            manifest = self._manifest_from_envelope(manifest.oid, blob)
+            parent = self._manifest_from_envelope(manifest.oid, blob)
+            if parent.updated < cutoff:
+                return
+            live_archives.add(prev)
+            manifest = parent
 
     def _index_add(self, manifest: Manifest, previous: Manifest | None) -> None:
         if self._index is None:
@@ -555,6 +565,11 @@ class Vault:
             return self._by_id[space_id]
         except KeyError as exc:
             raise SpaceNotFoundError(str(space_id)) from exc
+
+    def _resolve_keys(self, space: str | SpaceId) -> _SpaceKeys:
+        if isinstance(space, SpaceId):
+            return self._keys_by_id(space)
+        return self._keys(space)
 
     def _load_manifest(self, oid: Oid) -> tuple[_SpaceKeys, Manifest]:
         try:

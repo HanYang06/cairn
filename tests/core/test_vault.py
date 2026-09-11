@@ -167,3 +167,17 @@ def test_history_chunks_survive_until_delete(tmp_path: Path) -> None:
     assert vault.gc() == second_gen
     assert list(vault.pool.iter_chunk_cids()) == []
 
+
+def test_gc_prunes_history_outside_window(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    oid = vault.put(b"old content " * 100_000)
+    vault.put(b"new content " * 100_000, oid=oid)
+    total = len(list(vault.pool.iter_chunk_cids()))
+
+    removed = vault.gc(retention_ms=0)
+    assert removed > 0
+    assert len(list(vault.pool.iter_chunk_cids())) < total
+
+    with vault.open(oid) as handle:
+        assert handle.read() == b"new content " * 100_000
+
