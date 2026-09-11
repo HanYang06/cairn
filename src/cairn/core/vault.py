@@ -405,6 +405,13 @@ class Vault:
         _, manifest = self._load_manifest(target)
         return _manifest_info(manifest)
 
+    def meta(self, oid: Oid | str) -> dict[str, Any]:
+        """返回对象的完整 meta（含领域扩展域 props）。"""
+        self._require_unlocked()
+        target = Oid.parse(str(oid))
+        _, manifest = self._load_manifest(target)
+        return dict(manifest.meta or {})
+
     def delete(self, oid: Oid | str) -> None:
         self._require_unlocked()
         target = Oid.parse(str(oid))
