@@ -1,10 +1,21 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 [project]
 name = "cairn"
 version = "0.0.1"
 description = "巨石堆 — 本地优先的个人知识 / 资产 / 项目工作台"
 readme = "README.md"
 requires-python = ">=3.13"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "HanYang06", email = "jihanyang123@163.com" }]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+]
 dependencies = [
     "argon2-cffi>=25.1.0",
     "blake3>=1.0.9",

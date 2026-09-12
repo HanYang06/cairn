@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # Cairn · 巨石堆
 
 > 本地优先的个人知识 / 资产 / 项目工作台。
@@ -21,3 +24,8 @@ Python 为主体；Rust（PyO3 + maturin）为预留的原生扩展语言，仅�
 ## 状态
 
 早期设计阶段，尚未可运行。
+
+## 许可
+
+Copyright 2026 HanYang06。本项目基于 [Apache License 2.0](LICENSE) 授权。
+分发时请一并保留 [`LICENSE`](LICENSE) 与 [`NOTICE`](NOTICE)。
