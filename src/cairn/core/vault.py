@@ -34,16 +34,6 @@ from ..conf import (
 from ..conf import (
     VERSION_WINDOW_MS as _VERSION_WINDOW_MS,
 )
-from .chunker import Chunk, Source, iter_chunks
-from .codec import (
-    FORMAT_VERSION,
-    chunk_aad,
-    decode_cbor,
-    encode_cbor,
-    manifest_aad,
-    pack_record,
-    unpack_record,
-)
 from .crypto import (
     ARGON2_MEMORY_COST,
     ARGON2_PARALLELISM,
@@ -69,8 +59,18 @@ from .events import (
     VaultLocked,
     VaultUnlocked,
 )
-from .manifest import Manifest, sign_manifest, verify_manifest
-from .pool import Pool, atomic_write, prune_empty_dirs
+from .storage.chunker import Chunk, Source, iter_chunks
+from .storage.codec import (
+    FORMAT_VERSION,
+    chunk_aad,
+    decode_cbor,
+    encode_cbor,
+    manifest_aad,
+    pack_record,
+    unpack_record,
+)
+from .storage.manifest import Manifest, sign_manifest, verify_manifest
+from .storage.pool import Pool, atomic_write, prune_empty_dirs
 from .types import (
     AuthError,
     ChunkRef,
@@ -90,7 +90,7 @@ from .types import (
 )
 
 if TYPE_CHECKING:
-    from .index import Index
+    from .storage.index import Index
 
 def _space_contexts(space_id: SpaceId) -> tuple[str, str, str]:
     base = f"cairn/v1/space/{space_id}"
@@ -283,7 +283,7 @@ class Vault:
         self._load_spaces()
         index_path = self.root / ".cairn" / "index.sqlite"
         if index_path.exists():
-            from .index import Index
+            from .storage.index import Index
 
             self._index = Index(index_path)
         self._events.emit(VaultUnlocked(vault_id=self._vault_id()))
@@ -459,7 +459,7 @@ class Vault:
 
     def rebuild_index(self) -> int:
         self._require_unlocked()
-        from .index import Index
+        from .storage.index import Index
 
         if self._index is None:
             self._index = Index(self.root / ".cairn" / "index.sqlite")

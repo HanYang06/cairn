@@ -11,7 +11,7 @@ import tempfile
 from collections.abc import Iterator
 from pathlib import Path
 
-from .types import Cid, Oid
+from ..types import Cid, Oid
 
 
 def atomic_write(path: Path, data: bytes) -> None:

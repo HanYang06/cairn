@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 
-from cairn.core.chunker import AVG_SIZE, MAX_SIZE, MIN_SIZE, iter_chunks
+from cairn.core.storage.chunker import AVG_SIZE, MAX_SIZE, MIN_SIZE, iter_chunks
 
 
 def _random_bytes(size: int, seed: int = 0) -> bytes:

@@ -5,15 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Any
 
-from .codec import decode_cbor, encode_cbor
-from .crypto import Identity, verify_signature
-from .types import (
+from ..crypto import Identity, verify_signature
+from ..types import (
     ChunkRef,
     Cid,
     CorruptObjectError,
     Oid,
     SpaceId,
 )
+from .codec import decode_cbor, encode_cbor
 
 MANIFEST_VERSION = 1
 

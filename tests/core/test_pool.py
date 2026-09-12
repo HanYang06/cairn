@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cairn.core.pool import Pool, atomic_write
+from cairn.core.storage.pool import Pool, atomic_write
 from cairn.core.types import Cid, Oid
 
 

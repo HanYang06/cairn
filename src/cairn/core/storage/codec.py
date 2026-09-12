@@ -10,8 +10,8 @@ from typing import Any
 
 import cbor2
 
-from ..conf import FORMAT_VERSION
-from ..types import CorruptObjectError
+from ...conf import FORMAT_VERSION
+from ...types import CorruptObjectError
 
 
 def encode_cbor(obj: Any) -> bytes:

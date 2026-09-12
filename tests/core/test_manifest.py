@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 
 from cairn.core.crypto import Identity
-from cairn.core.manifest import Manifest, sign_manifest, verify_manifest
+from cairn.core.storage.manifest import Manifest, sign_manifest, verify_manifest
 from cairn.core.types import ChunkRef, Cid, Oid, SpaceId
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from cairn.core.index import Index
+from cairn.core.storage.index import Index
 from cairn.core.vault import Vault
 
 PASSPHRASE = "correct horse battery staple"

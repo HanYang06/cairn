@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from cairn.core.codec import (
+from cairn.core.storage.codec import (
     FORMAT_VERSION,
     chunk_aad,
     decode_cbor,

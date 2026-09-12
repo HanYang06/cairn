@@ -9,12 +9,12 @@ import sqlite3
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .types import now_ms
+from ..types import now_ms
 
 if TYPE_CHECKING:
+    from ..types import Oid, Space
+    from ..vault import Vault
     from .manifest import Manifest
-    from .types import Oid, Space
-    from .vault import Vault
 
 SCHEMA_VERSION = 1
 
