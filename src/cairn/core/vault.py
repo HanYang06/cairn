@@ -14,7 +14,7 @@ import secrets
 import shutil
 import tempfile
 import tomllib
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, BinaryIO
@@ -84,6 +84,7 @@ from .types import (
     SpaceNotFoundError,
     VaultError,
     VaultLockedError,
+    VerifyReport,
     Visibility,
     now_ms,
 )
@@ -434,16 +435,21 @@ class Vault:
         *,
         space: str | SpaceId | None = None,
         type: str | None = None,
+        tags: Iterable[str] | None = None,
     ) -> Any:
         self._require_unlocked()
-        wanted = self._resolve_keys(space).space.space_id if space is not None else None
+        wanted_space = self._resolve_keys(space).space.space_id if space is not None else None
+        wanted_tags = set(tags or ())
         for oid in self.pool.iter_object_ids():
             _, manifest = self._load_manifest(oid)
-            if wanted is not None and manifest.space_id != wanted:
+            if wanted_space is not None and manifest.space_id != wanted_space:
                 continue
             if type is not None and manifest.type != type:
                 continue
-            yield _manifest_info(manifest)
+            info = _manifest_info(manifest)
+            if wanted_tags and not wanted_tags <= set(info.tags):
+                continue
+            yield info
 
     def iter_manifests(self) -> Iterator[Manifest]:
         self._require_unlocked()
@@ -488,6 +494,31 @@ class Vault:
         prune_empty_dirs(self.pool.chunks_dir)
         prune_empty_dirs(self.pool.manifests_dir)
         return removed
+
+    def verify(self, *, deep: bool = False) -> VerifyReport:
+        """巡检：验签 manifest、查缺失块；``deep`` 时解密并重算每块 CID。"""
+        self._require_unlocked()
+        objects = 0
+        chunks = 0
+        problems: list[str] = []
+        for oid in self.pool.iter_object_ids():
+            try:
+                keys, manifest = self._load_manifest(oid)
+            except Exception as exc:
+                problems.append(f"{oid}: {exc}")
+                continue
+            objects += 1
+            for ref in manifest.chunks:
+                if not self.pool.has_chunk(ref.cid):
+                    problems.append(f"{oid}: 缺块 {ref.cid}")
+                    continue
+                if deep:
+                    try:
+                        self._fetch(keys, ref)
+                        chunks += 1
+                    except Exception as exc:
+                        problems.append(f"{oid}: 块校验失败 {ref.cid}: {exc}")
+        return VerifyReport(objects=objects, chunks=chunks, problems=tuple(problems))
 
     def _collect_chain(
         self,

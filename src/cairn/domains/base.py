@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, Self, runtime_checkable
 
 from ..core.types import CairnError, ObjectInfo, Oid, SpaceId
@@ -108,8 +108,14 @@ class DomainObject:
         return cls(vault, Oid.parse(str(oid)), info)
 
     @classmethod
-    def list(cls, vault: Vault, *, space: str | SpaceId | None = None) -> Iterator[Self]:
-        for info in vault.iter(space=space, type=cls.kind):
+    def list(
+        cls,
+        vault: Vault,
+        *,
+        space: str | SpaceId | None = None,
+        tags: Iterable[str] | None = None,
+    ) -> Iterator[Self]:
+        for info in vault.iter(space=space, type=cls.kind, tags=tags):
             yield cls(vault, info.oid, info)
 
     def _put(self, payload: bytes, *, meta: dict[str, Any]) -> Oid:

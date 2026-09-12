@@ -38,3 +38,16 @@ class Space:
     name: str
     visibility: Visibility
     created: int
+
+
+@dataclass(frozen=True, slots=True)
+class VerifyReport:
+    """完整性巡检结果。``problems`` 为空表示健康。"""
+
+    objects: int
+    chunks: int
+    problems: tuple[str, ...] = ()
+
+    @property
+    def ok(self) -> bool:
+        return not self.problems

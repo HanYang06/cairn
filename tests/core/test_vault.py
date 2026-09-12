@@ -181,3 +181,35 @@ def test_gc_prunes_history_outside_window(tmp_path: Path) -> None:
     with vault.open(oid) as handle:
         assert handle.read() == b"new content " * 100_000
 
+
+def test_verify_reports_healthy(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    vault.put(b"data " * 10_000)
+
+    report = vault.verify(deep=True)
+    assert report.ok
+    assert report.objects == 1
+    assert report.chunks >= 1
+
+
+def test_verify_detects_missing_chunk(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    vault.put(b"data " * 10_000)
+    cid = next(iter(vault.pool.iter_chunk_cids()))
+    vault.pool.delete_chunk(cid)
+
+    assert not vault.verify().ok
+    deep = vault.verify(deep=True)
+    assert not deep.ok
+    assert any("缺块" in problem for problem in deep.problems)
+
+
+def test_iter_filters_by_tags(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    both = vault.put(b"a", type="note", meta={"tags": ["x", "y"]})
+    only_x = vault.put(b"b", type="note", meta={"tags": ["x"]})
+
+    assert {info.oid for info in vault.iter(tags=["x"])} == {both, only_x}
+    assert {info.oid for info in vault.iter(tags=["y"])} == {both}
+    assert {info.oid for info in vault.iter(tags=["z"])} == set()
+
