@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """基础异常体系（跨层共享）。"""
 
 from __future__ import annotations

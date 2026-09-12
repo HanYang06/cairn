@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """核心层：本地加密对象池（L0）。
 
 对外只有一套极简门面与动词：Vault 与 ObjectInfo。所有内容都是对象。

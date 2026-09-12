@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """笔记族谱：沿"派生"关系遍历来源与派生。
 
 约定：``derived-from`` 边的方向为 **派生者 → 被派生者**（source 派生自 target）。

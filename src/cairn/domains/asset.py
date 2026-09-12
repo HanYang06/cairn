@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """资产领域（存储）：任意二进制对象——图 / 声 / 视频 / 文件。
 
 资产是不可变内容；笔记通过对象引用（OID）嵌入它，而非内联。

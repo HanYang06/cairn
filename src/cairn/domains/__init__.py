@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """领域层：笔记 / 存储 / 项目。共享核心底座，各自持有 schema。
 
 包组织：

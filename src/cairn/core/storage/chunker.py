@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """FastCDC 内容定义分块。
 
 同内容产生相同边界，插入/删除只影响局部，利于去重与增量传输。

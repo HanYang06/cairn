@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """把主题应用到 QApplication。
 
 Qt 相关逻辑隔离在此，``cairn.ui.theme`` 本体保持无 Qt 依赖。

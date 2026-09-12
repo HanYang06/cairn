@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """Cairn 网络数据面消息。
 
 最小协议：只要"我要这些 CID"能被回答，内容寻址池就能互联（见 network.md）。

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """把内容寻址池暴露成可被连的节点，以及拉取方。
 
 P0：盲服密文块——无需密钥即可提供，机密性由内容加密保证。

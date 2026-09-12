@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """内核事件总线：类型化变更通知。
 
 Qt-free、传输无关：桌面端适配成 Qt 信号，服务端转发到自己的通道。

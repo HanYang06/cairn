@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """组装领域：文档 / 博客 = 对其它节点的排布（transclusion）。"""
 
 from __future__ import annotations

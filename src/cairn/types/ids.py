@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """标识符类型：Oid / SpaceId / Cid。"""
 
 from __future__ import annotations

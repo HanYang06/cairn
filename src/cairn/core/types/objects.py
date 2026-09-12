@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """内核数据结构：对象层结构（清单引用、元数据视图、空间）。"""
 
 from __future__ import annotations

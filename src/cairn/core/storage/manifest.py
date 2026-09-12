@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """manifest 的组装、编解码、签名与验证。"""
 
 from __future__ import annotations

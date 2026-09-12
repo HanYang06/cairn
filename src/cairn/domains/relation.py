@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """关系领域：一等、可署名的边。
 
 关系是独立对象（`cairn.relation`），因此第三方可以对你的笔记加边而不改你的对象。

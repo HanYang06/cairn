@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """核心密码学原语：密钥派生、AEAD、身份。
 
 依赖 ``cryptography`` / ``blake3`` / ``argon2-cffi``。

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """对象池的落盘布局与原子读写。
 
 本模块只负责"字节进、字节出"和目录分片、原子替换，不含任何加密语义。

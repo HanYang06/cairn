@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """Vault：Core 的唯一公共入口。
 
 对外只暴露一个门面与一套极简动词：create/load/unlock/lock、

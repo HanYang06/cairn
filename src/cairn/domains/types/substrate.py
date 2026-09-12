@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """笔记基板：多模态片段序列。
 
 片段是最小内容单位；文字内联，图/声/画/引用以对象引用（OID）嵌入。

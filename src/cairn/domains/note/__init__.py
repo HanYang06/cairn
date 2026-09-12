@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """笔记领域：节点 + 基板。
 
 无强制"标题/正文"字段：标题是可空元数据，正文是可扩展的片段序列。

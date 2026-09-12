@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """SQLite 索引：由 manifest 派生，可全量重建。
 
 索引是派生物，随时可丢；磁盘上的 manifest 才是真源。

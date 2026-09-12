@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """界面层（PySide6 / Qt Widgets）。
 
 组织纪律（比前端严格）：

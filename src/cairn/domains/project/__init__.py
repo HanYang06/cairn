@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """项目领域：一个具名容器，成员通过关系挂载。
 
 项目本身也是对象；"包含哪些对象"由 ``contains`` 关系表达，而非塞进结构。

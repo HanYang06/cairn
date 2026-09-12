@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """长度前缀帧：在字节流上收发一条条消息。
 
 与传输无关：任何有 ``sendall`` / ``recv`` 的对象都能用（socket、socketpair…）。

@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """领域基类、处理器注册表与领域异常。
 
 数据基座固定（core 的 Manifest），领域通过 type + meta.props 扩展；

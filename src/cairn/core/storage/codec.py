@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """序列化与落盘封帧。
 
 - CBOR 采用确定性编码（canonical），保证同一结构字节唯一，便于签名。

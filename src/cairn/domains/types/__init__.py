@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
 """领域通用数据结构（基板片段等）。"""
 
 from __future__ import annotations
