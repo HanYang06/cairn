@@ -1,56 +1,16 @@
-"""核心值类型与异常。
-
-本模块不产生副作用（除生成随机 ID 外），是整个 core 的公共词汇表。
-"""
+"""标识符类型：Oid / SpaceId / Cid。"""
 
 from __future__ import annotations
 
 import secrets
 import time
-from dataclasses import dataclass
-from enum import Enum
+
+from .errors import InvalidIdError
 
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 _OID_LEN = 26
 _CID_LEN = 64
 _HEX_DIGITS = frozenset("0123456789abcdef")
-
-
-class CairnError(Exception):
-    """所有 core 异常的基类。"""
-
-
-class InvalidIdError(CairnError, ValueError):
-    """标识符格式非法。"""
-
-
-class AuthError(CairnError):
-    """认证或解密失败。"""
-
-
-class VaultError(CairnError):
-    """库级错误。"""
-
-
-class VaultLockedError(VaultError):
-    """库处于锁定状态。"""
-
-
-class ObjectNotFoundError(CairnError):
-    """对象不存在。"""
-
-
-class SpaceNotFoundError(CairnError):
-    """空间不存在。"""
-
-
-class CorruptObjectError(CairnError):
-    """对象数据损坏或校验失败。"""
-
-
-def now_ms() -> int:
-    """当前 Unix 毫秒时间戳。"""
-    return int(time.time() * 1000)
 
 
 def _encode_crockford(value: int) -> str:
@@ -111,45 +71,3 @@ class Cid(str):
         if len(value) != _CID_LEN or not set(value) <= _HEX_DIGITS:
             raise InvalidIdError(f"非法 CID: {value!r}")
         return cls(value)
-
-
-class Visibility(Enum):
-    """可见性档位，决定密钥分发与去重范围。"""
-
-    PRIVATE = "private"
-    COMMUNAL = "communal"
-    PUBLIC = "public"
-    DIRECT = "direct"
-
-
-@dataclass(frozen=True, slots=True)
-class ChunkRef:
-    """清单中对一个块的引用。"""
-
-    cid: Cid
-    size: int
-
-
-@dataclass(frozen=True, slots=True)
-class ObjectInfo:
-    """对象的元数据视图，不含其内容。"""
-
-    oid: Oid
-    space_id: SpaceId
-    type: str
-    mime: str | None
-    size: int
-    created: int
-    updated: int
-    title: str | None = None
-    tags: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class Space:
-    """空间：策略与密钥的载体。"""
-
-    space_id: SpaceId
-    name: str
-    visibility: Visibility
-    created: int

@@ -29,7 +29,7 @@ from .note import Note
 from .project import Project
 from .provenance import ancestors, derivatives, descendants, lineage
 from .relation import Relation
-from .substrate import (
+from .types import (
     decode_substrate,
     embed_fragment,
     encode_substrate,

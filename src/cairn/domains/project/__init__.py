@@ -8,9 +8,9 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any, ClassVar, Self
 
-from ..core.types import Oid, SpaceId
-from .base import UNSET, DomainObject, get_handler, register
-from .relation import Relation
+from ...types import Oid, SpaceId
+from ..base import UNSET, DomainObject, get_handler, register
+from ..relation import Relation
 
 PROJECT_KIND = "cairn.project"
 PROJECT_SCHEMA = 1

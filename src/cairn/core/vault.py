@@ -22,6 +22,18 @@ from typing import TYPE_CHECKING, Any, BinaryIO
 import tomli_w
 from blake3 import blake3
 
+from ..conf import (
+    DEFAULT_SPACE as _DEFAULT_SPACE,
+)
+from ..conf import (
+    TOML_NAME as _TOML_NAME,
+)
+from ..conf import (
+    VAULT_META_CONTEXT as _CTX_VAULT_META,
+)
+from ..conf import (
+    VERSION_WINDOW_MS as _VERSION_WINDOW_MS,
+)
 from .chunker import Chunk, Source, iter_chunks
 from .codec import (
     FORMAT_VERSION,
@@ -78,12 +90,6 @@ from .types import (
 
 if TYPE_CHECKING:
     from .index import Index
-
-_TOML_NAME = "cairn.toml"
-_CTX_VAULT_META = "cairn/v1/vault/meta"
-_DEFAULT_SPACE = "default"
-_VERSION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
-
 
 def _space_contexts(space_id: SpaceId) -> tuple[str, str, str]:
     base = f"cairn/v1/space/{space_id}"

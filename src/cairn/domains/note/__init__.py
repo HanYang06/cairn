@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
-from ..core.types import Oid, SpaceId
-from .base import UNSET, DomainObject, get_handler, register
-from .substrate import (
+from ...types import Oid, SpaceId
+from ..base import UNSET, DomainObject, get_handler, register
+from ..types import (
     decode_substrate,
     embed_fragment,
     encode_substrate,
@@ -19,7 +19,7 @@ from .substrate import (
 )
 
 if TYPE_CHECKING:
-    from .relation import Relation
+    from ..relation import Relation
 
 NOTE_KIND = "cairn.note"
 NOTE_MIME = "application/x-cairn-note"
@@ -117,7 +117,7 @@ class Note(DomainObject):
         return self
 
     def link(self, target: Oid | str, relation: str = "references") -> Relation:
-        from .relation import Relation
+        from ..relation import Relation
 
         return Relation.create(
             self._vault,
