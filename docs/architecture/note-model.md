@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # 笔记模型（Note Model）
 
 > L3 领域概念规格。回答"笔记到底是什么"，并定死节点 / 基板 / 关系 / 组装四要素。

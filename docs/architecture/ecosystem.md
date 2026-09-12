@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # 生态调研：哪些用轮子，哪些自造
 
 > 目标：不闭门造车。逐项列出"需求 → 现成轮子 → 语言 → 许可 → 采用建议"。

@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # 访问策略与 P2P 预留（Access & P2P）
 
 > 承接 [`storage.md`](./storage.md)。定义**可见性档位**、密钥分发、信任根，以及为 P2P 预留的接口。

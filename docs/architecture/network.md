@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # 网络层（P2P 底层）规格
 
 > 承接 [`storage.md`](./storage.md)（内容寻址对象池）与 [`access.md`](./access.md)（身份/档位）。

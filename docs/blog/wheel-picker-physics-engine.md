@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # 从零实现一个 iOS 风格的滚轮选择器（Wheel Picker）
 
 > 物理引擎、3D 透视与跨平台设计语言的 Web 实现

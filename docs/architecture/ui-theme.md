@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # UI 主题与美化（Qt / PySide6）
 
 > 定位：**桌面 APP，不是 Web**。要好看，但不为炫技。可维护、可控、许可证干净优先。

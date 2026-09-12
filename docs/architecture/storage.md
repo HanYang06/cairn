@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # L0 · 存储层规格（Storage）
 
 > Cairn 的最底层：一个本地优先、内容寻址、分块、按档位加密的对象池。

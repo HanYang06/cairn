@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # 领域扩展与日志约定
 
 > 承接 [`storage.md`](./storage.md)（L0 固定基座）。定义领域(L3)如何扩展数据与行为，以及日志的分层约定。

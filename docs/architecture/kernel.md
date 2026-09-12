@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
 # 内核横切设施
 
 > 内核（`cairn.core`）是桌面端与服务端的**公共底座**：底层同构，上层不同。
