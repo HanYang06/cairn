@@ -31,8 +31,18 @@ from ..domains import Note, Relation, ancestors, descendants
 from ..domains.provenance import DERIVED_FROM
 
 DEV_PASSPHRASE = "cairn-dev"
-DEV_VAULT = Path.home() / ".cairn-dev"
 _SPACE_LABELS = {"default": "个人空间"}
+
+
+def _default_vault_root() -> Path:
+    """源码 checkout 时把开发库放项目下；否则回落到用户目录。"""
+    repo = Path(__file__).resolve().parents[3]
+    if (repo / "pyproject.toml").is_file():
+        return repo / "vault"
+    return Path.home() / ".cairn-dev"
+
+
+DEV_VAULT = _default_vault_root()
 
 
 def open_vault(root: Path | str, passphrase: str = DEV_PASSPHRASE) -> Vault:

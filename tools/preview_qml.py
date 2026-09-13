@@ -88,7 +88,9 @@ def main(argv: list[str]) -> int:
         app.quit()
 
     QTimer.singleShot(500, shot)
-    return app.exec()
+    code = app.exec()
+    shutil.rmtree(preview_root, ignore_errors=True)
+    return code
 
 
 if __name__ == "__main__":
