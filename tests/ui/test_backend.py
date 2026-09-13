@@ -115,3 +115,15 @@ def test_rename_updates_tab(backend: Backend) -> None:
     backend.renameNote("改过的名字")
     index = backend.tabs.index(0, 0)
     assert backend.tabs.data(index, TabsModel.TitleRole) == "改过的名字"
+
+
+def test_filter_notes_by_text(backend: Backend) -> None:
+    backend.captureNote("苹果 笔记")
+    backend.captureNote("香蕉 记录")
+    assert backend.notes.rowCount() == 2
+
+    backend.filterNotes("香蕉")
+    assert backend.notes.rowCount() == 1
+
+    backend.filterNotes("")
+    assert backend.notes.rowCount() == 2

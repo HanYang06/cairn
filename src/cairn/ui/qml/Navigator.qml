@@ -92,6 +92,46 @@ Rectangle {
             }
         }
 
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.leftMargin: CairnTheme.spaceMd
+            Layout.rightMargin: CairnTheme.spaceMd
+            Layout.topMargin: CairnTheme.spaceSm
+            Layout.preferredHeight: 30
+            radius: CairnTheme.radiusSm
+            color: CairnTheme.bg
+            border.color: search.activeFocus ? CairnTheme.accent : CairnTheme.border
+            border.width: 1
+            Text {
+                x: 9
+                anchors.verticalCenter: parent.verticalCenter
+                text: "\uE721"
+                font.family: CairnTheme.iconFont
+                font.pixelSize: 12
+                color: CairnTheme.faint
+            }
+            TextInput {
+                id: search
+                x: 28
+                width: parent.width - 36
+                anchors.verticalCenter: parent.verticalCenter
+                clip: true
+                color: CairnTheme.text
+                font.family: CairnTheme.fontFamily
+                font.pixelSize: CairnTheme.fsSmall
+                selectByMouse: true
+                onTextChanged: backend.filterNotes(text)
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: search.text === ""
+                    text: "搜索笔记…"
+                    color: CairnTheme.faint
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsSmall
+                }
+            }
+        }
+
         Item {
             Layout.preferredHeight: CairnTheme.spaceMd
         }

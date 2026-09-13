@@ -54,16 +54,8 @@ def _fmt_time(ms: int) -> str:
     return moment.strftime("%Y-%m-%d")
 
 
-def _preview(vault: Vault, oid: Any, limit: int = 90) -> str:
-    try:
-        text = Note.load(vault, oid).text.strip().replace("\n", " ")
-    except Exception:
-        return ""
-    return text[:limit]
-
-
 class NotesModel(QAbstractListModel):
-    """笔记列表模型（按更新时间倒序）。"""
+    """笔记列表模型（按更新时间倒序，可按关键词过滤）。"""
 
     OidRole = Qt.ItemDataRole.UserRole + 1
     TitleRole = Qt.ItemDataRole.UserRole + 2
@@ -74,7 +66,9 @@ class NotesModel(QAbstractListModel):
         super().__init__(parent)
         self._vault = vault
         self._rows: list[Any] = []
+        self._texts: dict[str, str] = {}
         self._previews: dict[str, str] = {}
+        self._query = ""
         self.reload()
 
     def roleNames(self) -> dict[int, bytes]:  # type: ignore[override]
@@ -104,6 +98,10 @@ class NotesModel(QAbstractListModel):
             return _fmt_time(info.updated)
         return None
 
+    def set_query(self, query: str) -> None:
+        self._query = query.strip().lower()
+        self.reload()
+
     def reload(self) -> None:
         self.beginResetModel()
         infos = sorted(
@@ -111,8 +109,25 @@ class NotesModel(QAbstractListModel):
             key=lambda info: info.updated,
             reverse=True,
         )
-        self._rows = list(infos)
-        self._previews = {str(info.oid): _preview(self._vault, info.oid) for info in infos}
+        rows: list[Any] = []
+        texts: dict[str, str] = {}
+        previews: dict[str, str] = {}
+        for info in infos:
+            oid = str(info.oid)
+            try:
+                text = Note.load(self._vault, info.oid).text
+            except Exception:
+                text = ""
+            texts[oid] = text
+            previews[oid] = text.strip().replace("\n", " ")[:90]
+            if self._query:
+                title = (info.title or "").lower()
+                if self._query not in title and self._query not in text.lower():
+                    continue
+            rows.append(info)
+        self._rows = rows
+        self._texts = texts
+        self._previews = previews
         self.endResetModel()
 
 
@@ -325,6 +340,10 @@ class Backend(QObject):
         self.notes.reload()
         self.contentChanged.emit()
 
+    @Slot(str)
+    def filterNotes(self, query: str) -> None:
+        self.notes.set_query(query)
+
     # ---- 标签 ----
     @Slot(str)
     def addTag(self, tag: str) -> None:
@@ -354,15 +373,30 @@ def seed_demo(backend: Backend) -> None:
     if backend.notes.rowCount() > 0:
         return
     samples = [
-        ("存储层设计笔记", "内容先落在本地对象池，再进入索引；块级去重让相同内容只存一份。", ["存储", "设计"]),
-        ("布局取舍 v1", "把「收」和「编」分开：收集时零摩擦，整理时再建立关系与归属。", ["设计"]),
-        ("QML 外壳草案", "领域栏、工具册、标签工作区、上下文右区、谱系面包屑。", ["客户端"]),
+        (
+            "存储层设计笔记",
+            "内容先落在本地对象池，再进入索引；块级去重让相同内容只存一份。",
+            ["存储", "设计"],
+        ),
+        (
+            "布局取舍 v1",
+            "把「收」和「编」分开：收集时零摩擦，整理时再建立关系与归属。",
+            ["设计"],
+        ),
+        (
+            "QML 外壳草案",
+            "领域栏、工具册、标签工作区、上下文右区、谱系面包屑。",
+            ["客户端"],
+        ),
     ]
     for title, text, tags in samples:
         Note.create(backend._vault, text, title=title, tags=tags)
     backend.notes.reload()
-    rows = range(backend.notes.rowCount())
-    oids = [str(backend.notes.data(backend.notes.index(row, 0), NotesModel.OidRole)) for row in reversed(list(rows))]
+    total = backend.notes.rowCount()
+    oids = [
+        str(backend.notes.data(backend.notes.index(row, 0), NotesModel.OidRole))
+        for row in reversed(range(total))
+    ]
     for oid in oids:
         backend.openNote(oid)
 
