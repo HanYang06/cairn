@@ -206,6 +206,96 @@ Rectangle {
                             }
                         }
                     }
+
+                    Section {
+                        text: "族谱"
+                    }
+                    Repeater {
+                        model: backend.currentAncestors
+                        delegate: Rectangle {
+                            id: ancRow
+                            Layout.fillWidth: true
+                            Layout.leftMargin: CairnTheme.spaceMd
+                            Layout.rightMargin: CairnTheme.spaceMd
+                            Layout.preferredHeight: 26
+                            radius: CairnTheme.radiusSm
+                            color: ancMa.containsMouse ? CairnTheme.hover : "transparent"
+                            Text {
+                                anchors.left: parent.left
+                                anchors.leftMargin: CairnTheme.spaceSm
+                                anchors.right: parent.right
+                                anchors.rightMargin: CairnTheme.spaceSm
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "← " + modelData.title
+                                color: CairnTheme.muted
+                                font.family: CairnTheme.fontFamily
+                                font.pixelSize: CairnTheme.fsTiny
+                                elide: Text.ElideRight
+                            }
+                            MouseArea {
+                                id: ancMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: backend.openNote(modelData.oid)
+                            }
+                        }
+                    }
+                    Repeater {
+                        model: backend.currentDescendants
+                        delegate: Rectangle {
+                            id: descRow
+                            Layout.fillWidth: true
+                            Layout.leftMargin: CairnTheme.spaceMd
+                            Layout.rightMargin: CairnTheme.spaceMd
+                            Layout.preferredHeight: 26
+                            radius: CairnTheme.radiusSm
+                            color: descMa.containsMouse ? CairnTheme.hover : "transparent"
+                            Text {
+                                anchors.left: parent.left
+                                anchors.leftMargin: CairnTheme.spaceSm
+                                anchors.right: parent.right
+                                anchors.rightMargin: CairnTheme.spaceSm
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: "→ " + modelData.title
+                                color: CairnTheme.muted
+                                font.family: CairnTheme.fontFamily
+                                font.pixelSize: CairnTheme.fsTiny
+                                elide: Text.ElideRight
+                            }
+                            MouseArea {
+                                id: descMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: backend.openNote(modelData.oid)
+                            }
+                        }
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: CairnTheme.spaceMd
+                        Layout.rightMargin: CairnTheme.spaceMd
+                        Layout.topMargin: CairnTheme.spaceSm
+                        Layout.bottomMargin: CairnTheme.spaceMd
+                        Layout.preferredHeight: 30
+                        radius: CairnTheme.radiusSm
+                        color: deriveMa.containsMouse ? CairnTheme.selection : CairnTheme.bg
+                        border.color: CairnTheme.accent
+                        border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: "派生一份"
+                            color: CairnTheme.accent
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsTiny
+                            font.weight: Font.Medium
+                        }
+                        MouseArea {
+                            id: deriveMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: backend.deriveNote()
+                        }
+                    }
                 }
 
                 // ===== 项目：仓库信息 =====

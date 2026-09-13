@@ -127,3 +127,15 @@ def test_filter_notes_by_text(backend: Backend) -> None:
 
     backend.filterNotes("")
     assert backend.notes.rowCount() == 2
+
+
+def test_derive_creates_lineage(backend: Backend) -> None:
+    source = backend.captureNote("原始笔记")
+    child = backend.deriveNote()
+
+    assert child != source
+    assert backend.currentOid == child
+    assert [item["oid"] for item in backend.currentAncestors] == [source]
+
+    backend.openNote(source)
+    assert [item["oid"] for item in backend.currentDescendants] == [child]

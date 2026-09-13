@@ -27,7 +27,8 @@ from PySide6.QtCore import (
 
 from ..conf import TOML_NAME
 from ..core import Vault
-from ..domains import Note
+from ..domains import Note, Relation, ancestors, descendants
+from ..domains.provenance import DERIVED_FROM
 
 DEV_PASSPHRASE = "cairn-dev"
 DEV_VAULT = Path.home() / ".cairn-dev"
@@ -52,6 +53,13 @@ def _fmt_time(ms: int) -> str:
     if moment.year == now.year:
         return moment.strftime("%m-%d")
     return moment.strftime("%Y-%m-%d")
+
+
+def _title_of(vault: Vault, oid: Any) -> str:
+    try:
+        return vault.info(oid).title or "未命名"
+    except Exception:
+        return "（缺失）"
 
 
 class NotesModel(QAbstractListModel):
@@ -245,6 +253,24 @@ class Backend(QObject):
     def currentTags(self) -> list[str]:
         return list(self._current.tags) if self._current is not None else []
 
+    @Property(list, notify=currentChanged)
+    def currentAncestors(self) -> list[dict[str, str]]:
+        if self._current is None:
+            return []
+        return [
+            {"oid": str(oid), "title": _title_of(self._vault, oid)}
+            for oid in ancestors(self._vault, self._current.oid)
+        ]
+
+    @Property(list, notify=currentChanged)
+    def currentDescendants(self) -> list[dict[str, str]]:
+        if self._current is None:
+            return []
+        return [
+            {"oid": str(oid), "title": _title_of(self._vault, oid)}
+            for oid in descendants(self._vault, self._current.oid)
+        ]
+
     def _set_current(self, note: Note | None) -> None:
         self._current = note
         self.currentChanged.emit()
@@ -340,6 +366,20 @@ class Backend(QObject):
         self.notes.reload()
         self.contentChanged.emit()
 
+    @Slot(result=str)
+    def deriveNote(self) -> str:
+        """以当前笔记为源派生一份，并建立 derived-from 边。"""
+        if self._current is None:
+            return ""
+        self.flush()
+        source = self._current
+        title = f"{source.title or '未命名'}（派生）"
+        note = Note.create(self._vault, source.text, title=title)
+        Relation.create(self._vault, note.oid, source.oid, relation=DERIVED_FROM)
+        self._activate(note)
+        self.notes.reload()
+        return str(note.oid)
+
     @Slot(str)
     def filterNotes(self, query: str) -> None:
         self.notes.set_query(query)
@@ -391,6 +431,12 @@ def seed_demo(backend: Backend) -> None:
     ]
     for title, text, tags in samples:
         Note.create(backend._vault, text, title=title, tags=tags)
+    created = list(Note.list(backend._vault))
+    # 让「QML 外壳草案」派生自「布局取舍 v1」，供预览族谱
+    qml_note = next((n for n in created if n.title == "QML 外壳草案"), None)
+    layout_note = next((n for n in created if n.title == "布局取舍 v1"), None)
+    if qml_note is not None and layout_note is not None:
+        Relation.create(backend._vault, qml_note.oid, layout_note.oid, relation=DERIVED_FROM)
     backend.notes.reload()
     total = backend.notes.rowCount()
     oids = [
