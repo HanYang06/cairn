@@ -4,7 +4,9 @@
 # 笔记模型（Note Model）
 
 > L3 领域概念规格。回答"笔记到底是什么"，并定死节点 / 基板 / 关系 / 组装四要素。
-> 承接内核 [`storage.md`](./storage.md)、[`domains.md`](./domains.md)、[`kernel.md`](./kernel.md)。
+> 承接内核 [`storage.md`](./storage.md)、[`domains.md`](./domains.md)、[`kernel.md`](./kernel.md)；
+> 对象模型 / 基板 / 内存态与存储态见 [`data-model.md`](./data-model.md)。
+> 注：**基础数据格式是"基板"，`note` 只是它的一个角色**（`data-model.md` §4.2）。
 
 状态：**草案 v0.1**（概念定稿讨论中，未写代码）
 

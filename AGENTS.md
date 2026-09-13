@@ -52,8 +52,9 @@ uv run python tools/preview_qml.py Shell.qml build/x.png 1440 900 navMode=projec
   `qml/` 是界面，`theme/` 是令牌 + QSS。
 - `src/comm/`、`src/server/` 是 P2P / 服务端**实验顶层包**，不在 hatch wheel 中
   （仅靠 pytest 的 `pythonpath=["src"]` 可导入）。新内核代码放 `src/cairn`。
-- `docs/architecture/*.md` 是设计事实来源（`storage.md` 为 L0 唯一事实来源），
-  状态均为「草案」，部分未实现。**有冲突以代码为准，改实现后回写文档。**
+- `docs/architecture/*.md` 是设计事实来源（`storage.md` 为 L0 唯一事实来源，
+  `data-model.md` 为数据结构总纲），状态均为「草案」，部分未实现。
+  **有冲突以代码为准，改实现后回写文档。**
 - 内部时间统一 unix 毫秒 int；ID 用 ULID（Oid）/ keyed BLAKE3 hex（Cid）。
 
 ## 测试与 Qt 冒烟
