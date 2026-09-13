@@ -3,23 +3,34 @@
 
 from __future__ import annotations
 
-from cairn.core import Audience, Visibility
-from cairn.core.policy import can_share
+from cairn.core import Audience, ShareKind
+from cairn.core.policy import is_private, target_audience, visible_to
+
+_HOMEPAGE = {"kind": "homepage", "name": ""}
+_COMMUNITY = {"kind": "community", "name": "Cairn 中文"}
+_PERSON = {"kind": "person", "name": "韩"}
 
 
-def test_private_only_self() -> None:
-    assert can_share(Visibility.PRIVATE, Audience.SELF)
-    for audience in (Audience.PEER, Audience.COMMUNITY, Audience.PUBLIC):
-        assert not can_share(Visibility.PRIVATE, audience)
+def test_private_when_no_targets() -> None:
+    assert is_private([])
+    assert not is_private([_HOMEPAGE])
+    assert not visible_to([], Audience.PUBLIC)
 
 
-def test_public_shares_to_all() -> None:
+def test_homepage_is_public() -> None:
+    assert target_audience(ShareKind.HOMEPAGE) is Audience.PUBLIC
     for audience in Audience:
-        assert can_share(Visibility.PUBLIC, audience)
+        assert visible_to([_HOMEPAGE], audience)
 
 
-def test_direct_and_communal() -> None:
-    assert can_share(Visibility.DIRECT, Audience.PEER)
-    assert not can_share(Visibility.DIRECT, Audience.PUBLIC)
-    assert can_share(Visibility.COMMUNAL, Audience.COMMUNITY)
-    assert not can_share(Visibility.COMMUNAL, Audience.PUBLIC)
+def test_community_and_person_scope() -> None:
+    assert visible_to([_COMMUNITY], Audience.COMMUNITY)
+    assert not visible_to([_COMMUNITY], Audience.PUBLIC)
+    assert visible_to([_PERSON], Audience.PEER)
+    assert not visible_to([_PERSON], Audience.COMMUNITY)
+
+
+def test_targets_are_additive() -> None:
+    shares = [_COMMUNITY, _PERSON]
+    assert visible_to(shares, Audience.COMMUNITY)
+    assert not visible_to(shares, Audience.PUBLIC)

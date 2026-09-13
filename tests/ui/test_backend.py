@@ -141,16 +141,23 @@ def test_derive_creates_lineage(backend: Backend) -> None:
     assert [item["oid"] for item in backend.currentDescendants] == [child]
 
 
-def test_visibility_override_survives_edit(backend: Backend) -> None:
+def test_shares_are_additive(backend: Backend) -> None:
     backend.captureNote("笔记")
-    assert backend.currentVisibility == "私密"
+    assert backend.isPrivate
+    assert backend.currentShares == []
 
-    backend.setVisibility("public")
-    assert backend.currentVisibility == "公开"
+    backend.addShare("homepage", "")
+    backend.addShare("community", "Cairn 中文")
+    backend.addShare("person", "韩")
+    labels = [item["label"] for item in backend.currentShares]
+    assert labels == ["个人主页", "社区 · Cairn 中文", "某人 · 韩"]
+    assert not backend.isPrivate
 
-    backend.queueSave("改过内容")
-    backend.flush()
-    assert backend.currentVisibility == "公开"
+    backend.removeShare("community", "Cairn 中文")
+    assert [item["label"] for item in backend.currentShares] == ["个人主页", "某人 · 韩"]
+
+    backend.toggleHomepage()
+    assert [item["label"] for item in backend.currentShares] == ["某人 · 韩"]
 
 
 def test_all_tags_and_filter(backend: Backend) -> None:

@@ -24,7 +24,7 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
         }
         Text {
-            text: backend.currentVisibility + " · 已解锁"
+            text: (backend.isPrivate ? "私密" : "已分享 " + backend.currentShares.length) + " · 已解锁"
             color: CairnTheme.muted
             font.family: CairnTheme.fontFamily
             font.pixelSize: CairnTheme.fsTiny

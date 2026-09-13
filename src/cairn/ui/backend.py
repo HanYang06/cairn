@@ -33,7 +33,6 @@ from ..domains.provenance import DERIVED_FROM
 
 DEV_PASSPHRASE = "cairn-dev"
 _SPACE_LABELS = {"default": "个人空间"}
-_VIS_LABELS = {"private": "私密", "communal": "共有", "public": "公开", "direct": "直连"}
 RELATIONS_KEY = "relations"
 
 
@@ -299,7 +298,7 @@ class Backend(QObject):
     currentChanged = Signal()
     contentChanged = Signal()
     tagsChanged = Signal()
-    visibilityChanged = Signal()
+    sharesChanged = Signal()
     viewChanged = Signal()
     versionsChanged = Signal()
     tagsListChanged = Signal()
@@ -381,14 +380,13 @@ class Backend(QObject):
     def currentTags(self) -> list[str]:
         return list(self._current.tags) if self._current is not None else []
 
-    @Property(str, notify=visibilityChanged)
-    def currentVisibility(self) -> str:
-        override: Any = None
-        if self._current is not None:
-            override = self._current.props().get("visibility")
-        value = override or self._vault.space().visibility
-        text = getattr(value, "value", str(value))
-        return _VIS_LABELS.get(text, text)
+    @Property(list, notify=sharesChanged)
+    def currentShares(self) -> list[dict[str, str]]:
+        return self._shares()
+
+    @Property(bool, notify=sharesChanged)
+    def isPrivate(self) -> bool:
+        return len(self._shares()) == 0
 
     @Property(list, notify=currentChanged)
     def currentAncestors(self) -> list[dict[str, str]]:
@@ -551,7 +549,7 @@ class Backend(QObject):
         self._current = note
         self.currentChanged.emit()
         self.tagsChanged.emit()
-        self.visibilityChanged.emit()
+        self.sharesChanged.emit()
 
     def _activate(self, note: Note) -> None:
         self._set_current(note)
@@ -717,15 +715,68 @@ class Backend(QObject):
         self.notes.reload()
         return str(note.oid)
 
-    # ---- 可见性 ----
-    @Slot(str)
-    def setVisibility(self, value: str) -> None:
-        """对象级可见性（meta.props.visibility，离线无感，P2P 时生效）。"""
+    # ---- 分享 ----
+    def _shares(self) -> list[dict[str, str]]:
+        if self._current is None:
+            return []
+        result: list[dict[str, str]] = []
+        for entry in self._current.props().get("share") or []:
+            kind = str(entry.get("kind") or "")
+            name = str(entry.get("name") or "")
+            if kind == "homepage":
+                label = "个人主页"
+            elif kind == "community":
+                label = f"社区 · {name}"
+            elif kind == "person":
+                label = f"某人 · {name}"
+            else:
+                continue
+            result.append({"kind": kind, "name": name, "label": label})
+        return result
+
+    def _write_shares(self, shares: list[dict[str, str]]) -> None:
         if self._current is None:
             return
-        self._current.update(props={"visibility": value})
-        self.visibilityChanged.emit()
+        self._current.update(props={"share": shares})
+        self.sharesChanged.emit()
         self.contentChanged.emit()
+
+    @Slot(str, str)
+    def addShare(self, kind: str, name: str) -> None:
+        """分享给：homepage（公开到主页）/ community / person。"""
+        if self._current is None or kind not in ("homepage", "community", "person"):
+            return
+        name = name.strip()
+        if kind != "homepage" and not name:
+            return
+        shares = list(self._current.props().get("share") or [])
+        entry = {"kind": kind, "name": name}
+        if entry in shares:
+            return
+        shares.append(entry)
+        self._write_shares(shares)
+
+    @Slot(str, str)
+    def removeShare(self, kind: str, name: str) -> None:
+        if self._current is None:
+            return
+        shares = [
+            entry
+            for entry in (self._current.props().get("share") or [])
+            if not (str(entry.get("kind")) == kind and str(entry.get("name") or "") == name)
+        ]
+        self._write_shares(shares)
+
+    @Slot()
+    def toggleHomepage(self) -> None:
+        if self._current is None:
+            return
+        shares = list(self._current.props().get("share") or [])
+        if any(str(entry.get("kind")) == "homepage" for entry in shares):
+            shares = [entry for entry in shares if str(entry.get("kind")) != "homepage"]
+        else:
+            shares.append({"kind": "homepage", "name": ""})
+        self._write_shares(shares)
 
     # ---- 过滤 ----
     @Slot(str)

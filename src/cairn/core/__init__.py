@@ -17,7 +17,7 @@ from .events import (
     VaultLocked,
     VaultUnlocked,
 )
-from .policy import Audience, can_share
+from .policy import Audience, ShareKind, is_private, target_audience, visible_to
 from .types import (
     CairnError,
     CorruptObjectError,
@@ -44,6 +44,7 @@ __all__ = [
     "ObjectNotFoundError",
     "ObjectPut",
     "Oid",
+    "ShareKind",
     "Space",
     "SpaceCreated",
     "SpaceId",
@@ -56,5 +57,7 @@ __all__ = [
     "VaultUnlocked",
     "VersionInfo",
     "Visibility",
-    "can_share",
+    "is_private",
+    "target_audience",
+    "visible_to",
 ]

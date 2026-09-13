@@ -1,17 +1,16 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""可见性策略：某可见性档位的对象能否传给某类受众。
+"""分享策略：把「分享给谁 / 哪里」映射为可传播的受众。
 
-个人离线模式无需判断；P2P / 社区架构下由网络层调用。
-这里只固化「档位 → 允许的受众集合」这一简单规则。
+对象默认私密。分享目标是**列表**（不互斥），例如「个人主页 + 某社区 + 某人」。
+个人离线模式无需判断；P2P / 社区架构下由网络层调用这里的判定。
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from enum import Enum
-
-from .types import Visibility
 
 
 class Audience(Enum):
@@ -23,19 +22,60 @@ class Audience(Enum):
     PUBLIC = "public"
 
 
-_ALLOWED: dict[Visibility, frozenset[Audience]] = {
-    Visibility.PRIVATE: frozenset({Audience.SELF}),
-    Visibility.DIRECT: frozenset({Audience.SELF, Audience.PEER}),
-    Visibility.COMMUNAL: frozenset({Audience.SELF, Audience.PEER, Audience.COMMUNITY}),
-    Visibility.PUBLIC: frozenset(
-        {Audience.SELF, Audience.PEER, Audience.COMMUNITY, Audience.PUBLIC}
-    ),
+class ShareKind(Enum):
+    """分享目标的类型。"""
+
+    HOMEPAGE = "homepage"  # 挂到个人主页 → 公开
+    COMMUNITY = "community"  # 发到某社区
+    PERSON = "person"  # 直发给某人
+
+
+_RANK: dict[Audience, int] = {
+    Audience.SELF: 0,
+    Audience.PEER: 1,
+    Audience.COMMUNITY: 2,
+    Audience.PUBLIC: 3,
+}
+_TARGET: dict[ShareKind, Audience] = {
+    ShareKind.HOMEPAGE: Audience.PUBLIC,
+    ShareKind.COMMUNITY: Audience.COMMUNITY,
+    ShareKind.PERSON: Audience.PEER,
 }
 
 
-def can_share(visibility: Visibility, audience: Audience) -> bool:
-    """该可见性的对象是否可传给该类受众。"""
-    return audience in _ALLOWED.get(visibility, frozenset({Audience.SELF}))
+def parse_kind(value: object) -> ShareKind | None:
+    try:
+        return ShareKind(str(value))
+    except ValueError:
+        return None
 
 
-__all__ = ["Audience", "can_share"]
+def target_audience(kind: ShareKind) -> Audience:
+    return _TARGET[kind]
+
+
+def is_private(shares: Iterable[Mapping[str, object]]) -> bool:
+    """没有任何分享目标即私密（仅自己可见）。"""
+    return not list(shares)
+
+
+def visible_to(shares: Iterable[Mapping[str, object]], audience: Audience) -> bool:
+    """对象对该类受众是否可见（粗略：按目标的受众层级传递）。"""
+    if audience is Audience.SELF:
+        return True
+    limit = _RANK[audience]
+    for entry in shares:
+        kind = parse_kind(entry.get("kind"))
+        if kind is not None and _RANK[_TARGET[kind]] >= limit:
+            return True
+    return False
+
+
+__all__ = [
+    "Audience",
+    "ShareKind",
+    "is_private",
+    "parse_kind",
+    "target_audience",
+    "visible_to",
+]

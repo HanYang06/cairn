@@ -12,11 +12,13 @@ Rectangle {
     property string mode: "notes"
     property string preview: ""
     property bool confirmDelete: false
+    property bool shareOpen: false
 
     Connections {
         target: backend
         function onCurrentChanged() {
             dock.confirmDelete = false;
+            dock.shareOpen = false;
         }
     }
 
@@ -128,48 +130,78 @@ Rectangle {
                         v: backend.currentAuthor
                     }
                     Section {
-                        text: "权限"
+                        text: "分享给"
                     }
-                    Row {
+                    Flow {
                         Layout.leftMargin: CairnTheme.spaceMd
                         Layout.rightMargin: CairnTheme.spaceMd
-                        Layout.bottomMargin: CairnTheme.spaceMd
+                        Layout.fillWidth: true
                         spacing: 6
+                        Text {
+                            visible: backend.currentShares.length === 0
+                            text: "仅自己可见（私密）"
+                            color: CairnTheme.faint
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsTiny
+                        }
                         Repeater {
-                            model: [{
-                                "v": "private",
-                                "t": "私密"
-                            }, {
-                                "v": "communal",
-                                "t": "共有"
-                            }, {
-                                "v": "public",
-                                "t": "公开"
-                            }, {
-                                "v": "direct",
-                                "t": "直连"
-                            }]
+                            model: backend.currentShares
                             delegate: Rectangle {
-                                width: visText.implicitWidth + 24
-                                height: 24
-                                radius: 12
-                                color: backend.currentVisibility === modelData.t ? CairnTheme.selection : CairnTheme.bg
-                                border.color: backend.currentVisibility === modelData.t ? CairnTheme.accent : CairnTheme.border
+                                width: shareChip.implicitWidth + 22
+                                height: 22
+                                radius: 11
+                                color: modelData.kind === "homepage" ? CairnTheme.selection : CairnTheme.elevated
+                                border.color: modelData.kind === "homepage" ? CairnTheme.accent : CairnTheme.border
                                 border.width: 1
-                                Text {
-                                    id: visText
+                                Row {
+                                    id: shareChip
                                     anchors.centerIn: parent
-                                    text: modelData.t
-                                    color: backend.currentVisibility === modelData.t ? CairnTheme.accent : CairnTheme.muted
-                                    font.family: CairnTheme.fontFamily
-                                    font.pixelSize: CairnTheme.fsTiny
+                                    spacing: 4
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: modelData.label
+                                        color: CairnTheme.muted
+                                        font.family: CairnTheme.fontFamily
+                                        font.pixelSize: CairnTheme.fsTiny
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "\uE8BB"
+                                        font.family: CairnTheme.iconFont
+                                        font.pixelSize: 8
+                                        color: CairnTheme.faint
+                                    }
                                 }
                                 MouseArea {
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    onClicked: backend.setVisibility(modelData.v)
+                                    onClicked: backend.removeShare(modelData.kind, modelData.name)
                                 }
                             }
+                        }
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: CairnTheme.spaceMd
+                        Layout.rightMargin: CairnTheme.spaceMd
+                        Layout.topMargin: CairnTheme.spaceSm
+                        Layout.preferredHeight: 28
+                        radius: CairnTheme.radiusSm
+                        color: shareMa.containsMouse ? CairnTheme.hover : CairnTheme.bg
+                        border.color: CairnTheme.border
+                        border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            text: "＋ 分享给…"
+                            color: CairnTheme.accent
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsTiny
+                        }
+                        MouseArea {
+                            id: shareMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            onClicked: dock.shareOpen = !dock.shareOpen
                         }
                     }
                     Section {
@@ -526,6 +558,122 @@ Rectangle {
                         Layout.preferredHeight: CairnTheme.spaceMd
                     }
                 }
+            }
+        }
+    }
+
+    Rectangle {
+        id: sharePanel
+        visible: dock.shareOpen
+        z: 50
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: CairnTheme.spaceMd
+        height: shareCol.implicitHeight + CairnTheme.spaceLg * 2
+        radius: CairnTheme.radiusLg
+        color: CairnTheme.elevated
+        border.color: CairnTheme.borderStrong
+        border.width: 1
+
+        ColumnLayout {
+            id: shareCol
+            anchors.fill: parent
+            anchors.margins: CairnTheme.spaceLg
+            spacing: CairnTheme.spaceSm
+
+            RowLayout {
+                Layout.fillWidth: true
+                Text {
+                    text: "分享给"
+                    color: CairnTheme.text
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsSmall
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                }
+                Text {
+                    text: "\uE8BB"
+                    font.family: CairnTheme.iconFont
+                    font.pixelSize: 10
+                    color: CairnTheme.faint
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -6
+                        onClicked: dock.shareOpen = false
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                radius: CairnTheme.radiusSm
+                color: backend.currentShares.some(function (s) {
+                    return s.kind === "homepage";
+                }) ? CairnTheme.selection : CairnTheme.bg
+                border.color: backend.currentShares.some(function (s) {
+                    return s.kind === "homepage";
+                }) ? CairnTheme.accent : CairnTheme.border
+                border.width: 1
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: CairnTheme.spaceSm
+                    text: "个人主页（公开）"
+                    color: CairnTheme.text
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsTiny
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: backend.toggleHomepage()
+                }
+            }
+
+            ShareInput {
+                hint: "分享给社区，回车…"
+                onSubmitted: backend.addShare("community", value)
+            }
+            ShareInput {
+                hint: "分享给某人，回车…"
+                onSubmitted: backend.addShare("person", value)
+            }
+        }
+    }
+
+    component ShareInput: Rectangle {
+        id: si
+        property string hint
+        signal submitted(string value)
+        Layout.fillWidth: true
+        Layout.preferredHeight: 30
+        radius: CairnTheme.radiusSm
+        color: CairnTheme.bg
+        border.color: siInput.activeFocus ? CairnTheme.accent : CairnTheme.border
+        border.width: 1
+        TextInput {
+            id: siInput
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            verticalAlignment: TextInput.AlignVCenter
+            clip: true
+            color: CairnTheme.text
+            font.family: CairnTheme.fontFamily
+            font.pixelSize: CairnTheme.fsTiny
+            selectByMouse: true
+            onAccepted: {
+                si.submitted(text);
+                text = "";
+            }
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: siInput.text === ""
+                text: si.hint
+                color: CairnTheme.faint
+                font.family: CairnTheme.fontFamily
+                font.pixelSize: CairnTheme.fsTiny
             }
         }
     }
