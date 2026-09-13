@@ -58,6 +58,7 @@ Rectangle {
             delegate: RailButton {
                 Layout.alignment: Qt.AlignHCenter
                 kind: modelData.kind
+                label: modelData.label
                 glyph: modelData.glyph || ""
                 active: index === bar.current
                 onClicked: bar.activated(index)
@@ -101,6 +102,9 @@ Rectangle {
                     hoverEnabled: true
                     onClicked: bar.profileRequested()
                 }
+                HoverHandler {
+                    onHoveredChanged: hovered ? Tips.show("档案", avatar) : Tips.hide()
+                }
             }
         }
 
@@ -112,6 +116,7 @@ Rectangle {
         RailButton {
             Layout.alignment: Qt.AlignHCenter
             kind: "settings"
+            label: "设置"
             glyph: "\uE713"
         }
     }
@@ -119,6 +124,7 @@ Rectangle {
     component RailButton: Item {
         id: rb
         property string kind: ""
+        property string label: ""
         property string glyph: ""
         property bool active: false
         signal clicked()
@@ -126,6 +132,10 @@ Rectangle {
 
         Layout.preferredWidth: 40
         Layout.preferredHeight: 40
+
+        HoverHandler {
+            onHoveredChanged: hovered ? Tips.show(rb.label, rb) : Tips.hide()
+        }
 
         Rectangle {
             width: 2

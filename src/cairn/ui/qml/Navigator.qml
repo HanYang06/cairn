@@ -85,6 +85,7 @@ Rectangle {
                 }
                 IconGlyph {
                     glyph: "\uE762"
+                    tip: "选择"
                     active: nav.selecting
                     onClicked: {
                         if (nav.selecting)
@@ -95,10 +96,12 @@ Rectangle {
                 }
                 IconGlyph {
                     glyph: "\uE710"
+                    tip: "新建笔记"
                     onClicked: backend.createNote()
                 }
                 IconGlyph {
                     glyph: "\uE7B8"
+                    tip: nav.mode === "notes" ? "显示归档" : "归档"
                     active: backend.showArchived
                     onClicked: backend.toggleShowArchived()
                 }
@@ -269,7 +272,7 @@ Rectangle {
         // 批量操作条
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 72
+            Layout.preferredHeight: 40
             visible: nav.selecting
             color: CairnTheme.chrome
             Rectangle {
@@ -278,78 +281,36 @@ Rectangle {
                 height: 1
                 color: CairnTheme.borderFaint
             }
-            ColumnLayout {
+            RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: CairnTheme.spaceMd
                 anchors.rightMargin: CairnTheme.spaceSm
-                anchors.topMargin: CairnTheme.spaceSm
-                anchors.bottomMargin: CairnTheme.spaceSm
                 spacing: CairnTheme.spaceSm
-                RowLayout {
+                Text {
+                    text: "已选 " + nav.selectedCount() + " 项"
+                    color: CairnTheme.text
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsTiny
                     Layout.fillWidth: true
-                    spacing: CairnTheme.spaceSm
-                    Text {
-                        text: "已选 " + nav.selectedCount() + " 项"
-                        color: CairnTheme.text
-                        font.family: CairnTheme.fontFamily
-                        font.pixelSize: CairnTheme.fsTiny
-                        Layout.fillWidth: true
-                    }
-                    SelectAction {
-                        label: "全选"
-                        onTapped: nav.selectAll()
-                    }
-                    SelectAction {
-                        label: "完成"
-                        onTapped: nav.exitSelect()
+                }
+                SelectAction {
+                    label: "全选"
+                    onTapped: nav.selectAll()
+                }
+                SelectAction {
+                    label: "收藏"
+                    onTapped: backend.favoriteMany(nav.selectedList())
+                }
+                SelectAction {
+                    label: "回收"
+                    onTapped: {
+                        backend.trashMany(nav.selectedList());
+                        nav.clearSelection();
                     }
                 }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: CairnTheme.spaceSm
-                    Rectangle {
-                        Layout.fillWidth: true
-                        implicitHeight: 24
-                        radius: CairnTheme.radiusSm
-                        color: batchTag.activeFocus ? CairnTheme.bg : CairnTheme.hover
-                        border.color: batchTag.activeFocus ? CairnTheme.accent : "transparent"
-                        border.width: 1
-                        TextInput {
-                            id: batchTag
-                            anchors.fill: parent
-                            anchors.leftMargin: 8
-                            anchors.rightMargin: 8
-                            verticalAlignment: TextInput.AlignVCenter
-                            clip: true
-                            color: CairnTheme.text
-                            font.family: CairnTheme.fontFamily
-                            font.pixelSize: CairnTheme.fsTiny
-                            selectByMouse: true
-                            onAccepted: {
-                                backend.addTagToMany(nav.selectedList(), batchTag.text);
-                                batchTag.text = "";
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: batchTag.text === ""
-                                text: "加标签…"
-                                color: CairnTheme.faint
-                                font.family: CairnTheme.fontFamily
-                                font.pixelSize: CairnTheme.fsTiny
-                            }
-                        }
-                    }
-                    SelectAction {
-                        label: "收藏"
-                        onTapped: backend.favoriteMany(nav.selectedList())
-                    }
-                    SelectAction {
-                        label: "回收"
-                        onTapped: {
-                            backend.trashMany(nav.selectedList());
-                            nav.clearSelection();
-                        }
-                    }
+                SelectAction {
+                    label: "完成"
+                    onTapped: nav.exitSelect()
                 }
             }
         }
@@ -856,6 +817,9 @@ Rectangle {
         color: saMa.containsMouse ? CairnTheme.text : CairnTheme.muted
         font.family: CairnTheme.fontFamily
         font.pixelSize: CairnTheme.fsTiny
+        HoverHandler {
+            onHoveredChanged: hovered ? Tips.show(sa.label, sa) : Tips.hide()
+        }
         MouseArea {
             id: saMa
             anchors.fill: parent
@@ -869,10 +833,14 @@ Rectangle {
     component IconGlyph: Item {
         id: ig
         property string glyph
+        property string tip: ""
         property bool active: false
         signal clicked()
         Layout.preferredWidth: 26
         Layout.preferredHeight: 26
+        HoverHandler {
+            onHoveredChanged: hovered ? Tips.show(ig.tip, ig) : Tips.hide()
+        }
         Rectangle {
             anchors.fill: parent
             radius: CairnTheme.radiusSm

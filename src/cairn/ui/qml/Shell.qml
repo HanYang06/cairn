@@ -296,4 +296,29 @@ Rectangle {
         id: sharePopover
         objectName: "sharePopover"
     }
+
+    // 全局悬停提示
+    Rectangle {
+        id: tooltip
+        objectName: "tooltip"
+        visible: Tips.visible
+        z: 300
+        width: tipText.implicitWidth + 16
+        height: 24
+        radius: CairnTheme.radiusSm
+        color: CairnTheme.elevated
+        border.color: CairnTheme.borderStrong
+        border.width: 1
+        x: Math.max(4, Math.min(Tips.tipX - width / 2, shell.width - width - 4))
+        y: Tips.tipY
+        Text {
+            id: tipText
+            objectName: "tipText"
+            anchors.centerIn: parent
+            text: Tips.text
+            color: CairnTheme.text
+            font.family: CairnTheme.fontFamily
+            font.pixelSize: CairnTheme.fsTiny
+        }
+    }
 }

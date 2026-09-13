@@ -71,10 +71,14 @@ Rectangle {
                 Layout.fillWidth: true
             }
             Text {
+                id: closeGlyph
                 text: "\uE8BB"
                 font.family: CairnTheme.iconFont
                 font.pixelSize: 10
                 color: CairnTheme.faint
+                HoverHandler {
+                    onHoveredChanged: hovered ? Tips.show("关闭", closeGlyph) : Tips.hide()
+                }
                 MouseArea {
                     anchors.fill: parent
                     anchors.margins: -6

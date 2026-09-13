@@ -164,7 +164,7 @@ QML 侧走 **Qt Quick Controls 自定义 Style + 令牌单例**，不引入第�
 
 ### 7.6 多选 / 批量
 
-列表表头进入「选择模式」后逐项勾选，底部批量条：加标签 / 收藏 / 回收 / 全选 / 完成。后端 `trashMany` / `restoreMany` / `favoriteMany` / `addTagToMany` / `visibleNoteOids`。
+列表表头进入「选择模式」后逐项勾选，底部批量条**单行**四键：全选 / 收藏 / 回收 / 完成。后端 `trashMany` / `restoreMany` / `favoriteMany` / `visibleNoteOids`（`addTagToMany` 保留但暂未入界面）。
 
 ### 7.7 无障碍
 
@@ -181,6 +181,10 @@ QML 侧走 **Qt Quick Controls 自定义 Style + 令牌单例**，不引入第�
 ### 7.10 空态与新建
 
 笔记页只留**搜索框**（去掉「快速记录」输入框）；列表空白处或编辑区空白处**双击**即新建空笔记。
+
+### 7.11 悬停提示
+
+全局单例 `Tips`（`theme/Tips.qml`）：组件悬停调用 `Tips.show(text, item)`，停留 550ms 后在指针附近显示；`Tips.hide()` 收起。用于仅有图标的按钮（活动栏、导航图标、批量键、关闭/收起等）。
 
 ---
 

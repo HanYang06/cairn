@@ -40,10 +40,14 @@ Rectangle {
                     Layout.fillWidth: true
                 }
                 Text {
+                    id: collapseGlyph
                     text: "\uE76C"
                     font.family: CairnTheme.iconFont
                     font.pixelSize: 12
                     color: collapseMa.containsMouse ? CairnTheme.text : CairnTheme.faint
+                    HoverHandler {
+                        onHoveredChanged: hovered ? Tips.show("收起属性", collapseGlyph) : Tips.hide()
+                    }
                     MouseArea {
                         id: collapseMa
                         anchors.fill: parent
