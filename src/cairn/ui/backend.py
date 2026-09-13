@@ -28,7 +28,7 @@ from PySide6.QtCore import (
 
 from ..conf import TOML_NAME
 from ..core import Vault
-from ..domains import Note, Relation, ancestors, descendants
+from ..domains import Note, Relation, ancestors, decode_substrate, descendants, plain_text
 from ..domains.provenance import DERIVED_FROM
 
 DEV_PASSPHRASE = "cairn-dev"
@@ -416,6 +416,71 @@ class Backend(QObject):
     @Property(str, notify=viewChanged)
     def historyTitle(self) -> str:
         return _title_of(self._vault, self._history_oid) if self._history_oid else ""
+
+    @Property(str, notify=viewChanged)
+    def historyOid(self) -> str:
+        return self._history_oid
+
+    @Property(dict, notify=currentChanged)
+    def currentGraph(self) -> dict[str, Any]:
+        """当前笔记的关系图：节点含 depth（负=来源，正=派生），边为 derived-from。"""
+        if self._current is None:
+            return {"nodes": [], "edges": []}
+        root = str(self._current.oid)
+        nodes: dict[str, dict[str, Any]] = {
+            root: {
+                "oid": root,
+                "title": self._current.title or "未命名",
+                "depth": 0,
+                "current": True,
+            }
+        }
+        edges: dict[tuple[str, str], dict[str, Any]] = {}
+        seen = {root}
+        queue: list[tuple[str, int]] = [(root, 0)]
+        while queue:
+            cur, depth = queue.pop(0)
+            for edge in Relation.outbound(self._vault, cur, relation=DERIVED_FROM):
+                target = str(edge.target)
+                edges.setdefault((cur, target), {"from": cur, "to": target, "at": edge.at})
+                if target not in nodes:
+                    nodes[target] = {
+                        "oid": target,
+                        "title": _title_of(self._vault, target),
+                        "depth": depth - 1,
+                        "current": False,
+                    }
+                if target not in seen:
+                    seen.add(target)
+                    queue.append((target, depth - 1))
+            for edge in Relation.backlinks(self._vault, cur, relation=DERIVED_FROM):
+                source = str(edge.source)
+                edges.setdefault((source, cur), {"from": source, "to": cur, "at": edge.at})
+                if source not in nodes:
+                    nodes[source] = {
+                        "oid": source,
+                        "title": _title_of(self._vault, source),
+                        "depth": depth + 1,
+                        "current": False,
+                    }
+                if source not in seen:
+                    seen.add(source)
+                    queue.append((source, depth + 1))
+        depths = [node["depth"] for node in nodes.values()]
+        low = min(depths) if depths else 0
+        for node in nodes.values():
+            node["depth"] -= low
+        return {"nodes": list(nodes.values()), "edges": list(edges.values())}
+
+    @Slot(int, result=str)
+    def previewVersion(self, seq: int) -> str:
+        oid = self._history_oid or self._oid()
+        if not oid:
+            return ""
+        try:
+            return plain_text(decode_substrate(self._vault.read_version(oid, seq)))
+        except Exception:
+            return ""
 
     @Property(list, notify=versionsChanged)
     def currentVersions(self) -> list[dict[str, Any]]:

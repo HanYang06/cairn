@@ -9,11 +9,28 @@ Rectangle {
     id: area
     color: CairnTheme.surface
 
+    function tabActive(key, kind) {
+        if (kind === "note")
+            return backend.currentView === "note" && key === backend.currentOid;
+        if (kind === "relations")
+            return backend.currentView === "relations";
+        if (kind === "history")
+            return backend.currentView === "history" && key === ("history:" + backend.historyOid);
+        return false;
+    }
+
+    function kindColor(kind) {
+        if (kind === "relations")
+            return CairnTheme.accentAlt;
+        if (kind === "history")
+            return CairnTheme.borderStrong;
+        return CairnTheme.accent;
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
-        // 标签栏（当前打开的任务）
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: CairnTheme.tabBarH
@@ -25,8 +42,8 @@ Rectangle {
                     model: tabsModel
                     delegate: Rectangle {
                         id: tab
-                        readonly property bool active: model.oid === backend.currentOid
-                        width: Math.min(220, Math.max(140, tabText.implicitWidth + 64))
+                        readonly property bool active: area.tabActive(model.oid, model.kind)
+                        width: Math.min(220, Math.max(130, tabText.implicitWidth + 64))
                         height: parent.height
                         color: tab.active ? CairnTheme.surface : (tabMa.containsMouse ? CairnTheme.hover : "transparent")
                         Behavior on color {
@@ -60,7 +77,7 @@ Rectangle {
                             width: 6
                             height: 6
                             radius: 3
-                            color: CairnTheme.accent
+                            color: area.kindColor(model.kind)
                         }
                         Text {
                             id: tabText
@@ -106,7 +123,7 @@ Rectangle {
                             id: tabMa
                             anchors.fill: parent
                             hoverEnabled: true
-                            onClicked: backend.openNote(model.oid)
+                            onClicked: backend.activateTab(model.oid)
                         }
                     }
                 }
@@ -123,18 +140,27 @@ Rectangle {
         NoteEditor {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: backend.currentOid !== ""
+            visible: backend.currentView === "note" && backend.currentOid !== ""
         }
         EmptyState {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: backend.currentOid === ""
+            visible: backend.currentView === "note" && backend.currentOid === ""
+        }
+        RelationsView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: backend.currentView === "relations"
+        }
+        HistoryView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: backend.currentView === "history"
         }
     }
 
     component NoteEditor: Item {
         id: ed
-        // 初始为 true：避免首次绑定 currentText 时误报"编辑中"
         property bool loading: true
         property string status: ""
 
