@@ -207,3 +207,17 @@ def test_restore_version_through_backend(backend: Backend) -> None:
     backend.restoreVersion(1)
     assert backend.currentText == "第一版"
     assert len(backend.currentVersions) == 3
+
+
+def test_graph_and_path(backend: Backend) -> None:
+    source = backend.captureNote("源笔记")
+    child = backend.deriveNote()
+
+    graph = backend.currentGraph
+    oids = {node["oid"] for node in graph["nodes"]}
+    assert source in oids and child in oids
+    assert any(edge["from"] == child and edge["to"] == source for edge in graph["edges"])
+
+    path = backend.currentPath
+    assert [item["oid"] for item in path] == [source, child]
+    assert path[-1]["current"] is True
