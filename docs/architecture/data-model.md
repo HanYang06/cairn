@@ -353,15 +353,83 @@ Vault ── ObjectHandle(OID)          稳定身份，惰性
 
 ---
 
-## 12. 与代码映射
+## 12. 速查表（术语 → 代码 → 文件）
 
-| 概念 | 代码 | 状态 |
+> 文档里的词 ↔ 代码里的对象 ↔ 具体文件。新协作者从这里下手最快。
+
+### 12.1 L0 对象池
+
+| 术语 | 代码对象 / 常量 | 文件 | 状态 |
+|---|---|---|---|
+| 基本对象 / 对象清单 | `Manifest` | `core/storage/manifest.py` | 已实现 |
+| 对象元数据视图 | `ObjectInfo` | `core/types/objects.py` | 已实现 |
+| 对象池门面 | `Vault` | `core/vault.py` | 已实现 |
+| 物理存储池 | `Pool` | `core/storage/pool.py` | 已实现 |
+| 存储块 / 块引用 | `Chunk` / `ChunkRef` | `core/storage/chunker.py` / `core/types/objects.py` | 已实现 |
+| 内容地址 CID | `Cid` | `types/ids.py` | 已实现（keyed BLAKE3） |
+| 对象身份 OID | `Oid` | `types/ids.py` | 已实现（ULID） |
+| 空间 / 可见性 | `Space` / `SpaceId` / `Visibility` | `core/types/objects.py` / `types/ids.py` / `types/enums.py` | 已实现 |
+| 版本 | `VersionInfo` | `core/types/objects.py` | 已实现 |
+| 索引 / 检索 | `Index` | `core/storage/index.py` | 已实现 |
+| 身份 / 密钥 | `Identity` | `core/crypto.py` | 已实现 |
+| 事件 | `Event` / `ObjectPut` / `ObjectDeleted` / `SpaceCreated` | `core/events.py` | 已实现 |
+| 分享策略 | `Audience` / `ShareKind` / `visible_to` | `core/policy.py` | 部分（仅判定，无网络） |
+
+### 12.2 L0.5 基板
+
+| 术语 | 代码对象 / 常量 | 文件 | 状态 |
+|---|---|---|---|
+| 基板编解码 | `encode_substrate` / `decode_substrate` | `domains/types/substrate.py` | 已实现 |
+| 最小单位（片段） | `fragment`（dict） | 同上 | 部分 |
+| 文本形式 | `text_fragment`，`kind = "text"` | 同上 | 已实现 |
+| 引用 / 嵌入 | `ref_fragment` / `embed_fragment`，`kind = "ref" / "embed"` | 同上 | 已实现 |
+| 图元（手绘） | ——，`kind = "shape"` | 同上 | **草案** |
+| 组合（嵌套） | ——，`kind = "group"` | 同上 | **草案** |
+| 取纯文本 / 引用集 | `plain_text` / `referenced_oids` | 同上 | 已实现 |
+| 领域基类 | `DomainObject` | `domains/base.py` | 已实现 |
+| 处理器注册表 | `Handler` / `register` / `get_handler` | `domains/base.py` | 已实现 |
+
+### 12.3 L3 领域（角色 / 子对象）
+
+| 术语 / 角色 | 代码对象 | `type` | 文件 | 状态 |
+|---|---|---|---|---|
+| 笔记 note | `Note` | `cairn.note` | `domains/note/__init__.py` | 已实现 |
+| 关系 relation | `Relation` | `cairn.relation` | `domains/relation.py` | 已实现 |
+| 组装 composition | `Composition` | `cairn.composition` | `domains/composition.py` | 部分 |
+| 资产 asset | `Asset` | `cairn.asset` | `domains/asset.py` | 部分 |
+| 项目 project | `Project` | `cairn.project` | `domains/project/__init__.py` | 部分 |
+| 衍生关系（provenance） | `ancestors` / `descendants` / `derivatives` / `lineage` | `derived-from` | `domains/provenance.py` | 已实现 |
+
+> `type` 命名空间约定：`cairn.<domain>.<kind>`（见 `domains.md`）。
+
+### 12.4 客户端（UI，非内核）
+
+| 术语 | 代码对象 | 文件 | 状态 |
+|---|---|---|---|
+| 后端适配 | `Backend` / `NotesModel` / `TabsModel` / `ProfileStore` / `ShellSource` | `ui/backend.py` / `ui/app.py` | 已实现 |
+| 界面骨架 | `Main.qml` / `Shell.qml` / `EditorArea.qml` / `RightDock.qml` / `Navigator.qml` | `ui/qml/` | 已实现 |
+| 弹层 | `NoteMenu.qml` / `SharePopover.qml` / `ProfileMenu.qml` / `ToolDrawer.qml` | `ui/qml/` | 已实现 |
+| 主题令牌 / 悬停提示 | `CairnTheme` / `Tips`（singleton） | `ui/qml/theme/` | 已实现 |
+
+### 12.5 实验顶层包（不进 wheel）
+
+| 术语 | 代码 | 文件 | 状态 |
+|---|---|---|---|
+| P2P / 通信 | `comm/` | `src/comm/` | 实验 |
+| 服务端 | `server/` | `src/server/` | 实验 |
+
+---
+
+## 13. 未实现清单（代码里找不到的术语）
+
+| 术语 | 归属 | 说明 |
 |---|---|---|
-| 对象 / 清单 | `core/storage/manifest.py`、`core/types/objects.py` | 已实现 |
-| 存储块 / keyed CID | `core/storage/chunker.py`、`core/crypto.py` | 已实现 |
-| 对象池 / 版本链 / put_meta | `core/vault.py` | 已实现 |
-| 索引 | `core/storage/index.py` | 已实现 |
-| 基板片段 | `domains/types/substrate.py` | 部分 |
-| 角色（note） | `domains/note/__init__.py` | 部分（待降为角色） |
-| 关系 / 组装 | `domains/relation.py`、`domains/composition.py` | 部分 |
-| 打包 / 表示升级 / 角色-格式 / 惰性加载 | —— | **未实现** |
+| 独立叶（不可变内容寻址 segment） | §6.4 | 未实现 |
+| 文档头引用表（head 仅存 refs） | §6.4 | 未实现 |
+| 打包 pack / 索引 / 压实 | §6.5 | 未实现 |
+| 加密前压缩 | §6.5 | 未实现 |
+| 阈值溢出 + 滞回 | §5.3 | 未实现 |
+| 表示升级（单叶 ↔ 基板树 / rope，"big note"） | §5.3 | 未实现 |
+| 可视区惰性加载 + 叶 LRU | §7 | 未实现 |
+| `type → format` 映射表 / 基板升格 | §4.2 | 未实现 |
+| `shape` / `group` 片段 | §5.1 | 未实现 |
