@@ -24,7 +24,7 @@ from ...types import (
     Visibility,
     now_ms,
 )
-from .objects import ChunkRef, ObjectInfo, Space, VerifyReport
+from .objects import ChunkRef, ObjectInfo, Space, VerifyReport, VersionInfo
 
 __all__ = [
     "AuthError",
@@ -42,6 +42,7 @@ __all__ = [
     "VaultError",
     "VaultLockedError",
     "VerifyReport",
+    "VersionInfo",
     "Visibility",
     "now_ms",
 ]

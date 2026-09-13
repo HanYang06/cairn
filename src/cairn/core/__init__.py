@@ -17,6 +17,7 @@ from .events import (
     VaultLocked,
     VaultUnlocked,
 )
+from .policy import Audience, can_share
 from .types import (
     CairnError,
     CorruptObjectError,
@@ -28,11 +29,13 @@ from .types import (
     SpaceNotFoundError,
     VaultError,
     VaultLockedError,
+    VersionInfo,
     Visibility,
 )
 from .vault import Vault
 
 __all__ = [
+    "Audience",
     "CairnError",
     "CorruptObjectError",
     "Event",
@@ -51,5 +54,7 @@ __all__ = [
     "VaultLocked",
     "VaultLockedError",
     "VaultUnlocked",
+    "VersionInfo",
     "Visibility",
+    "can_share",
 ]

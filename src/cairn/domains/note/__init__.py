@@ -29,6 +29,10 @@ NOTE_MIME = "application/x-cairn-note"
 NOTE_SCHEMA = 1
 
 
+def _search_text(title: str | None, text: str) -> str:
+    return f"{title or ''}\n{text}"
+
+
 class NoteHandler:
     kind: str = NOTE_KIND
     schema_version: int = NOTE_SCHEMA
@@ -66,7 +70,14 @@ class Note(DomainObject):
     ) -> Self:
         meta = get_handler(cls.kind).normalize_meta(title=title, tags=tags, props=props)
         payload = encode_substrate([text_fragment(text)])
-        oid = vault.put(payload, space=space, type=cls.kind, mime=cls.mime, meta=meta)
+        oid = vault.put(
+            payload,
+            space=space,
+            type=cls.kind,
+            mime=cls.mime,
+            meta=meta,
+            search_text=_search_text(title, text),
+        )
         return cls.load(vault, oid)
 
     @property
@@ -103,7 +114,8 @@ class Note(DomainObject):
             title=new_title, tags=new_tags, props=merged_props
         )
         payload = self.read() if text is None else encode_substrate([text_fragment(text)])
-        self._put(payload, meta=meta)
+        new_text = self.text if text is None else text
+        self._put(payload, meta=meta, search_text=_search_text(new_title, new_text))
         self._refresh()
         return self
 

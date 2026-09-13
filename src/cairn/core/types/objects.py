@@ -31,6 +31,7 @@ class ObjectInfo:
     updated: int
     title: str | None = None
     tags: tuple[str, ...] = ()
+    seq: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,3 +55,13 @@ class VerifyReport:
     @property
     def ok(self) -> bool:
         return not self.problems
+
+
+@dataclass(frozen=True, slots=True)
+class VersionInfo:
+    """对象的一个历史版本（由 manifest.prev 归档链派生）。"""
+
+    seq: int
+    updated: int
+    size: int
+    is_current: bool = False

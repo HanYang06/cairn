@@ -71,6 +71,12 @@ class Relation(DomainObject):
     def relation(self) -> str:
         return str(self.props().get("relation", "references"))
 
+    @property
+    def at(self) -> str | None:
+        """该边所钉的被派生版本（fork 时的源 seq/哈希）；无则 None。"""
+        value = self.props().get("at")
+        return None if value is None else str(value)
+
     @classmethod
     def backlinks(
         cls,

@@ -88,6 +88,7 @@ from .types import (
     VaultError,
     VaultLockedError,
     VerifyReport,
+    VersionInfo,
     Visibility,
     now_ms,
 )
@@ -246,6 +247,9 @@ class Vault:
         vault._master_key = master
         vault._vault_key = vault_key
         vault._identity = identity
+        from .storage.index import Index
+
+        vault._index = Index(vault.root / ".cairn" / "index.sqlite")
         vault._create_space(_DEFAULT_SPACE, Visibility.PRIVATE)
         atomic_write(toml_path, tomli_w.dumps(header).encode("utf-8"))
         return vault
@@ -284,11 +288,12 @@ class Vault:
             kex_seed=unseal(vault_key, _unb64(identity["kex"])),
         )
         self._load_spaces()
-        index_path = self.root / ".cairn" / "index.sqlite"
-        if index_path.exists():
-            from .storage.index import Index
+        from .storage.index import Index
 
-            self._index = Index(index_path)
+        self._index = Index(self.root / ".cairn" / "index.sqlite")
+        for keys in self._spaces.values():
+            self._index.add_space(keys.space)
+        self._index.commit()
         self._events.emit(VaultUnlocked(vault_id=self._vault_id()))
 
     def lock(self) -> None:
@@ -339,6 +344,7 @@ class Vault:
         mime: str | None = None,
         meta: dict[str, Any] | None = None,
         oid: Oid | str | None = None,
+        search_text: str | None = None,
     ) -> Oid:
         self._require_unlocked()
         if self._identity is None:
@@ -391,7 +397,7 @@ class Vault:
         if archive_blob is not None and prev_hash is not None:
             self.pool.write_manifest(prev_hash, archive_blob)
         self.pool.write_object(new_oid, _envelope(keys.space.space_id, sealed_manifest))
-        self._index_add(signed, previous)
+        self._index_add(signed, previous, search_text)
         self._events.emit(
             ObjectPut(
                 oid=new_oid,
@@ -460,13 +466,77 @@ class Vault:
             _, manifest = self._load_manifest(oid)
             yield manifest
 
-    def rebuild_index(self) -> int:
+    # ---- 版本历史 ----
+    def _version_chain(self, oid: Oid) -> list[Manifest]:
+        """当前版本在前，沿 prev 归档链回溯（缺档即止）。"""
+        _, manifest = self._load_manifest(oid)
+        chain = [manifest]
+        guard = 0
+        while manifest.prev:
+            try:
+                blob = self.pool.read_manifest(manifest.prev)
+            except FileNotFoundError:
+                break
+            manifest = self._manifest_from_envelope(manifest.oid, blob)
+            chain.append(manifest)
+            guard += 1
+            if guard > 100_000:
+                break
+        return chain
+
+    def versions(self, oid: Oid | str) -> list[VersionInfo]:
+        self._require_unlocked()
+        target = Oid.parse(str(oid))
+        chain = self._version_chain(target)
+        return [
+            VersionInfo(seq=m.seq, updated=m.updated, size=m.size, is_current=(index == 0))
+            for index, m in enumerate(chain)
+        ]
+
+    def read_version(self, oid: Oid | str, seq: int) -> bytes:
+        self._require_unlocked()
+        target = Oid.parse(str(oid))
+        keys, _ = self._load_manifest(target)
+        manifest = next((m for m in self._version_chain(target) if m.seq == seq), None)
+        if manifest is None:
+            raise ObjectNotFoundError(f"版本不存在: {target}@{seq}")
+        return b"".join(self._fetch(keys, ref) for ref in manifest.chunks)
+
+    def restore_version(self, oid: Oid | str, seq: int) -> Oid:
+        """把某个历史版本的内容作为新版本写回（线性历史继续向前）。"""
+        self._require_unlocked()
+        target = Oid.parse(str(oid))
+        current = self._load_manifest(target)[1]
+        if current.seq == seq:
+            return target
+        blob = self.read_version(target, seq)
+        return self.put(
+            blob,
+            space=current.space_id,
+            type=current.type,
+            mime=current.mime,
+            meta=dict(current.meta or {}),
+            oid=target,
+        )
+
+    # ---- 检索 ----
+    def search(self, query: str) -> list[Oid]:
+        self._require_unlocked()
+        if self._index is None:
+            return []
+        return [Oid.parse(oid) for oid in self._index.search(query)]
+
+    def index_is_empty(self) -> bool:
+        self._require_unlocked()
+        return self._index is None or self._index.count("objects") == 0
+
+    def rebuild_index(self, *, text_of: Any = None) -> int:
         self._require_unlocked()
         from .storage.index import Index
 
         if self._index is None:
             self._index = Index(self.root / ".cairn" / "index.sqlite")
-        return self._index.rebuild(self)
+        return self._index.rebuild(self, text_of=text_of)
 
     def gc(self, *, retention_ms: int | None = None) -> int:
         """标记清除：保留 head 及其时间窗内的历史，回收其余块与归档。"""
@@ -545,14 +615,19 @@ class Vault:
             live_archives.add(prev)
             manifest = parent
 
-    def _index_add(self, manifest: Manifest, previous: Manifest | None) -> None:
+    def _index_add(
+        self,
+        manifest: Manifest,
+        previous: Manifest | None,
+        search_text: str | None = None,
+    ) -> None:
         if self._index is None:
             return
         try:
             mtime = int(self.pool.object_path(manifest.oid).stat().st_mtime * 1000)
         except OSError:
             mtime = None
-        self._index.add(manifest, mtime_ms=mtime, previous=previous)
+        self._index.add(manifest, mtime_ms=mtime, previous=previous, search_text=search_text)
         self._index.commit()
 
     def _create_space(self, name: str, visibility: Visibility) -> _SpaceKeys:
@@ -577,6 +652,9 @@ class Vault:
         )
         self._spaces[name] = keys
         self._by_id[space_id] = keys
+        if self._index is not None:
+            self._index.add_space(keys.space)
+            self._index.commit()
         self._events.emit(SpaceCreated(space=keys.space))
         return keys
 
@@ -668,6 +746,7 @@ def _manifest_info(manifest: Manifest) -> ObjectInfo:
         updated=manifest.updated,
         title=meta.get("title"),
         tags=tuple(tags),
+        seq=manifest.seq,
     )
 
 

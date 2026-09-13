@@ -121,7 +121,7 @@ class DomainObject:
         for info in vault.iter(space=space, type=cls.kind, tags=tags):
             yield cls(vault, info.oid, info)
 
-    def _put(self, payload: bytes, *, meta: dict[str, Any]) -> Oid:
+    def _put(self, payload: bytes, *, meta: dict[str, Any], search_text: str | None = None) -> Oid:
         return self._vault.put(
             payload,
             oid=self._oid,
@@ -129,6 +129,7 @@ class DomainObject:
             type=self.kind,
             mime=self.mime,
             meta=meta,
+            search_text=search_text,
         )
 
     def _refresh(self) -> None:

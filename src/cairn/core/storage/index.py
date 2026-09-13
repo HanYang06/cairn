@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -61,6 +62,10 @@ CREATE TABLE IF NOT EXISTS chunks(
   size INTEGER,
   refcount INTEGER DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS object_text(
+  oid TEXT PRIMARY KEY,
+  body TEXT
+);
 CREATE TABLE IF NOT EXISTS links(
   src_oid TEXT,
   dst_oid TEXT,
@@ -104,7 +109,15 @@ class Index:
         self.conn.close()
 
     def clear(self) -> None:
-        for table in ("spaces", "objects", "obj_tags", "obj_chunks", "chunks", "links"):
+        for table in (
+            "spaces",
+            "objects",
+            "obj_tags",
+            "obj_chunks",
+            "chunks",
+            "object_text",
+            "links",
+        ):
             self.conn.execute(f"DELETE FROM {table}")
         if self._fts:
             self.conn.execute("DELETE FROM search_fts")
@@ -122,6 +135,7 @@ class Index:
         *,
         mtime_ms: int | None = None,
         previous: Manifest | None = None,
+        search_text: str | None = None,
     ) -> None:
         if previous is not None:
             self._decref(previous.oid)
@@ -156,13 +170,52 @@ class Index:
                 "INSERT OR REPLACE INTO obj_chunks(oid, idx, cid, size) VALUES(?, ?, ?, ?)",
                 (oid, position, str(ref.cid), ref.size),
             )
+        self._write_text(oid, search_text)
         self._incref(manifest)
+
+    def _write_text(self, oid: str, search_text: str | None) -> None:
+        self.conn.execute("DELETE FROM object_text WHERE oid = ?", (oid,))
+        if search_text:
+            self.conn.execute(
+                "INSERT OR REPLACE INTO object_text(oid, body) VALUES(?, ?)",
+                (oid, search_text),
+            )
+        if self._fts:
+            self.conn.execute("DELETE FROM search_fts WHERE oid = ?", (oid,))
+            if search_text:
+                self.conn.execute(
+                    "INSERT INTO search_fts(oid, body) VALUES(?, ?)", (oid, search_text)
+                )
+
+    @property
+    def has_fts(self) -> bool:
+        return self._fts
+
+    def search(self, query: str) -> list[str]:
+        """按正文检索，返回命中的 oid（FTS5 优先，不可用回落 LIKE）。"""
+        query = query.strip()
+        if not query:
+            return []
+        if self._fts:
+            try:
+                rows = self.conn.execute(
+                    "SELECT oid FROM search_fts WHERE search_fts MATCH ?", (query,)
+                ).fetchall()
+                return [str(row["oid"]) for row in rows]
+            except sqlite3.OperationalError:
+                pass
+        rows = self.conn.execute(
+            "SELECT oid FROM object_text WHERE body LIKE ?", (f"%{query}%",)
+        ).fetchall()
+        return [str(row["oid"]) for row in rows]
 
     def remove(self, oid: Oid | str) -> None:
         target = str(oid)
         self._decref(target)
-        for table in ("objects", "obj_tags", "obj_chunks"):
+        for table in ("objects", "obj_tags", "obj_chunks", "object_text"):
             self.conn.execute(f"DELETE FROM {table} WHERE oid = ?", (target,))
+        if self._fts:
+            self.conn.execute("DELETE FROM search_fts WHERE oid = ?", (target,))
 
     def _incref(self, manifest: Manifest) -> None:
         for ref in manifest.chunks:
@@ -197,7 +250,7 @@ class Index:
             "SELECT cid, MAX(size), COUNT(*) FROM obj_chunks GROUP BY cid"
         )
 
-    def rebuild(self, vault: Vault) -> int:
+    def rebuild(self, vault: Vault, *, text_of: Callable[[Manifest], str] | None = None) -> int:
         self.clear()
         for space in vault.spaces():
             self.add_space(space)
@@ -207,7 +260,8 @@ class Index:
                 mtime = int(vault.pool.object_path(manifest.oid).stat().st_mtime * 1000)
             except OSError:
                 mtime = None
-            self.add(manifest, mtime_ms=mtime)
+            search_text = text_of(manifest) if text_of is not None else None
+            self.add(manifest, mtime_ms=mtime, search_text=search_text)
             count += 1
         self.recount_chunks()
         self.conn.execute(
