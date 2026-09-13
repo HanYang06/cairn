@@ -119,9 +119,44 @@ Rectangle {
                         k: "作者"
                         v: backend.currentAuthor
                     }
-                    PropRow {
-                        k: "公开"
-                        v: backend.currentVisibility
+                    Section {
+                        text: "权限"
+                    }
+                    Row {
+                        Layout.leftMargin: CairnTheme.spaceMd
+                        Layout.rightMargin: CairnTheme.spaceMd
+                        Layout.bottomMargin: CairnTheme.spaceMd
+                        spacing: 6
+                        Repeater {
+                            model: [{
+                                "v": "private",
+                                "t": "私密"
+                            }, {
+                                "v": "public",
+                                "t": "公开"
+                            }]
+                            delegate: Rectangle {
+                                width: visText.implicitWidth + 24
+                                height: 24
+                                radius: 12
+                                color: backend.currentVisibility === modelData.t ? CairnTheme.selection : CairnTheme.bg
+                                border.color: backend.currentVisibility === modelData.t ? CairnTheme.accent : CairnTheme.border
+                                border.width: 1
+                                Text {
+                                    id: visText
+                                    anchors.centerIn: parent
+                                    text: modelData.t
+                                    color: backend.currentVisibility === modelData.t ? CairnTheme.accent : CairnTheme.muted
+                                    font.family: CairnTheme.fontFamily
+                                    font.pixelSize: CairnTheme.fsTiny
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: backend.setVisibility(modelData.v)
+                                }
+                            }
+                        }
                     }
                     Section {
                         text: "时间"
@@ -227,7 +262,7 @@ Rectangle {
                     }
 
                     Section {
-                        text: "族谱"
+                        text: "关系"
                     }
                     Repeater {
                         model: backend.currentAncestors
@@ -302,7 +337,7 @@ Rectangle {
                         border.width: 1
                         Text {
                             anchors.centerIn: parent
-                            text: "派生一份"
+                            text: "复刻一份"
                             color: CairnTheme.accent
                             font.family: CairnTheme.fontFamily
                             font.pixelSize: CairnTheme.fsTiny

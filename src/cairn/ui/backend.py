@@ -228,6 +228,7 @@ class Backend(QObject):
     currentChanged = Signal()
     contentChanged = Signal()
     tagsChanged = Signal()
+    visibilityChanged = Signal()
 
     def __init__(self, vault: Vault, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -272,9 +273,12 @@ class Backend(QObject):
     def currentAuthor(self) -> str:
         return "你" if self._current is not None else ""
 
-    @Property(str, notify=currentChanged)
+    @Property(str, notify=visibilityChanged)
     def currentVisibility(self) -> str:
-        value = self._vault.space().visibility
+        override: Any = None
+        if self._current is not None:
+            override = self._current.props().get("visibility")
+        value = override or self._vault.space().visibility
         text = getattr(value, "value", str(value))
         return _VIS_LABELS.get(text, text)
 
@@ -312,6 +316,7 @@ class Backend(QObject):
         self._current = note
         self.currentChanged.emit()
         self.tagsChanged.emit()
+        self.visibilityChanged.emit()
 
     def _activate(self, note: Note) -> None:
         self._set_current(note)
@@ -420,6 +425,15 @@ class Backend(QObject):
     @Slot(str)
     def filterNotes(self, query: str) -> None:
         self.notes.set_query(query)
+
+    @Slot(str)
+    def setVisibility(self, value: str) -> None:
+        """对象级可见性（存于 meta.props.visibility，个人离线时无感，P2P 时生效）。"""
+        if self._current is None:
+            return
+        self._current.update(props={"visibility": value})
+        self.visibilityChanged.emit()
+        self.contentChanged.emit()
 
     # ---- 标签 ----
     @Slot(str)

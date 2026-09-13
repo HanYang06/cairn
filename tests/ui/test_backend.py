@@ -139,3 +139,15 @@ def test_derive_creates_lineage(backend: Backend) -> None:
 
     backend.openNote(source)
     assert [item["oid"] for item in backend.currentDescendants] == [child]
+
+
+def test_visibility_override_survives_edit(backend: Backend) -> None:
+    backend.captureNote("笔记")
+    assert backend.currentVisibility == "私密"
+
+    backend.setVisibility("public")
+    assert backend.currentVisibility == "公开"
+
+    backend.queueSave("改过内容")
+    backend.flush()
+    assert backend.currentVisibility == "公开"
