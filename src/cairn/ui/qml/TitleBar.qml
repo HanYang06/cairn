@@ -13,19 +13,10 @@ Rectangle {
         id: dragArea
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton
-        property point pressPos
-        property point winPos
+        // 交给系统处理拖动：跟手且不抽搐（自己算增量会与窗口移动形成反馈震荡）
         onPressed: {
-            if (Window.window) {
-                pressPos = Qt.point(mouse.x, mouse.y);
-                winPos = Qt.point(Window.window.x, Window.window.y);
-            }
-        }
-        onPositionChanged: {
-            if (pressed && Window.window) {
-                Window.window.x = winPos.x + (mouse.x - pressPos.x);
-                Window.window.y = winPos.y + (mouse.y - pressPos.y);
-            }
+            if (Window.window)
+                Window.window.startSystemMove();
         }
         onDoubleClicked: {
             if (!Window.window)

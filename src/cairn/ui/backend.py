@@ -32,6 +32,7 @@ from ..domains.provenance import DERIVED_FROM
 
 DEV_PASSPHRASE = "cairn-dev"
 _SPACE_LABELS = {"default": "个人空间"}
+_VIS_LABELS = {"private": "私密", "communal": "共有", "public": "公开", "direct": "直连"}
 
 
 def _default_vault_root() -> Path:
@@ -70,6 +71,14 @@ def _title_of(vault: Vault, oid: Any) -> str:
         return vault.info(oid).title or "未命名"
     except Exception:
         return "（缺失）"
+
+
+def _fmt_size(num_bytes: int) -> str:
+    if num_bytes < 1024:
+        return f"{num_bytes} B"
+    if num_bytes < 1024 * 1024:
+        return f"{num_bytes / 1024:.1f} KB"
+    return f"{num_bytes / 1024 / 1024:.1f} MB"
 
 
 class NotesModel(QAbstractListModel):
@@ -258,6 +267,24 @@ class Backend(QObject):
     @Property(str, notify=currentChanged)
     def currentUpdated(self) -> str:
         return _fmt_time(self._current.info.updated) if self._current is not None else ""
+
+    @Property(str, notify=currentChanged)
+    def currentAuthor(self) -> str:
+        return "你" if self._current is not None else ""
+
+    @Property(str, notify=currentChanged)
+    def currentVisibility(self) -> str:
+        value = self._vault.space().visibility
+        text = getattr(value, "value", str(value))
+        return _VIS_LABELS.get(text, text)
+
+    @Property(int, notify=currentChanged)
+    def currentWords(self) -> int:
+        return len(self._current.text) if self._current is not None else 0
+
+    @Property(str, notify=currentChanged)
+    def currentSize(self) -> str:
+        return _fmt_size(self._current.info.size) if self._current is not None else ""
 
     @Property(list, notify=tagsChanged)
     def currentTags(self) -> list[str]:

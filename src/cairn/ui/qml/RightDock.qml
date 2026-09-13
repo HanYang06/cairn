@@ -115,6 +115,14 @@ Rectangle {
                         k: "空间"
                         v: backend.currentSpace
                     }
+                    PropRow {
+                        k: "作者"
+                        v: backend.currentAuthor
+                    }
+                    PropRow {
+                        k: "公开"
+                        v: backend.currentVisibility
+                    }
                     Section {
                         text: "时间"
                     }
@@ -125,6 +133,17 @@ Rectangle {
                     PropRow {
                         k: "修改"
                         v: backend.currentUpdated
+                    }
+                    Section {
+                        text: "内容"
+                    }
+                    PropRow {
+                        k: "字数"
+                        v: "" + backend.currentWords
+                    }
+                    PropRow {
+                        k: "大小"
+                        v: backend.currentSize
                     }
                     Section {
                         text: "标签"
