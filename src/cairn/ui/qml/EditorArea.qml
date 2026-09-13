@@ -9,35 +9,11 @@ Rectangle {
     id: area
     color: CairnTheme.surface
 
-    // 标签页 = 正在处理的任务
-    property var tabs: [
-        {
-            "title": "石堆设计笔记",
-            "kind": "note"
-        },
-        {
-            "title": "项目：Cairn 客户端",
-            "kind": "project"
-        },
-        {
-            "title": "QML 外壳草案",
-            "kind": "note"
-        }
-    ]
-    property int currentTab: 0
-
-    function kindColor(kind) {
-        if (kind === "project")
-            return CairnTheme.accentAlt;
-        if (kind === "graph")
-            return CairnTheme.borderStrong;
-        return CairnTheme.accent;
-    }
-
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
 
+        // 标签栏（当前打开的任务）
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: CairnTheme.tabBarH
@@ -46,12 +22,13 @@ Rectangle {
             Row {
                 anchors.fill: parent
                 Repeater {
-                    model: area.tabs
+                    model: tabsModel
                     delegate: Rectangle {
                         id: tab
-                        width: Math.min(240, Math.max(130, tabText.implicitWidth + 70))
+                        readonly property bool active: model.oid === backend.currentOid
+                        width: Math.min(220, Math.max(140, tabText.implicitWidth + 64))
                         height: parent.height
-                        color: index === area.currentTab ? CairnTheme.surface : (tabMa.containsMouse ? CairnTheme.hover : "transparent")
+                        color: tab.active ? CairnTheme.surface : (tabMa.containsMouse ? CairnTheme.hover : "transparent")
                         Behavior on color {
                             ColorAnimation {
                                 duration: CairnTheme.durFast
@@ -62,7 +39,7 @@ Rectangle {
                             width: parent.width
                             height: 2
                             color: CairnTheme.accent
-                            opacity: index === area.currentTab ? 1 : 0
+                            opacity: tab.active ? 1 : 0
                             Behavior on opacity {
                                 NumberAnimation {
                                     duration: CairnTheme.durFast
@@ -83,33 +60,53 @@ Rectangle {
                             width: 6
                             height: 6
                             radius: 3
-                            color: area.kindColor(modelData.kind)
+                            color: CairnTheme.accent
                         }
                         Text {
                             id: tabText
                             anchors.left: parent.left
                             anchors.leftMargin: 26
+                            anchors.right: closeBtn.left
+                            anchors.rightMargin: 4
                             anchors.verticalCenter: parent.verticalCenter
-                            text: modelData.title
-                            color: index === area.currentTab ? CairnTheme.text : CairnTheme.muted
+                            text: model.title
+                            color: tab.active ? CairnTheme.text : CairnTheme.muted
                             font.family: CairnTheme.fontFamily
                             font.pixelSize: CairnTheme.fsSmall
+                            elide: Text.ElideRight
                         }
-                        Text {
+                        Item {
+                            id: closeBtn
+                            z: 2
                             anchors.right: parent.right
-                            anchors.rightMargin: 10
+                            anchors.rightMargin: 8
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "\uE8BB"
-                            visible: index === area.currentTab
-                            font.family: CairnTheme.iconFont
-                            font.pixelSize: 9
-                            color: CairnTheme.faint
+                            width: 18
+                            height: 18
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 4
+                                color: closeMa.containsMouse ? CairnTheme.hover : "transparent"
+                            }
+                            Text {
+                                anchors.centerIn: parent
+                                text: "\uE8BB"
+                                font.family: CairnTheme.iconFont
+                                font.pixelSize: 9
+                                color: CairnTheme.faint
+                            }
+                            MouseArea {
+                                id: closeMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: backend.closeTab(model.oid)
+                            }
                         }
                         MouseArea {
                             id: tabMa
                             anchors.fill: parent
                             hoverEnabled: true
-                            onClicked: area.currentTab = index
+                            onClicked: backend.openNote(model.oid)
                         }
                     }
                 }
@@ -123,107 +120,150 @@ Rectangle {
             }
         }
 
-        NoteView {
+        NoteEditor {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            visible: backend.currentOid !== ""
+        }
+        EmptyState {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: backend.currentOid === ""
         }
     }
 
-    component NoteView: Item {
-        Column {
-            width: Math.min(parent.width - 72, 720)
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: 36
-            spacing: CairnTheme.spaceMd
+    component NoteEditor: Item {
+        id: ed
+        // 初始为 true：避免首次绑定 currentText 时误报"编辑中"
+        property bool loading: true
+        property string status: ""
 
-            Text {
-                text: "石堆设计笔记"
-                color: CairnTheme.text
-                font.family: CairnTheme.fontFamily
-                font.pixelSize: CairnTheme.fsTitle
-                font.weight: Font.DemiBold
+        Component.onCompleted: loading = false
+
+        Connections {
+            target: backend
+            function onCurrentChanged() {
+                ed.loading = true;
+                titleInput.text = backend.currentTitle;
+                body.text = backend.currentText;
+                ed.loading = false;
+                ed.status = "";
             }
-            Row {
-                height: 22
-                spacing: CairnTheme.spaceSm
-                Rectangle {
-                    width: metaNote.implicitWidth + 18
-                    height: 22
-                    radius: 11
-                    color: CairnTheme.elevated
+            function onContentChanged() {
+                ed.status = "已保存";
+            }
+        }
+
+        Flickable {
+            id: flick
+            anchors.fill: parent
+            contentWidth: width
+            contentHeight: col.height + 64
+            clip: true
+
+            Column {
+                id: col
+                width: Math.min(flick.width - 72, 720)
+                x: Math.max(36, (flick.width - width) / 2)
+                y: 28
+                spacing: CairnTheme.spaceMd
+
+                TextInput {
+                    id: titleInput
+                    width: parent.width
+                    text: backend.currentTitle
+                    color: CairnTheme.text
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsTitle
+                    font.weight: Font.DemiBold
+                    selectByMouse: true
+                    clip: true
+                    onEditingFinished: backend.renameNote(text)
                     Text {
-                        id: metaNote
-                        anchors.centerIn: parent
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: titleInput.text === ""
+                        text: "无标题"
+                        color: CairnTheme.faint
+                        font: titleInput.font
+                    }
+                }
+
+                Row {
+                    height: 18
+                    spacing: CairnTheme.spaceSm
+                    Text {
                         text: "笔记"
                         color: CairnTheme.muted
                         font.family: CairnTheme.fontFamily
                         font.pixelSize: CairnTheme.fsTiny
                     }
-                }
-                Rectangle {
-                    width: metaVis.implicitWidth + 18
-                    height: 22
-                    radius: 11
-                    color: CairnTheme.elevated
                     Text {
-                        id: metaVis
-                        anchors.centerIn: parent
-                        text: "私密"
-                        color: CairnTheme.muted
-                        font.family: CairnTheme.fontFamily
+                        text: "·"
+                        color: CairnTheme.faint
                         font.pixelSize: CairnTheme.fsTiny
                     }
-                }
-                Item {
-                    width: metaTime.implicitWidth
-                    height: 22
                     Text {
-                        id: metaTime
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "09:12 更新"
+                        text: ed.status !== "" ? ed.status : "自动保存"
                         color: CairnTheme.faint
                         font.family: CairnTheme.fontFamily
                         font.pixelSize: CairnTheme.fsTiny
                     }
                 }
-                Item {
-                    width: relationshipLink.implicitWidth
-                    height: 22
-                    Text {
-                        id: relationshipLink
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "在关系中打开 ›"
-                        color: CairnTheme.accent
-                        font.family: CairnTheme.fontFamily
-                        font.pixelSize: CairnTheme.fsTiny
+
+                Rectangle {
+                    width: 48
+                    height: 3
+                    radius: 1.5
+                    color: CairnTheme.accent
+                    opacity: 0.8
+                }
+
+                TextEdit {
+                    id: body
+                    width: parent.width
+                    height: Math.max(contentHeight, 80)
+                    text: backend.currentText
+                    color: CairnTheme.text
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsBody
+                    wrapMode: TextEdit.Wrap
+                    selectByMouse: true
+                    onTextChanged: {
+                        if (!ed.loading) {
+                            backend.queueSave(text);
+                            ed.status = "编辑中…";
+                        }
                     }
                 }
             }
-            Rectangle {
-                width: 48
-                height: 3
-                radius: 1.5
-                color: CairnTheme.accent
-                opacity: 0.8
+        }
+
+        Shortcut {
+            sequence: "Ctrl+S"
+            onActivated: {
+                backend.flush();
+                ed.status = "已保存";
+            }
+        }
+    }
+
+    component EmptyState: Item {
+        Column {
+            anchors.centerIn: parent
+            spacing: CairnTheme.spaceMd
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "\uE8A5"
+                font.family: CairnTheme.iconFont
+                font.pixelSize: 40
+                color: CairnTheme.faint
             }
             Text {
-                width: parent.width
-                text: "内容先落在本地对象池，再进入索引；块级去重让相同内容只存一份。CID 由 BLAKE3 派生密钥计算，删除与 GC 走标记清除，默认保留最近 30 天的版本链。"
-                color: CairnTheme.text
-                font.family: CairnTheme.fontFamily
-                font.pixelSize: CairnTheme.fsBody
-                lineHeight: 1.55
-                wrapMode: Text.WordWrap
-            }
-            Text {
-                width: parent.width
-                text: "把「收」和「编」分开：收集时零摩擦，整理时再建立关系与归属。关系不是常驻面板，而是一个随时可打开的特殊页面。"
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "选择左侧笔记，或点 ＋ 新建"
                 color: CairnTheme.muted
                 font.family: CairnTheme.fontFamily
-                font.pixelSize: CairnTheme.fsBody
-                lineHeight: 1.55
-                wrapMode: Text.WordWrap
+                font.pixelSize: CairnTheme.fsSmall
             }
         }
     }

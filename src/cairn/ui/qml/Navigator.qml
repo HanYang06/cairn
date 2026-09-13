@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 HanYang06
 // SPDX-License-Identifier: Apache-2.0
 
-// 双态导航：mode = "notes"（笔记写法）| "projects"（仓库形式）。
+// 双态导航：mode = "notes"（真实笔记）| "projects"（仓库形式）| "community"。
 import QtQuick
 import QtQuick.Layouts
 import "theme"
@@ -42,6 +42,7 @@ Rectangle {
                 }
                 IconGlyph {
                     glyph: "\uE710"
+                    onClicked: backend.createNote()
                 }
                 IconGlyph {
                     glyph: "\uE712"
@@ -56,7 +57,7 @@ Rectangle {
             Layout.preferredHeight: 32
             radius: CairnTheme.radiusSm
             color: CairnTheme.bg
-            border.color: CairnTheme.border
+            border.color: capture.activeFocus ? CairnTheme.accent : CairnTheme.border
             border.width: 1
             Text {
                 x: 9
@@ -66,13 +67,28 @@ Rectangle {
                 font.pixelSize: 12
                 color: CairnTheme.accent
             }
-            Text {
+            TextInput {
+                id: capture
                 x: 28
+                width: parent.width - 36
                 anchors.verticalCenter: parent.verticalCenter
-                text: "快速记录…"
-                color: CairnTheme.faint
+                clip: true
+                color: CairnTheme.text
                 font.family: CairnTheme.fontFamily
                 font.pixelSize: CairnTheme.fsSmall
+                selectByMouse: true
+                onAccepted: {
+                    backend.captureNote(text);
+                    text = "";
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: capture.text === "" && !capture.activeFocus
+                    text: "快速记录，回车…"
+                    color: CairnTheme.faint
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsSmall
+                }
             }
         }
 
@@ -82,7 +98,7 @@ Rectangle {
 
         Text {
             Layout.leftMargin: CairnTheme.spaceMd
-            text: "结构"
+            text: "全部笔记"
             color: CairnTheme.faint
             font.family: CairnTheme.fontFamily
             font.pixelSize: CairnTheme.fsTiny
@@ -91,107 +107,80 @@ Rectangle {
         }
 
         ListView {
-            id: treeList
+            id: notesList
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.topMargin: 4
             clip: true
-            model: [
-                {
-                    "t": "未整理",
-                    "lvl": 0,
-                    "badge": "3",
-                    "kind": "inbox"
-                },
-                {
-                    "t": "石堆设计笔记",
-                    "lvl": 0,
-                    "open": true,
-                    "kind": "note"
-                },
-                {
-                    "t": "布局取舍 v1",
-                    "lvl": 1,
-                    "kind": "note"
-                },
-                {
-                    "t": "QML 外壳草案",
-                    "lvl": 1,
-                    "kind": "note"
-                },
-                {
-                    "t": "存储层设计笔记",
-                    "lvl": 0,
-                    "kind": "note"
-                },
-                {
-                    "t": "MCP 作为 AI 接入面",
-                    "lvl": 0,
-                    "kind": "note"
-                },
-                {
-                    "t": "设计灵感/交互参考",
-                    "lvl": 0,
-                    "kind": "note"
-                }
-            ]
+            model: notesModel
             boundsBehavior: Flickable.StopAtBounds
 
-            delegate: Rectangle {
-                id: node
-                width: treeList.width
-                height: 30
-                color: nodeMa.containsMouse ? CairnTheme.hover : "transparent"
+            delegate: Item {
+                id: del
+                width: notesList.width
+                height: 62
+                readonly property bool active: model.oid === backend.currentOid
 
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: CairnTheme.spaceSm + modelData.lvl * CairnTheme.spaceLg
-                    spacing: 6
-                    Text {
-                        visible: modelData.lvl === 0 && modelData.open !== undefined
-                        text: "\uE70D"
-                        font.family: CairnTheme.iconFont
-                        font.pixelSize: 8
-                        color: CairnTheme.faint
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    Text {
-                        text: modelData.kind === "inbox" ? "\uE715" : "\uE8A5"
-                        font.family: CairnTheme.iconFont
-                        font.pixelSize: 12
-                        color: modelData.kind === "inbox" ? CairnTheme.accent : CairnTheme.muted
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-                    Text {
-                        text: modelData.t
-                        color: modelData.lvl === 0 ? CairnTheme.text : CairnTheme.muted
-                        font.family: CairnTheme.fontFamily
-                        font.pixelSize: CairnTheme.fsSmall
-                        anchors.verticalCenter: parent.verticalCenter
+                Rectangle {
+                    anchors.fill: parent
+                    color: del.active ? CairnTheme.selection : (delMa.containsMouse ? CairnTheme.hover : "transparent")
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: CairnTheme.durFast
+                        }
                     }
                 }
                 Rectangle {
-                    visible: modelData.badge !== undefined
-                    anchors.right: parent.right
-                    anchors.rightMargin: CairnTheme.spaceMd
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 18
-                    height: 18
-                    radius: 9
+                    width: 2
+                    height: parent.height
                     color: CairnTheme.accent
+                    opacity: del.active ? 1 : 0
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: CairnTheme.durFast
+                        }
+                    }
+                }
+                Column {
+                    anchors.fill: parent
+                    anchors.leftMargin: CairnTheme.spaceMd
+                    anchors.rightMargin: CairnTheme.spaceMd
+                    anchors.topMargin: CairnTheme.spaceSm
+                    anchors.bottomMargin: CairnTheme.spaceSm
+                    spacing: 3
+                    RowLayout {
+                        width: parent.width
+                        Text {
+                            text: model.title
+                            color: CairnTheme.text
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsSmall
+                            font.weight: Font.Medium
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        Text {
+                            text: model.updated
+                            color: CairnTheme.faint
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsTiny
+                        }
+                    }
                     Text {
-                        anchors.centerIn: parent
-                        text: modelData.badge || ""
-                        color: CairnTheme.accentText
+                        width: parent.width
+                        text: model.preview !== "" ? model.preview : "空笔记"
+                        color: CairnTheme.muted
                         font.family: CairnTheme.fontFamily
-                        font.pixelSize: 10
-                        font.weight: Font.DemiBold
+                        font.pixelSize: CairnTheme.fsTiny
+                        maximumLineCount: 1
+                        elide: Text.ElideRight
                     }
                 }
                 MouseArea {
-                    id: nodeMa
+                    id: delMa
                     anchors.fill: parent
                     hoverEnabled: true
+                    onClicked: backend.openNote(model.oid)
                 }
             }
         }
@@ -456,6 +445,7 @@ Rectangle {
     component IconGlyph: Item {
         id: ig
         property string glyph
+        signal clicked()
         Layout.preferredWidth: 26
         Layout.preferredHeight: 26
         Rectangle {
@@ -479,6 +469,7 @@ Rectangle {
             id: igMa
             anchors.fill: parent
             hoverEnabled: true
+            onClicked: ig.clicked()
         }
     }
 }

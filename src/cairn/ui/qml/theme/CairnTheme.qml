@@ -29,8 +29,8 @@ QtObject {
     // ===== radius（更圆润）=====
     readonly property int radiusSm: 8
     readonly property int radius: 12
-    readonly property int radiusLg: 18
-    readonly property int radiusXl: 24
+    readonly property int radiusLg: 14
+    readonly property int radiusXl: 16
 
     // ===== spacing =====
     readonly property int spaceXs: 4

@@ -10,6 +10,7 @@ Rectangle {
     id: dock
     color: CairnTheme.surface
     property string mode: "notes"
+    property string preview: ""
 
     Rectangle {
         anchors.left: parent.left
@@ -31,7 +32,7 @@ Rectangle {
                 anchors.leftMargin: CairnTheme.spaceMd
                 anchors.rightMargin: CairnTheme.spaceSm
                 Text {
-                    text: dock.mode === "community" ? "社区" : (dock.mode === "projects" ? "仓库" : "属性")
+                    text: dock.preview !== "" ? ("临时显示 · " + dock.preview) : (dock.mode === "community" ? "社区" : (dock.mode === "projects" ? "仓库" : "属性"))
                     color: CairnTheme.text
                     font.family: CairnTheme.fontFamily
                     font.pixelSize: CairnTheme.fsBody
@@ -92,14 +93,17 @@ Rectangle {
                         color: CairnTheme.text
                         font.family: CairnTheme.fontFamily
                         font.pixelSize: CairnTheme.fsTiny
+                        elide: Text.ElideRight
+                        width: parent.width * 0.6
+                        horizontalAlignment: Text.AlignRight
                     }
                 }
 
-                // ===== 笔记：属性 =====
+                // ===== 笔记：属性（真实数据）=====
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 0
-                    visible: dock.mode === "notes"
+                    visible: dock.mode === "notes" && dock.preview === "" && backend.currentOid !== ""
                     Section {
                         text: "基本"
                     }
@@ -109,29 +113,18 @@ Rectangle {
                     }
                     PropRow {
                         k: "空间"
-                        v: "个人空间"
-                    }
-                    PropRow {
-                        k: "可见性"
-                        v: "私密"
+                        v: backend.currentSpace
                     }
                     Section {
                         text: "时间"
                     }
                     PropRow {
                         k: "创建"
-                        v: "2026-09-10"
+                        v: backend.currentCreated
                     }
                     PropRow {
                         k: "修改"
-                        v: "09:12"
-                    }
-                    Section {
-                        text: "来源"
-                    }
-                    PropRow {
-                        k: "派生自"
-                        v: "石堆设计笔记"
+                        v: backend.currentUpdated
                     }
                     Section {
                         text: "标签"
@@ -139,26 +132,77 @@ Rectangle {
                     Flow {
                         Layout.leftMargin: CairnTheme.spaceMd
                         Layout.rightMargin: CairnTheme.spaceMd
-                        Layout.bottomMargin: CairnTheme.spaceMd
                         Layout.fillWidth: true
                         spacing: 6
                         Repeater {
-                            model: ["存储", "设计", "客户端"]
+                            model: backend.currentTags
                             delegate: Rectangle {
-                                width: tagText.implicitWidth + 16
-                                height: 20
-                                radius: 10
+                                width: chipRow.implicitWidth + 18
+                                height: 22
+                                radius: 11
                                 color: CairnTheme.elevated
                                 border.color: CairnTheme.border
                                 border.width: 1
-                                Text {
-                                    id: tagText
+                                Row {
+                                    id: chipRow
                                     anchors.centerIn: parent
-                                    text: modelData
-                                    color: CairnTheme.muted
-                                    font.family: CairnTheme.fontFamily
-                                    font.pixelSize: CairnTheme.fsTiny
+                                    spacing: 4
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: modelData
+                                        color: CairnTheme.muted
+                                        font.family: CairnTheme.fontFamily
+                                        font.pixelSize: CairnTheme.fsTiny
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "\uE8BB"
+                                        font.family: CairnTheme.iconFont
+                                        font.pixelSize: 8
+                                        color: CairnTheme.faint
+                                    }
                                 }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: backend.removeTag(modelData)
+                                }
+                            }
+                        }
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: CairnTheme.spaceMd
+                        Layout.rightMargin: CairnTheme.spaceMd
+                        Layout.topMargin: CairnTheme.spaceSm
+                        Layout.bottomMargin: CairnTheme.spaceMd
+                        Layout.preferredHeight: 30
+                        radius: CairnTheme.radiusSm
+                        color: CairnTheme.bg
+                        border.color: tagInput.activeFocus ? CairnTheme.accent : CairnTheme.border
+                        border.width: 1
+                        TextInput {
+                            id: tagInput
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            verticalAlignment: TextInput.AlignVCenter
+                            clip: true
+                            color: CairnTheme.text
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsTiny
+                            selectByMouse: true
+                            onAccepted: {
+                                backend.addTag(tagInput.text);
+                                tagInput.text = "";
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: tagInput.text === ""
+                                text: "加标签，回车…"
+                                color: CairnTheme.faint
+                                font.family: CairnTheme.fontFamily
+                                font.pixelSize: CairnTheme.fsTiny
                             }
                         }
                     }

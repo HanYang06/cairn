@@ -55,6 +55,10 @@ line-length = 100
 select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "ARG", "RUF"]
 ignore = ["RUF001", "RUF002", "RUF003"]
 
+[tool.ruff.lint.per-file-ignores]
+# Qt 的命名约定（QML 需要驼峰角色/属性/信号）与默认参数
+"src/cairn/ui/backend.py" = ["N802", "N815", "B008"]
+
 [tool.mypy]
 python_version = "3.13"
 strict = false

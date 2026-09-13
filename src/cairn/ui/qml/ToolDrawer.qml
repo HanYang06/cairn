@@ -14,6 +14,7 @@ Item {
     property bool open: false
     property bool editing: false
     signal launch(string id)
+    signal preview(string id, string label)
     signal addRequested()
 
     property var apps: [
@@ -138,7 +139,7 @@ Item {
     Rectangle {
         id: panel
         anchors.horizontalCenter: parent.horizontalCenter
-        width: parent.width - 24
+        width: Math.min(parent.width - 24, 880)
         height: Math.min(parent.height - 12, 328)
         y: drawer.open ? 10 : -height - 12
         radius: CairnTheme.radiusXl
@@ -317,6 +318,11 @@ Item {
                         }
                         TapHandler {
                             onTapped: drawer.launch(modelData.id)
+                            onDoubleTapped: drawer.preview(modelData.id, modelData.label)
+                        }
+                        TapHandler {
+                            acceptedButtons: Qt.RightButton
+                            onTapped: drawer.preview(modelData.id, modelData.label)
                         }
                     }
                 }
@@ -324,7 +330,7 @@ Item {
 
             Text {
                 Layout.fillWidth: true
-                text: "拖到左侧＝常驻 · 拖到中间＝配置 · 拖到右侧＝展示"
+                text: "单击＝开标签页 · 双击/右键＝临时显示在右侧"
                 color: CairnTheme.faint
                 font.family: CairnTheme.fontFamily
                 font.pixelSize: CairnTheme.fsTiny

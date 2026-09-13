@@ -17,7 +17,7 @@ Rectangle {
         },
         {
             "kind": "edge",
-            "t": "派生"
+            "t": ">"
         },
         {
             "kind": "node",
@@ -25,7 +25,7 @@ Rectangle {
         },
         {
             "kind": "edge",
-            "t": "派生"
+            "t": ">"
         },
         {
             "kind": "node",
@@ -78,10 +78,11 @@ Rectangle {
                         Text {
                             anchors.verticalCenter: parent.verticalCenter
                             visible: modelData.kind === "edge"
-                            text: "─" + modelData.t + "→"
+                            text: modelData.t
                             color: CairnTheme.faint
                             font.family: CairnTheme.fontFamily
                             font.pixelSize: CairnTheme.fsTiny
+                            font.weight: Font.DemiBold
                         }
                         Text {
                             anchors.verticalCenter: parent.verticalCenter

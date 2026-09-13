@@ -13,7 +13,9 @@
 from __future__ import annotations
 
 import os
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 if os.environ.get("CAIRN_PREVIEW_OFFSCREEN"):
@@ -23,6 +25,8 @@ if os.environ.get("CAIRN_PREVIEW_OFFSCREEN"):
 from PySide6.QtCore import QTimer, QUrl
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQuick import QQuickView
+
+from cairn.ui.backend import Backend, open_vault, seed_demo
 
 ROOT = Path(__file__).resolve().parents[1]
 QML_ROOT = ROOT / "src" / "cairn" / "ui" / "qml"
@@ -51,7 +55,17 @@ def main(argv: list[str]) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
 
     app = QGuiApplication(argv[:1])
+
+    preview_root = Path(tempfile.gettempdir()) / "cairn-preview"
+    if preview_root.exists():
+        shutil.rmtree(preview_root, ignore_errors=True)
+    backend = Backend(open_vault(preview_root, "preview-pass"))
+    seed_demo(backend)
+
     view = QQuickView()
+    view.engine().rootContext().setContextProperty("backend", backend)
+    view.engine().rootContext().setContextProperty("notesModel", backend.notes)
+    view.engine().rootContext().setContextProperty("tabsModel", backend.tabs)
     view.setResizeMode(QQuickView.SizeRootObjectToView)
     view.setSource(QUrl.fromLocalFile(str(QML_ROOT / page)))
     if view.status() == QQuickView.Error:

@@ -16,6 +16,8 @@ Rectangle {
     property string navMode: "notes"
     // 工具册抽屉是否展开
     property bool toolDrawerOpen: false
+    // 右侧临时显示的内容标题
+    property string previewLabel: ""
     // 深浅主题
     property bool dark: false
 
@@ -62,6 +64,7 @@ Rectangle {
                 Layout.preferredWidth: 288
                 Layout.fillHeight: true
                 mode: shell.navMode
+                preview: shell.previewLabel
             }
         }
         StatusBar {
@@ -85,6 +88,9 @@ Rectangle {
             if (id === "notes" || id === "projects" || id === "community")
                 shell.navMode = id;
             shell.toolDrawerOpen = false;
+        }
+        onPreview: function (id, label) {
+            shell.previewLabel = label;
         }
     }
 }

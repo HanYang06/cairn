@@ -152,29 +152,68 @@ Rectangle {
         }
 
         // —— 领域 Logo（自绘）——
-        // 笔记：单块石头
-        Rectangle {
+        // 笔记：书本
+        Item {
             visible: rb.kind === "notes"
             anchors.centerIn: parent
             width: 15
-            height: 13
-            radius: 5
-            color: rb.ink
+            height: 17
+            Rectangle {
+                anchors.fill: parent
+                radius: 2
+                color: "transparent"
+                border.color: rb.ink
+                border.width: 1.4
+            }
+            Rectangle {
+                x: 3
+                width: 1.3
+                height: parent.height
+                color: rb.ink
+            }
+            Rectangle {
+                x: 6
+                y: 5
+                width: 6
+                height: 1.3
+                radius: 0.6
+                color: rb.ink
+            }
+            Rectangle {
+                x: 6
+                y: 9
+                width: 4
+                height: 1.3
+                radius: 0.6
+                color: rb.ink
+            }
         }
-        // 项目：堆叠的石头
-        Column {
+        // 项目：仓库（书本 + 书签，参考 GitHub Repo）
+        Item {
             visible: rb.kind === "projects"
             anchors.centerIn: parent
-            spacing: 2
-            Repeater {
-                model: [13, 17, 10]
-                Rectangle {
-                    width: modelData
-                    height: 3
-                    radius: 1.5
-                    color: rb.ink
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
+            width: 15
+            height: 17
+            Rectangle {
+                anchors.fill: parent
+                radius: 2
+                color: "transparent"
+                border.color: rb.ink
+                border.width: 1.4
+            }
+            Rectangle {
+                x: 3
+                width: 1.3
+                height: parent.height
+                color: rb.ink
+            }
+            Rectangle {
+                x: 8
+                y: 1
+                width: 4
+                height: 6
+                radius: 1
+                color: rb.ink
             }
         }
         // 社区：四点成组
