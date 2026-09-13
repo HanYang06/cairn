@@ -32,6 +32,7 @@ class ObjectInfo:
     title: str | None = None
     tags: tuple[str, ...] = ()
     seq: int = 0
+    author: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,3 +66,4 @@ class VersionInfo:
     updated: int
     size: int
     is_current: bool = False
+    author: str = ""

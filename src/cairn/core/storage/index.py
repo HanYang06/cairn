@@ -173,6 +173,21 @@ class Index:
         self._write_text(oid, search_text)
         self._incref(manifest)
 
+    def update_meta(self, manifest: Manifest, *, search_text: str | None = None) -> None:
+        """只更新元数据（标题/标签/正文检索），不动块引用与版本计数。"""
+        meta = manifest.meta or {}
+        oid = str(manifest.oid)
+        self.conn.execute(
+            "UPDATE objects SET updated = ?, seq = ?, title = ? WHERE oid = ?",
+            (manifest.updated, manifest.seq, meta.get("title"), oid),
+        )
+        self.conn.execute("DELETE FROM obj_tags WHERE oid = ?", (oid,))
+        for tag in meta.get("tags") or ():
+            self.conn.execute(
+                "INSERT OR IGNORE INTO obj_tags(oid, tag) VALUES(?, ?)", (oid, str(tag))
+            )
+        self._write_text(oid, search_text)
+
     def _write_text(self, oid: str, search_text: str | None) -> None:
         self.conn.execute("DELETE FROM object_text WHERE oid = ?", (oid,))
         if search_text:

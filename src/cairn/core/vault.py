@@ -18,7 +18,7 @@ import shutil
 import tempfile
 import tomllib
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, BinaryIO
 
@@ -409,6 +409,31 @@ class Vault:
         )
         return new_oid
 
+    def put_meta(
+        self,
+        oid: Oid | str,
+        *,
+        meta: dict[str, Any] | None = None,
+        search_text: str | None = None,
+    ) -> Oid:
+        """只改元数据（标题 / 标签 / props）：不新增版本、不动块，仅重签当前 head。"""
+        self._require_unlocked()
+        if self._identity is None:
+            raise VaultLockedError("库已锁定")
+        target = Oid.parse(str(oid))
+        keys, current = self._load_manifest(target)
+        merged = dict(current.meta or {})
+        if meta:
+            merged.update(meta)
+        manifest = replace(current, updated=now_ms(), meta=merged)
+        signed = sign_manifest(manifest, self._identity)
+        sealed = seal(keys.meta_key, signed.to_cbor(), manifest_aad(target))
+        self.pool.write_object(target, _envelope(keys.space.space_id, sealed))
+        if self._index is not None:
+            self._index.update_meta(signed, search_text=search_text)
+            self._index.commit()
+        return target
+
     def open(self, oid: Oid | str) -> io.RawIOBase:
         self._require_unlocked()
         target = Oid.parse(str(oid))
@@ -489,7 +514,13 @@ class Vault:
         target = Oid.parse(str(oid))
         chain = self._version_chain(target)
         return [
-            VersionInfo(seq=m.seq, updated=m.updated, size=m.size, is_current=(index == 0))
+            VersionInfo(
+                seq=m.seq,
+                updated=m.updated,
+                size=m.size,
+                is_current=(index == 0),
+                author=m.author.hex(),
+            )
             for index, m in enumerate(chain)
         ]
 
@@ -747,6 +778,7 @@ def _manifest_info(manifest: Manifest) -> ObjectInfo:
         title=meta.get("title"),
         tags=tuple(tags),
         seq=manifest.seq,
+        author=manifest.author.hex(),
     )
 
 

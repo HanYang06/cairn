@@ -113,9 +113,14 @@ class Note(DomainObject):
         meta = get_handler(self.kind).normalize_meta(
             title=new_title, tags=new_tags, props=merged_props
         )
-        payload = self.read() if text is None else encode_substrate([text_fragment(text)])
         new_text = self.text if text is None else text
-        self._put(payload, meta=meta, search_text=_search_text(new_title, new_text))
+        search_text = _search_text(new_title, new_text)
+        # 只有正文（内容）变化才产生版本；标题/标签/props 仅改元数据。
+        if text is not None and text != self.text:
+            payload = encode_substrate([text_fragment(text)])
+            self._put(payload, meta=meta, search_text=search_text)
+        else:
+            self._put_meta(meta=meta, search_text=search_text)
         self._refresh()
         return self
 

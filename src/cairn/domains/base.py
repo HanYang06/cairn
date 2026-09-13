@@ -132,5 +132,9 @@ class DomainObject:
             search_text=search_text,
         )
 
+    def _put_meta(self, *, meta: dict[str, Any], search_text: str | None = None) -> Oid:
+        """只改元数据：不产生新版本历史。"""
+        return self._vault.put_meta(self._oid, meta=meta, search_text=search_text)
+
     def _refresh(self) -> None:
         self._info = self._vault.info(self._oid)

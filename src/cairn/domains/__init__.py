@@ -11,7 +11,7 @@
   note.py        笔记
   asset.py       资产（存储）
   project.py     项目
-  provenance.py  笔记族谱（派生关系遍历）
+  provenance.py  笔记衍生关系（派生遍历）
 """
 
 from __future__ import annotations
