@@ -58,7 +58,9 @@ Composition 组装 —— 一种节点：其内容是"对其它节点的排布/�
 
 - 原件**必然变更**（head 前进）。
 - **保留"一点点版本路径"，不做 git 式全历史**：默认保留**最近 30 天时间窗**内的版本，超出即由 GC 裁剪（`vault.gc(retention_ms=...)` 可调）。
-- 对应内核 `seq / prev / author` 版本链；当前实现是"每版都归档"，**需要加保留策略**。
+- 对应内核 `seq / prev / author` 版本链。
+- **版本只记内容**：只有**基板（正文）变化**才产生新版本（`seq` 前进 + 归档）；标题 / 标签 / `props` 等元数据变更走 `vault.put_meta`，只重签当前 head，不产生历史。
+- 30 天保留窗口由 GC 裁剪（`vault.gc(retention_ms=...)`）。
 
 ### 4.2 协作修改（同一节点，多人）
 
@@ -71,11 +73,11 @@ Composition 组装 —— 一种节点：其内容是"对其它节点的排布/�
 - 类同开源：基于他人内容升级、引用、改写。
 - **生成新节点 + `derived-from` 关系边**，署名派生者。
 - **原件不受任何影响**（原件在原作者的库里，别人改不到）。
-- 这正是**笔记族谱**的来源。
+- 这正是**衍生关系**的来源。
 
 ---
 
-## 5. 笔记族谱（Provenance DAG）
+## 5. 笔记衍生关系（Provenance DAG）
 
 - 跨作者改写链（张 → 李 → 明 → 红）构成一张**派生 DAG**，与 git commit 图 / 学术引用图同构。
 - 每个节点、每条关系**都带作者、都签名**。
@@ -169,7 +171,7 @@ fragment  ∈ 文字 | 对象引用 | 矢量图形 | 组合引用 | ...
 | 关系 | 独立对象（`type = cairn.relation`）：`from / to / kind / author / sig` |
 | 组装 | 对象（`type = cairn.composition`），基板为节点引用排布 |
 | 版本路径 | manifest `seq / prev / author` + 保留策略 |
-| 族谱 | 索引对关系图做闭包计算 |
+| 衍生关系 | 索引对关系图做闭包计算 |
 
 关系类型（草案）：`derived-from`、`edits`、`annotates`、`replies-to`、`references`、`transcludes`、`read`、`endorse`。
 

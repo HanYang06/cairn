@@ -1,12 +1,13 @@
 <!-- SPDX-FileCopyrightText: 2026 HanYang06 -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# UI 主题与美化（Qt / PySide6）
+# UI 主题与美化（Qt Quick / QML）
 
 > 定位：**桌面 APP，不是 Web**。要好看，但不为炫技。可维护、可控、许可证干净优先。
 > 相关：[`note-model.md`](./note-model.md) §9（捕捉面 / 编辑面分离）。
 
-状态：**草案 v0.1**
+状态：**草案 v0.2**。界面已按 **Qt Quick / QML** 落地；主题令牌的**唯一事实来源**是
+`ui/qml/theme/CairnTheme.qml`（QML 单例），本文档描述目标与取舍。
 
 ---
 
@@ -15,47 +16,59 @@
 - **好看**：深色优先、留白、克制动效，呼应品牌（冷灰石 + 暖赭 + 苔绿）。
 - **可控**：优先原生 Qt；不引入会污染许可证的重框架。
 - **快**：捕捉面（热键）必须秒开，不能背 Web 启动的锅。
-- **可维护**：主题以"令牌 + QSS"集中管理，不散落在各控件里。
+- **可维护**：主题以**令牌**集中管理（QML 单例 `CairnTheme`），不散落在各控件里。
 
 ---
 
-## 2. 原生 Qt 的美化手段（能力清单）
+## 2. Qt Quick / QML 的美化手段（能力清单）
+
+界面是 QML，**不是 Widgets + QSS**。可用的手段：
 
 | 手段 | 能做什么 | 代价 |
 |---|---|---|
-| **QSS（Qt Style Sheets）** | 类 CSS 主题：颜色、边框、圆角、padding、状态选择器 | 不是完整 CSS：**无 box-shadow**、选择器有限 |
-| **QPalette** | 基色（配合 QSS） | 单独用较原始 |
-| **Fusion 风格** | 跨平台统一底座，对 QSS 友好 | —— |
-| **自绘 / Delegate** | 卡片、列表项、连接线、图 | 要写 `QPainter`/`QStyledItemDelegate` |
-| **动画框架** | `QPropertyAnimation` / `QParallelAnimationGroup` / easing | 够用，不如 CSS 顺滑 |
-| **图形效果** | `QGraphicsDropShadowEffect` / `BlurEffect` / `OpacityEffect` | **列表里慎用，性能/兼容有坑** |
-| **图标** | SVG（`QtSvg`，可染色）/ 图标字体 | 需准备资源 |
-| **字体** | 内置一款无衬线（如 Inter）保证一致 | 打包体积 |
-| **无边框窗** | 自绘标题栏、圆角、现代感 | 跨平台有坑（缩放/拖拽） |
+| **QML 令牌单例** | 颜色 / 圆角 / 间距 / 字号 / 动效时长集中一处，组件只引用令牌 | 需要一个单例文件（现为 `CairnTheme.qml`） |
+| **Qt Quick Controls** | 标准控件 + 自定义 Style | 默认样式朴素，需逐个覆盖 |
+| **自绘** | 卡片、列表项、连接线、图（`Canvas` / 自定义 `Item`） | 要写绘制逻辑；复杂图形成本高 |
+| **动画框架** | `NumberAnimation` / `Behavior` / `Transition` + easing | 够用；**列表里克制使用** |
+| **图形效果** | `MultiEffect`（Qt 6.5+，阴影 / 模糊 / 遮罩）/ ShaderEffect | 实时效果**列表里慎用**，有性能开销 |
+| **图标** | SVG（`Image` 直接加载）或图标字体（现用 `Segoe MDL2 Assets`） | 需准备资源 / 绑平台字体 |
+| **字体** | 内置一款无衬线保证跨平台一致 | 打包体积 |
+| **无边框窗** | `Qt.FramelessWindowHint` + 自绘标题栏、原生圆角 | 缩放 / 拖拽需自补命中区 |
 
-**结论**：用 **Fusion + 集中式 QSS + 少量自绘** 就能做出很体面的暗色应用；动效只做**功能性**的（淡入、滑动），不做装饰性花活。
+**结论**：用 **QML 令牌 + Qt Quick Controls 定制 + 少量自绘 / `MultiEffect`** 就能做出体面的界面；
+动效只做**功能性**的（淡入、位移，界面里统一走 `CairnTheme.dur*`），不做装饰性花活。
+
+> 历史包袱：`ui/theme/`（`tokens.py` / `qss.py` / `manager.py`）是 Widgets + QSS 时代的产物，
+> 应用已不再引用（仅 `tests/ui/test_theme.py` 还在测）；**待决：迁移为 QML 令牌或删除**。
 
 ---
 
-## 3. Web 混合（QtWebEngine）
+## 3. Web 混合（QtWebEngine）· 预留 / 未实现
 
-富编辑 / 画布这类"重表现"的界面，原生 Qt 自绘成本极高，交给 Web：
+> **当前未引入 `QtWebEngine`**，`pyproject.toml` 也没有该依赖。以下是设想，落地前需重新评估。
+
+富编辑 / 画布这类"重表现"的界面，原生自绘成本极高，可交给 Web：
 
 - 块编辑：ProseMirror / Tiptap
 - 画布/手绘：Excalidraw + perfect-freehand
 
-**注意**：QtWebEngine 重、冷启动慢——**只用于编辑面，不用于捕捉面**（见 `note-model.md` §9）。可预加载以缓解。
+**注意**：QtWebEngine 重、冷启动慢——若启用**只用于编辑面，不用于捕捉面**（见 `note-model.md` §9），
+且需预加载以缓解；同时会显著增大安装包体积。
 
 ---
 
 ## 4. 第三方主题库（许可证是重点）
 
+> 下表多为 **Qt Widgets / QSS** 时代的库，**与当前 QML 外壳不兼容**，仅作参考与许可证警示。
+
 | 库 | 风格 | 许可证 | 结论 |
 |---|---|---|---|
-| QDarkStyleSheet | 暗色 QSS | **MIT**（代码）+ CC-BY-4.0（图） | ✅ 可用 |
-| qt-material | Material QSS | **BSD-2-Clause** | ✅ 可用 |
+| QDarkStyleSheet | 暗色 QSS | **MIT**（代码）+ CC-BY-4.0（图） | Widgets 专用，QML 不可用 |
+| qt-material | Material QSS | **BSD-2-Clause** | Widgets 专用，QML 不可用 |
 | PySide6-Fluent-Widgets（zhiyiYo） | Fluent，很漂亮 | **疑 GPLv3（需核实）** | ⚠️ 发布前必查，GPL 会传染 |
 | qtdarktheme | 主题助手 | 需核实 | ⚠️ 查后再用 |
+
+QML 侧走 **Qt Quick Controls 自定义 Style + 令牌单例**，不引入第三方主题库。
 
 **红线**：本项目 Apache-2.0。**任何 GPL/AGPL 依赖都会传染**，宁可不美也别踩。
 
@@ -65,31 +78,30 @@
 
 ### 5.1 色板（令牌）
 
-```
-深色（默认）
-  bg         #1C1A18
-  surface    #242120
-  elevated   #2E2A26
-  border     #3A3F44
-  text       #E8E4DC
-  muted      #9A938A
-  accent     #C77B3C   （赭）
-  accent-2   #5B6E4F   （苔绿）
+> 值以 `ui/qml/theme/CairnTheme.qml` 为准，此处仅列核心项。`CairnTheme.dark` **默认 `false`（亮色）**，深浅可切换。
 
-浅色
-  bg         #F2ECE3
-  surface    #FFFFFF
-  border     #D8D0C4
-  text       #2E2A26
-  muted      #7A736A
+```
+                            深色        浅色
+  bg         背景          #1C1A18     #F4EFE7
+  chrome     外框/标题栏   #171512     #EDE6DB
+  surface    面板          #242120     #FFFFFF
+  elevated   浮层          #2E2A26     #FFFFFF
+  border     边界          #3A3F44     #E4DCCF
+  text       正文          #E8E4DC     #2E2A26
+  muted      次要文字      #9A938A     #7C746A
+  accent     强调（赭）    #D08A45     #D08A45
+  accentAlt  次强调（苔绿）#7B9166     #6B7F5A
+  selection  选中底        #3A332B     #F3E6D3
 ```
 
-- **一套令牌，两套值**（深/浅），QSS 由令牌拼出，切换即换值。
+- **一套令牌，两套值**（深/浅），组件只引用令牌，切换即换值。
+- 另有 `borderFaint` / `faint` / `hover` / `danger`，以及 `highContrast` 高对比覆盖（见 §7.7）。
 - 强调色**克制**：只用于选中、链接、主按钮。
+- 除色板外，圆角 / 间距 / 字体 / 字号 / 动效时长同样定义在 `CairnTheme`。
 
 ### 5.2 其余规范
 
-- **字体**：内置一款无衬线（Inter / HarmonyOS Sans），行高宽松。
+- **字体**：当前用系统字体 `Segoe UI`（`CairnTheme.fontFamily`），**未内置**；是否内置无衬线字体待定。
 - **圆角**：统一 6–8px；卡片 10–12px。
 - **间距**：4 的倍数；留白宁可多。
 - **图标**：单色线性 SVG，随文字色染色。
@@ -101,15 +113,79 @@
 
 | 阶段 | 内容 |
 |---|---|
-| **P0** | Fusion + 令牌化 QSS（深/浅切换）+ 应用字体/图标 |
-| **P1** | 自绘列表/卡片/反链面板；功能性微动效 |
-| **P2** | Web 富编辑 / 画布（QtWebEngine，编辑面专用） |
+| **P0** | ✅ 已落地：QML 令牌单例 + Qt Quick Controls 定制 + 深浅切换 + 无边框窗/原生圆角 |
+| **P1** | 自绘列表/卡片/反链面板；功能性微动效（进行中） |
+| **P2** | 预留：Web 富编辑 / 画布（QtWebEngine，编辑面专用，见 §3） |
 
 ---
 
-## 7. 待核实 / 待定
+## 7. 布局契约（可拖 / 可收 / 聚焦）
+
+> 状态：**已实现（QML 外壳）**。见 `ui/qml/Shell.qml`、`EditorArea.qml`、`Main.qml`。
+
+三栏结构：`活动栏（固定）| 导航 | 内容 | 属性`，相邻栏之间由 `SplitView` 分隔。
+
+| 能力 | 规则 |
+|---|---|
+| **可拖** | 导航 / 属性栏宽度可拖；导航 168–480px，属性 220–460px，内容最小 360px |
+| **可收** | 导航、属性栏可各自收起（隐藏即不参与布局）；活动栏在当前领域上再点一次＝收起/展开其导航 |
+| **聚焦** | 收起活动栏 + 导航 + 属性，正文可读宽度由 720 放宽到 980；退出还原此前开合状态 |
+
+- 控制入口就近：导航收起/展开改为在活动栏当前领域上再点一次（无需额外按钮）；「属性」开关迁入笔记页命令带。
+- 快捷键：`Ctrl+B` 导航、`Ctrl+Shift+B` 属性、`Ctrl+Shift+Enter` 聚焦、`Esc` 退出聚焦。
+- 正文列普通模式维持舒适行长（≤720），仅聚焦/全屏时放宽，避免"一宽到底"。
+- 无边框主窗（`FramelessWindowHint`）没有原生可拖边，`Main.qml` 自补四边四角命中区交给系统缩放。
+- 悬停/选中高亮一律**即时**（不做颜色过渡），避免相邻项交叉淡入被看成"同时高亮两个"。
+- 预留：`SplitView.saveState()/restoreState()` 可持久化用户栏宽。
+
+### 7.1 笔记页命令带
+
+标签栏下方一行动作（标签编辑已移入属性面板，不再占命令带）：收藏 / 归档 / 复刻 / 关系 / 历史 / 分享 / 属性。
+
+按钮统一为无边框幽灵样式；用 `implicitWidth` 让布局在文案变化时重排（避免"已收藏"变长后覆盖相邻按钮）。
+
+### 7.2 右键菜单
+
+笔记列表项右键弹出 `NoteMenu`：打开 / 复刻 / 收藏 / 归档 / 分享… / 历史版本 / 关系图 / 移到回收站（回收站内显示 恢复 / 彻底删除）。收藏、归档、回收站状态存于 `meta.props`（`favorite` / `archived` / `trashed`）。
+
+### 7.3 分享（`SharePopover`）
+
+分享是一等动作，独立弹层（不在属性区），模仿系统「智能互联」：上半是**公开到个人主页**开关（语义上是开关，不属于「分享给」）；下半**直接列出可分享的社区 / 成员**，点击即切换，不让用户手输。入口：命令带「分享」按钮、右键菜单「分享…」。
+
+### 7.4 属性 = KV 检查器（默认收起）
+
+面板默认**收起**，点「属性」按钮或标题栏箭头展开/收起（箭头可点）。`backend.currentProperties` 输出 schema 驱动的 KV 列表（`id / key / value / type / editable`）：文本只读浅色 / 可编辑深色、布尔开关。**标签为 KV 编辑**（云控制台风格：`K : V` 两栏可编辑 + 添加/删除，无冒号则仅 K）。关系以文字树（缩进 + ↖/↘）只读呈现。属性变化走独立信号 `propsChanged`，不触发正文重载动画。
+
+> 预埋：标签存为 `K:V` 字符串，后续可据 `A:B`、`B:C` 推导 K 之间的父子关系，做「基于标签搜索」。
+
+### 7.5 回收站
+
+删除不再逐次确认：右键「移到回收站」→ 进回收站（导航栏底部入口，带数量与「清空」）→ 可恢复或彻底删除。
+
+### 7.6 多选 / 批量
+
+列表表头进入「选择模式」后逐项勾选，底部批量条：加标签 / 收藏 / 回收 / 全选 / 完成。后端 `trashMany` / `restoreMany` / `favoriteMany` / `addTagToMany` / `visibleNoteOids`。
+
+### 7.7 无障碍
+
+`CairnTheme.reduceMotion` 把动效时长归零；`CairnTheme.highContrast` 提升边界与文字对比。入口在档案菜单「显示」。
+
+### 7.8 关系图（竖排，类 Git 图）
+
+左侧窄泳道（gutter）画连线与节点圆点，右侧整行卡片——线条与文字分区，互不遮挡。泳道按「Git 式」分配（优先复用父节点泳道，分支开新道，合并回收），节点按时间竖排（来源在上、派生在下），位置由拓扑算出，**不自由拖拽**。卡片显示 角色（当前/来源/派生）+ 标题 + 作者 + 时间 + `复刻自 vN`。`ObjectInfo` / `VersionInfo` 携带 `author`。
+
+### 7.9 工具册回收
+
+触发条在标题栏内；鼠标离开后按 `autoCloseMs`（默认 1500ms）延时回收，点面板外任意处**立即**回收。
+
+### 7.10 空态与新建
+
+笔记页只留**搜索框**（去掉「快速记录」输入框）；列表空白处或编辑区空白处**双击**即新建空笔记。
+
+---
+
+## 8. 待核实 / 待定
 
 1. PySide6-Fluent-Widgets 等库的准确许可证（红线）。
-2. 是否需要无边框窗（现代感 vs 跨平台坑）。
-3. 内置字体选型与体积。
-4. 减少动效 / 高对比等无障碍开关是否纳入 v1。
+2. 内置字体选型与体积。
+3. 主题替换需要一套「主题系统文件系统」，另行设计。

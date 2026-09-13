@@ -26,7 +26,7 @@
 | 矢量几何 | shapely | Py | BSD | ✅ 备用 |
 | 加密/哈希/分块 | cryptography/blake3/fastcdc | Py | 见依赖 | ✅ 已用 |
 
-**自造（差异化，不可替代）**：加密对象池（已完成）、基板格式、关系/族谱、索引、Qt 外壳、AI 工具暴露方式。
+**自造（差异化，不可替代）**：加密对象池（已完成）、基板格式、关系/衍生、索引、Qt 外壳、AI 工具暴露方式。
 
 ---
 
@@ -128,7 +128,7 @@
 
 ## 8. 分工总账
 
-- **自造**：加密对象池 ✅、substrate 格式、关系/族谱、索引/反链、Qt 外壳、AI 工具暴露。
+- **自造**：加密对象池 ✅、substrate 格式、关系/衍生、索引/反链、Qt 外壳、AI 工具暴露。
 - **借轮子**：py-libp2p（P2P）、MCP（AI）、ProseMirror/Excalidraw/perfect-freehand（Web 编辑/画布）、SQLite FTS5、shapely、Yjs（后置）。
 
 ---
