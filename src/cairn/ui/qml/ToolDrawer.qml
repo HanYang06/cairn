@@ -15,6 +15,29 @@ Item {
     property bool editing: false
     // 鼠标离开后自动回收延迟（毫秒）：太短会误收，太长拖沓。
     property int autoCloseMs: 1500
+
+    // 统一用「指针是否在触发条/面板内」判定，避免子项抢 hover 导致误收。
+    HoverHandler {
+        id: rootHover
+        onPointChanged: drawer.syncHover()
+    }
+
+    function syncHover() {
+        if (!drawer.open) {
+            closeTimer.stop();
+            const t = rootHover.point.position;
+            if (t.x >= trigger.x && t.x <= trigger.x + trigger.width && t.y >= trigger.y && t.y <= trigger.y + trigger.height)
+                drawer.open = true;
+            return;
+        }
+        const p = rootHover.point.position;
+        const inTrigger = p.x >= trigger.x && p.x <= trigger.x + trigger.width && p.y >= trigger.y && p.y <= trigger.y + trigger.height;
+        const inPanel = p.x >= panel.x && p.x <= panel.x + panel.width && p.y >= panel.y && p.y <= panel.y + panel.height;
+        if (inTrigger || inPanel)
+            closeTimer.stop();
+        else
+            closeTimer.restart();
+    }
     signal launch(string id)
     signal preview(string id, string label)
     signal addRequested()
@@ -102,15 +125,6 @@ Item {
         width: 260
         height: 16
         z: 10
-        hoverEnabled: true
-        onEntered: {
-            closeTimer.stop();
-            drawer.open = true;
-        }
-        onExited: {
-            if (!panelHover.hovered)
-                closeTimer.restart();
-        }
         onClicked: drawer.open = !drawer.open
 
         Rectangle {
@@ -169,8 +183,6 @@ Item {
             onHoveredChanged: {
                 if (hovered)
                     closeTimer.stop();
-                else if (!trigger.containsMouse)
-                    closeTimer.restart();
             }
         }
 
@@ -294,13 +306,6 @@ Item {
                         Layout.fillHeight: true
                         radius: CairnTheme.radius
                         color: tileHover.hovered ? CairnTheme.hover : "transparent"
-                        border.color: tileHover.hovered ? CairnTheme.accent : "transparent"
-                        border.width: 1
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: CairnTheme.durFast
-                            }
-                        }
 
                         Column {
                             anchors.centerIn: parent
@@ -310,12 +315,12 @@ Item {
                                 text: modelData.glyph
                                 font.family: CairnTheme.iconFont
                                 font.pixelSize: 20
-                                color: tileHover.hovered ? CairnTheme.accent : CairnTheme.muted
+                                color: tileHover.hovered ? CairnTheme.text : CairnTheme.muted
                             }
                             Text {
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: modelData.label
-                                color: CairnTheme.muted
+                                color: tileHover.hovered ? CairnTheme.text : CairnTheme.muted
                                 font.family: CairnTheme.fontFamily
                                 font.pixelSize: CairnTheme.fsTiny
                             }
