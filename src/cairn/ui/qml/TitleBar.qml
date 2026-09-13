@@ -70,7 +70,7 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
         }
         Text {
-            text: "个人空间"
+            text: backend.currentSpace
             color: CairnTheme.muted
             font.family: CairnTheme.fontFamily
             font.pixelSize: CairnTheme.fsSmall

@@ -233,7 +233,7 @@ Item {
                 Layout.preferredHeight: 36
                 radius: CairnTheme.radiusSm
                 color: CairnTheme.bg
-                border.color: CairnTheme.border
+                border.color: capture.activeFocus ? CairnTheme.accent : CairnTheme.border
                 border.width: 1
                 Text {
                     x: CairnTheme.spaceSm
@@ -243,13 +243,28 @@ Item {
                     font.pixelSize: 13
                     color: CairnTheme.accent
                 }
-                Text {
+                TextInput {
+                    id: capture
                     x: 32
+                    width: parent.width - 44
                     anchors.verticalCenter: parent.verticalCenter
-                    text: "快速记录…"
-                    color: CairnTheme.faint
+                    clip: true
+                    color: CairnTheme.text
                     font.family: CairnTheme.fontFamily
                     font.pixelSize: CairnTheme.fsSmall
+                    selectByMouse: true
+                    onAccepted: {
+                        backend.captureNote(text);
+                        text = "";
+                    }
+                    Text {
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: capture.text === ""
+                        text: "快速记录，回车入收件箱…"
+                        color: CairnTheme.faint
+                        font.family: CairnTheme.fontFamily
+                        font.pixelSize: CairnTheme.fsSmall
+                    }
                 }
             }
 

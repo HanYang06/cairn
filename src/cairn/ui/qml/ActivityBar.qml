@@ -11,6 +11,7 @@ Rectangle {
 
     property int current: 0
     signal activated(int index)
+    signal profileRequested()
 
     property var domains: [
         {
@@ -88,7 +89,7 @@ Rectangle {
                 }
                 Text {
                     anchors.centerIn: parent
-                    text: "韩"
+                    text: backend.currentProfile !== "" ? backend.currentProfile.slice(0, 1) : "本"
                     color: avatarMa.containsMouse ? CairnTheme.accentText : CairnTheme.text
                     font.family: CairnTheme.fontFamily
                     font.pixelSize: 12
@@ -98,6 +99,7 @@ Rectangle {
                     id: avatarMa
                     anchors.fill: parent
                     hoverEnabled: true
+                    onClicked: bar.profileRequested()
                 }
             }
         }

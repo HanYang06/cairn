@@ -11,6 +11,14 @@ Rectangle {
     color: CairnTheme.surface
     property string mode: "notes"
     property string preview: ""
+    property bool confirmDelete: false
+
+    Connections {
+        target: backend
+        function onCurrentChanged() {
+            dock.confirmDelete = false;
+        }
+    }
 
     Rectangle {
         anchors.left: parent.left
@@ -132,8 +140,14 @@ Rectangle {
                                 "v": "private",
                                 "t": "私密"
                             }, {
+                                "v": "communal",
+                                "t": "共有"
+                            }, {
                                 "v": "public",
                                 "t": "公开"
+                            }, {
+                                "v": "direct",
+                                "t": "直连"
                             }]
                             delegate: Rectangle {
                                 width: visText.implicitWidth + 24
@@ -350,6 +364,33 @@ Rectangle {
                             onClicked: backend.deriveNote()
                         }
                     }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: CairnTheme.spaceMd
+                        Layout.rightMargin: CairnTheme.spaceMd
+                        Layout.bottomMargin: CairnTheme.spaceMd
+                        spacing: CairnTheme.spaceSm
+                        DockButton {
+                            label: "关系图"
+                            onClicked: backend.openRelations()
+                        }
+                        DockButton {
+                            label: "版本"
+                            onClicked: backend.openHistory(backend.currentOid)
+                        }
+                        DockButton {
+                            label: dock.confirmDelete ? "确认删除？" : "删除"
+                            danger: true
+                            onClicked: {
+                                if (dock.confirmDelete) {
+                                    backend.deleteNote(backend.currentOid);
+                                    dock.confirmDelete = false;
+                                } else {
+                                    dock.confirmDelete = true;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // ===== 项目：仓库信息 =====
@@ -486,6 +527,32 @@ Rectangle {
                     }
                 }
             }
+        }
+    }
+
+    component DockButton: Rectangle {
+        id: db
+        property string label
+        property bool danger: false
+        signal clicked()
+        Layout.fillWidth: true
+        Layout.preferredHeight: 28
+        radius: CairnTheme.radiusSm
+        color: dbMa.containsMouse ? CairnTheme.hover : CairnTheme.bg
+        border.color: db.danger ? CairnTheme.danger : CairnTheme.border
+        border.width: 1
+        Text {
+            anchors.centerIn: parent
+            text: db.label
+            color: db.danger ? CairnTheme.danger : CairnTheme.muted
+            font.family: CairnTheme.fontFamily
+            font.pixelSize: CairnTheme.fsTiny
+        }
+        MouseArea {
+            id: dbMa
+            anchors.fill: parent
+            hoverEnabled: true
+            onClicked: db.clicked()
         }
     }
 }

@@ -12,13 +12,10 @@ Rectangle {
     implicitHeight: 900
     color: CairnTheme.bg
 
-    // 左侧导航态："notes" | "projects"
     property string navMode: "notes"
-    // 工具册抽屉是否展开
     property bool toolDrawerOpen: false
-    // 右侧临时显示的内容标题
+    property bool profileOpen: false
     property string previewLabel: ""
-    // 深浅主题
     property bool dark: false
 
     Binding {
@@ -41,20 +38,35 @@ Rectangle {
             ActivityBar {
                 Layout.preferredWidth: CairnTheme.activityW
                 Layout.fillHeight: true
-                current: shell.navMode === "projects" ? 1 : (shell.navMode === "community" ? 2 : 0)
-                onActivated: function (index) {
-                    if (index === 0)
-                        shell.navMode = "notes";
-                    else if (index === 1)
-                        shell.navMode = "projects";
-                    else if (index === 2)
-                        shell.navMode = "community";
+                current: {
+                    if (shell.navMode === "projects")
+                        return 1;
+                    if (shell.navMode === "community")
+                        return 2;
+                    if (shell.navMode === "search")
+                        return 4;
+                    if (shell.navMode === "tags")
+                        return 5;
+                    return 0;
                 }
+                onActivated: function (index) {
+                    const map = {
+                        0: "notes",
+                        1: "projects",
+                        2: "community",
+                        4: "search",
+                        5: "tags"
+                    };
+                    if (map[index] !== undefined)
+                        shell.navMode = map[index];
+                }
+                onProfileRequested: shell.profileOpen = !shell.profileOpen
             }
             Navigator {
                 Layout.preferredWidth: CairnTheme.sideBarW
                 Layout.fillHeight: true
                 mode: shell.navMode
+                onRequestNotes: shell.navMode = "notes"
             }
             EditorArea {
                 Layout.fillWidth: true
@@ -73,7 +85,6 @@ Rectangle {
         }
     }
 
-    // 顶部覆盖式工具册抽屉
     ToolDrawer {
         id: toolDrawer
         anchors.left: parent.left
@@ -85,12 +96,28 @@ Rectangle {
         z: 100
         open: shell.toolDrawerOpen
         onLaunch: function (id) {
-            if (id === "notes" || id === "projects" || id === "community")
+            if (id === "notes" || id === "projects" || id === "community" || id === "search" || id === "tags") {
                 shell.navMode = id;
+            } else if (id === "relations" || id === "graph") {
+                backend.openRelations();
+            } else if (id === "history") {
+                backend.openHistory(backend.currentOid);
+            }
             shell.toolDrawerOpen = false;
         }
         onPreview: function (id, label) {
             shell.previewLabel = label;
         }
+    }
+
+    ProfileMenu {
+        id: profileMenu
+        anchors.left: parent.left
+        anchors.leftMargin: CairnTheme.activityW + CairnTheme.spaceSm
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: CairnTheme.statusH + CairnTheme.spaceSm
+        z: 120
+        open: shell.profileOpen
+        onClosed: shell.profileOpen = false
     }
 }

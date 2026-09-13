@@ -408,6 +408,24 @@ class Backend(QObject):
             for oid in descendants(self._vault, self._current.oid)
         ]
 
+    @Property(list, notify=currentChanged)
+    def currentPath(self) -> list[dict[str, Any]]:
+        """谱系面包屑：来源（旧的在前）→ 当前。"""
+        if self._current is None:
+            return []
+        path: list[dict[str, Any]] = [
+            {"oid": str(oid), "title": _title_of(self._vault, oid), "current": False}
+            for oid in reversed(ancestors(self._vault, self._current.oid))
+        ]
+        path.append(
+            {
+                "oid": str(self._current.oid),
+                "title": self._current.title or "未命名",
+                "current": True,
+            }
+        )
+        return path
+
     # ---- 视图 ----
     @Property(str, notify=viewChanged)
     def currentView(self) -> str:

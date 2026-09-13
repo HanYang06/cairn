@@ -10,6 +10,7 @@ Rectangle {
     id: nav
     color: CairnTheme.surface
     property string mode: "notes"
+    signal requestNotes()
 
     Rectangle {
         anchors.right: parent.right
@@ -477,6 +478,185 @@ Rectangle {
                     id: commMa
                     anchors.fill: parent
                     hoverEnabled: true
+                }
+            }
+        }
+    }
+
+    // ============ 标签 ============
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+        visible: nav.mode === "tags"
+
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 42
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: CairnTheme.spaceMd
+                Text {
+                    text: "标签"
+                    color: CairnTheme.text
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsBody
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
+        Flow {
+            Layout.fillWidth: true
+            Layout.leftMargin: CairnTheme.spaceMd
+            Layout.rightMargin: CairnTheme.spaceMd
+            Layout.topMargin: CairnTheme.spaceSm
+            spacing: 6
+            Repeater {
+                model: backend.allTags
+                delegate: Rectangle {
+                    width: chipText.implicitWidth + 20
+                    height: 24
+                    radius: 12
+                    color: chipMa.containsMouse ? CairnTheme.selection : CairnTheme.bg
+                    border.color: CairnTheme.border
+                    border.width: 1
+                    Text {
+                        id: chipText
+                        anchors.centerIn: parent
+                        text: modelData
+                        color: CairnTheme.muted
+                        font.family: CairnTheme.fontFamily
+                        font.pixelSize: CairnTheme.fsTiny
+                    }
+                    MouseArea {
+                        id: chipMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: {
+                            backend.filterByTag(modelData);
+                            nav.requestNotes();
+                        }
+                    }
+                }
+            }
+        }
+        Text {
+            Layout.leftMargin: CairnTheme.spaceMd
+            Layout.topMargin: CairnTheme.spaceSm
+            visible: backend.allTags.length === 0
+            text: "还没有标签"
+            color: CairnTheme.faint
+            font.family: CairnTheme.fontFamily
+            font.pixelSize: CairnTheme.fsTiny
+        }
+        Item {
+            Layout.fillHeight: true
+        }
+    }
+
+    // ============ 搜索 ============
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+        visible: nav.mode === "search"
+
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 42
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: CairnTheme.spaceMd
+                Text {
+                    text: "搜索"
+                    color: CairnTheme.text
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsBody
+                    font.weight: Font.DemiBold
+                    Layout.fillWidth: true
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.leftMargin: CairnTheme.spaceMd
+            Layout.rightMargin: CairnTheme.spaceMd
+            Layout.preferredHeight: 32
+            radius: CairnTheme.radiusSm
+            color: CairnTheme.bg
+            border.color: searchInput.activeFocus ? CairnTheme.accent : CairnTheme.border
+            border.width: 1
+            Text {
+                x: 9
+                anchors.verticalCenter: parent.verticalCenter
+                text: "\uE721"
+                font.family: CairnTheme.iconFont
+                font.pixelSize: 12
+                color: CairnTheme.faint
+            }
+            TextInput {
+                id: searchInput
+                x: 28
+                width: parent.width - 36
+                anchors.verticalCenter: parent.verticalCenter
+                clip: true
+                color: CairnTheme.text
+                font.family: CairnTheme.fontFamily
+                font.pixelSize: CairnTheme.fsSmall
+                selectByMouse: true
+                onTextChanged: backend.filterNotes(text)
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: searchInput.text === ""
+                    text: "搜索标题与正文…"
+                    color: CairnTheme.faint
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsSmall
+                }
+            }
+        }
+
+        ListView {
+            id: searchResults
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.topMargin: CairnTheme.spaceSm
+            clip: true
+            model: notesModel
+            boundsBehavior: Flickable.StopAtBounds
+            delegate: Rectangle {
+                width: searchResults.width
+                height: 56
+                color: srMa.containsMouse ? CairnTheme.hover : "transparent"
+                Column {
+                    anchors.fill: parent
+                    anchors.leftMargin: CairnTheme.spaceMd
+                    anchors.rightMargin: CairnTheme.spaceMd
+                    anchors.topMargin: CairnTheme.spaceSm
+                    spacing: 2
+                    Text {
+                        width: parent.width
+                        text: model.title
+                        color: CairnTheme.text
+                        font.family: CairnTheme.fontFamily
+                        font.pixelSize: CairnTheme.fsSmall
+                        elide: Text.ElideRight
+                    }
+                    Text {
+                        width: parent.width
+                        text: model.preview
+                        color: CairnTheme.muted
+                        font.family: CairnTheme.fontFamily
+                        font.pixelSize: CairnTheme.fsTiny
+                        elide: Text.ElideRight
+                    }
+                }
+                MouseArea {
+                    id: srMa
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: backend.openNote(model.oid)
                 }
             }
         }
