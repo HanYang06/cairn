@@ -192,18 +192,14 @@ class Index:
         return self._fts
 
     def search(self, query: str) -> list[str]:
-        """按正文检索，返回命中的 oid（FTS5 优先，不可用回落 LIKE）。"""
+        """按正文子串检索，返回命中的 oid。
+
+        注意：FTS5 的 unicode61 分词器不切分中日韩文，``MATCH`` 对中文无效；
+        因此这里统一走 ``LIKE`` 子串匹配（对 CJK 与任意子串都正确）。
+        """
         query = query.strip()
         if not query:
             return []
-        if self._fts:
-            try:
-                rows = self.conn.execute(
-                    "SELECT oid FROM search_fts WHERE search_fts MATCH ?", (query,)
-                ).fetchall()
-                return [str(row["oid"]) for row in rows]
-            except sqlite3.OperationalError:
-                pass
         rows = self.conn.execute(
             "SELECT oid FROM object_text WHERE body LIKE ?", (f"%{query}%",)
         ).fetchall()

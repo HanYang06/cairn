@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,7 @@ from ..domains.provenance import DERIVED_FROM
 DEV_PASSPHRASE = "cairn-dev"
 _SPACE_LABELS = {"default": "个人空间"}
 _VIS_LABELS = {"private": "私密", "communal": "共有", "public": "公开", "direct": "直连"}
+RELATIONS_KEY = "relations"
 
 
 def _default_vault_root() -> Path:
@@ -66,13 +68,6 @@ def _fmt_time(ms: int) -> str:
     return moment.strftime("%Y-%m-%d")
 
 
-def _title_of(vault: Vault, oid: Any) -> str:
-    try:
-        return vault.info(oid).title or "未命名"
-    except Exception:
-        return "（缺失）"
-
-
 def _fmt_size(num_bytes: int) -> str:
     if num_bytes < 1024:
         return f"{num_bytes} B"
@@ -81,8 +76,58 @@ def _fmt_size(num_bytes: int) -> str:
     return f"{num_bytes / 1024 / 1024:.1f} MB"
 
 
+def _title_of(vault: Vault, oid: Any) -> str:
+    try:
+        return vault.info(oid).title or "未命名"
+    except Exception:
+        return "（缺失）"
+
+
+class ProfileStore:
+    """本地档案：设备身份之上的若干昵称（暂时只是名字）。"""
+
+    def __init__(self, root: Path) -> None:
+        self._path = Path(root) / ".cairn" / "profiles.json"
+        self._active = ""
+        self._names: list[str] = []
+        self._load()
+
+    def _load(self) -> None:
+        try:
+            data = json.loads(self._path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        self._active = str(data.get("active") or "")
+        self._names = [str(name) for name in data.get("profiles") or []]
+
+    def _save(self) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"active": self._active, "profiles": self._names}
+        self._path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    @property
+    def active(self) -> str:
+        return self._active
+
+    def names(self) -> list[str]:
+        return list(self._names)
+
+    def create(self, name: str) -> None:
+        name = name.strip()
+        if not name or name in self._names:
+            return
+        self._names.append(name)
+        self._active = name
+        self._save()
+
+    def switch(self, name: str) -> None:
+        if name in self._names:
+            self._active = name
+            self._save()
+
+
 class NotesModel(QAbstractListModel):
-    """笔记列表模型（按更新时间倒序，可按关键词过滤）。"""
+    """笔记列表模型（按更新时间倒序，可关键词/标签过滤）。"""
 
     OidRole = Qt.ItemDataRole.UserRole + 1
     TitleRole = Qt.ItemDataRole.UserRole + 2
@@ -96,6 +141,7 @@ class NotesModel(QAbstractListModel):
         self._texts: dict[str, str] = {}
         self._previews: dict[str, str] = {}
         self._query = ""
+        self._tag: str | None = None
         self.reload()
 
     def roleNames(self) -> dict[int, bytes]:  # type: ignore[override]
@@ -126,8 +172,23 @@ class NotesModel(QAbstractListModel):
         return None
 
     def set_query(self, query: str) -> None:
-        self._query = query.strip().lower()
+        self._query = query.strip()
         self.reload()
+
+    def set_tag(self, tag: str | None) -> None:
+        self._tag = tag or None
+        self.reload()
+
+    def _query_matches(self) -> set[str] | None:
+        """用索引检索返回命中的 oid；索引为空时返回 None（走内存回落）。"""
+        if not self._query:
+            return None
+        try:
+            if self._vault.index_is_empty():
+                return None
+            return {str(oid) for oid in self._vault.search(self._query)}
+        except Exception:
+            return None
 
     def reload(self) -> None:
         self.beginResetModel()
@@ -136,6 +197,8 @@ class NotesModel(QAbstractListModel):
             key=lambda info: info.updated,
             reverse=True,
         )
+        matching = self._query_matches()
+        needle = self._query.lower()
         rows: list[Any] = []
         texts: dict[str, str] = {}
         previews: dict[str, str] = {}
@@ -147,9 +210,13 @@ class NotesModel(QAbstractListModel):
                 text = ""
             texts[oid] = text
             previews[oid] = text.strip().replace("\n", " ")[:90]
-            if self._query:
-                title = (info.title or "").lower()
-                if self._query not in title and self._query not in text.lower():
+            if self._tag is not None and self._tag not in info.tags:
+                continue
+            if needle:
+                if matching is not None:
+                    if oid not in matching:
+                        continue
+                elif needle not in (info.title or "").lower() and needle not in text.lower():
                     continue
             rows.append(info)
         self._rows = rows
@@ -159,17 +226,18 @@ class NotesModel(QAbstractListModel):
 
 
 class TabsModel(QAbstractListModel):
-    """打开的笔记标签（一个任务一个标签）。"""
+    """打开的标签（笔记＝任务；关系/历史＝视图）。"""
 
     OidRole = Qt.ItemDataRole.UserRole + 1
     TitleRole = Qt.ItemDataRole.UserRole + 2
+    KindRole = Qt.ItemDataRole.UserRole + 3
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self._items: list[tuple[str, str]] = []
+        self._items: list[tuple[str, str, str]] = []
 
     def roleNames(self) -> dict[int, bytes]:  # type: ignore[override]
-        return {self.OidRole: b"oid", self.TitleRole: b"title"}
+        return {self.OidRole: b"oid", self.TitleRole: b"title", self.KindRole: b"kind"}
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
         return 0 if parent.isValid() else len(self._items)
@@ -179,45 +247,48 @@ class TabsModel(QAbstractListModel):
     ) -> Any:
         if not index.isValid() or not 0 <= index.row() < len(self._items):
             return None
-        oid, title = self._items[index.row()]
+        key, title, kind = self._items[index.row()]
         if role == self.OidRole:
-            return oid
+            return key
         if role == self.TitleRole:
             return title or "无标题"
+        if role == self.KindRole:
+            return kind
         return None
 
-    def index_of(self, oid: str) -> int:
-        for position, (item_oid, _) in enumerate(self._items):
-            if item_oid == oid:
+    def index_of(self, key: str) -> int:
+        for position, (item_key, _, _) in enumerate(self._items):
+            if item_key == key:
                 return position
         return -1
 
-    def oids(self) -> list[str]:
-        return [oid for oid, _ in self._items]
+    def tab_keys(self) -> list[str]:
+        return [key for key, _, _ in self._items]
 
-    def add(self, oid: str, title: str) -> int:
-        existing = self.index_of(oid)
+    def add(self, key: str, title: str, kind: str = "note") -> int:
+        existing = self.index_of(key)
         if existing >= 0:
             return existing
         row = len(self._items)
         self.beginInsertRows(QModelIndex(), row, row)
-        self._items.append((oid, title))
+        self._items.append((key, title, kind))
         self.endInsertRows()
         return row
 
-    def remove(self, oid: str) -> None:
-        row = self.index_of(oid)
+    def remove(self, key: str) -> None:
+        row = self.index_of(key)
         if row < 0:
             return
         self.beginRemoveRows(QModelIndex(), row, row)
         self._items.pop(row)
         self.endRemoveRows()
 
-    def set_title(self, oid: str, title: str) -> None:
-        row = self.index_of(oid)
+    def set_title(self, key: str, title: str) -> None:
+        row = self.index_of(key)
         if row < 0:
             return
-        self._items[row] = (oid, title)
+        _, _, kind = self._items[row]
+        self._items[row] = (key, title, kind)
         changed = self.index(row, 0)
         self.dataChanged.emit(changed, changed, [self.TitleRole])
 
@@ -229,24 +300,49 @@ class Backend(QObject):
     contentChanged = Signal()
     tagsChanged = Signal()
     visibilityChanged = Signal()
+    viewChanged = Signal()
+    versionsChanged = Signal()
+    tagsListChanged = Signal()
+    profilesChanged = Signal()
 
     def __init__(self, vault: Vault, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._vault = vault
+        self._profiles = ProfileStore(vault.root)
         self.notes = NotesModel(vault, self)
         self.tabs = TabsModel(self)
         self._current: Note | None = None
+        self._view = "note"
+        self._history_oid = ""
         self._pending_oid: str | None = None
         self._pending_text: str = ""
         self._save = QTimer(self)
         self._save.setSingleShot(True)
         self._save.setInterval(900)
         self._save.timeout.connect(self.flush)
+        self._ensure_search_index()
+
+    def _ensure_search_index(self) -> None:
+        try:
+            if self._vault.index_is_empty() and any(self._vault.pool.iter_object_ids()):
+                self._vault.rebuild_index(text_of=self._note_text)
+        except Exception:
+            pass
+
+    def _note_text(self, manifest: Any) -> str:
+        try:
+            note = Note.load(self._vault, manifest.oid)
+            return f"{note.title or ''}\n{note.text}"
+        except Exception:
+            return ""
 
     # ---- 当前笔记 ----
+    def _oid(self) -> str:
+        return str(self._current.oid) if self._current is not None else ""
+
     @Property(str, notify=currentChanged)
     def currentOid(self) -> str:
-        return str(self._current.oid) if self._current is not None else ""
+        return self._oid()
 
     @Property(str, notify=currentChanged)
     def currentTitle(self) -> str:
@@ -269,18 +365,9 @@ class Backend(QObject):
     def currentUpdated(self) -> str:
         return _fmt_time(self._current.info.updated) if self._current is not None else ""
 
-    @Property(str, notify=currentChanged)
+    @Property(str, notify=profilesChanged)
     def currentAuthor(self) -> str:
-        return "你" if self._current is not None else ""
-
-    @Property(str, notify=visibilityChanged)
-    def currentVisibility(self) -> str:
-        override: Any = None
-        if self._current is not None:
-            override = self._current.props().get("visibility")
-        value = override or self._vault.space().visibility
-        text = getattr(value, "value", str(value))
-        return _VIS_LABELS.get(text, text)
+        return self._profiles.active or "本机"
 
     @Property(int, notify=currentChanged)
     def currentWords(self) -> int:
@@ -293,6 +380,15 @@ class Backend(QObject):
     @Property(list, notify=tagsChanged)
     def currentTags(self) -> list[str]:
         return list(self._current.tags) if self._current is not None else []
+
+    @Property(str, notify=visibilityChanged)
+    def currentVisibility(self) -> str:
+        override: Any = None
+        if self._current is not None:
+            override = self._current.props().get("visibility")
+        value = override or self._vault.space().visibility
+        text = getattr(value, "value", str(value))
+        return _VIS_LABELS.get(text, text)
 
     @Property(list, notify=currentChanged)
     def currentAncestors(self) -> list[dict[str, str]]:
@@ -312,6 +408,62 @@ class Backend(QObject):
             for oid in descendants(self._vault, self._current.oid)
         ]
 
+    # ---- 视图 ----
+    @Property(str, notify=viewChanged)
+    def currentView(self) -> str:
+        return self._view
+
+    @Property(str, notify=viewChanged)
+    def historyTitle(self) -> str:
+        return _title_of(self._vault, self._history_oid) if self._history_oid else ""
+
+    @Property(list, notify=versionsChanged)
+    def currentVersions(self) -> list[dict[str, Any]]:
+        oid = self._history_oid or self._oid()
+        if not oid:
+            return []
+        try:
+            return [
+                {
+                    "seq": version.seq,
+                    "updated": _fmt_time(version.updated),
+                    "size": _fmt_size(version.size),
+                    "current": version.is_current,
+                }
+                for version in self._vault.versions(oid)
+            ]
+        except Exception:
+            return []
+
+    # ---- 标签聚合 ----
+    @Property(list, notify=tagsListChanged)
+    def allTags(self) -> list[str]:
+        tags: set[str] = set()
+        for info in self._vault.iter(type=Note.kind):
+            tags.update(info.tags)
+        return sorted(tags)
+
+    # ---- 档案 ----
+    @Property(list, notify=profilesChanged)
+    def profiles(self) -> list[str]:
+        return self._profiles.names()
+
+    @Property(str, notify=profilesChanged)
+    def currentProfile(self) -> str:
+        return self._profiles.active
+
+    @Slot(str)
+    def createProfile(self, name: str) -> None:
+        self._profiles.create(name)
+        self.profilesChanged.emit()
+        self.currentChanged.emit()
+
+    @Slot(str)
+    def switchProfile(self, name: str) -> None:
+        self._profiles.switch(name)
+        self.profilesChanged.emit()
+        self.currentChanged.emit()
+
     def _set_current(self, note: Note | None) -> None:
         self._current = note
         self.currentChanged.emit()
@@ -320,7 +472,9 @@ class Backend(QObject):
 
     def _activate(self, note: Note) -> None:
         self._set_current(note)
-        self.tabs.add(str(note.oid), note.title or "无标题")
+        self._view = "note"
+        self.viewChanged.emit()
+        self.tabs.add(str(note.oid), note.title or "无标题", "note")
 
     # ---- 生命周期 ----
     @Slot(result=str)
@@ -341,42 +495,94 @@ class Backend(QObject):
         note = Note.create(self._vault, text, title=title)
         self._activate(note)
         self.notes.reload()
+        self.tagsListChanged.emit()
         return str(note.oid)
 
     @Slot(str)
     def openNote(self, oid: str) -> None:
-        if not oid or oid == self.currentOid:
+        if not oid or (oid == self._oid() and self._view == "note"):
             return
         self.flush()
         self._activate(Note.load(self._vault, oid))
 
-    @Slot(str)
-    def closeTab(self, oid: str) -> None:
+    @Slot()
+    def openRelations(self) -> None:
         self.flush()
-        row = self.tabs.index_of(oid)
+        self.tabs.add(RELATIONS_KEY, "关系", "relations")
+        self._view = "relations"
+        self.viewChanged.emit()
+
+    @Slot(str)
+    def openHistory(self, oid: str) -> None:
+        oid = oid or self._oid()
+        if not oid:
+            return
+        self.flush()
+        self._history_oid = oid
+        self.tabs.add(f"history:{oid}", "历史", "history")
+        self._view = "history"
+        self.viewChanged.emit()
+        self.versionsChanged.emit()
+
+    @Slot(int)
+    def restoreVersion(self, seq: int) -> None:
+        oid = self._history_oid or self._oid()
+        if not oid:
+            return
+        self._vault.restore_version(oid, seq)
+        if self._current is not None and str(self._current.oid) == oid:
+            self._current = Note.load(self._vault, oid)
+            self.currentChanged.emit()
+        self.notes.reload()
+        self.versionsChanged.emit()
+        self.contentChanged.emit()
+
+    @Slot(str)
+    def activateTab(self, key: str) -> None:
+        if key == RELATIONS_KEY:
+            self.openRelations()
+        elif key.startswith("history:"):
+            self.openHistory(key.split(":", 1)[1])
+        else:
+            self.openNote(key)
+
+    @Slot(str)
+    def closeTab(self, key: str) -> None:
+        self.flush()
+        row = self.tabs.index_of(key)
         if row < 0:
             return
-        self.tabs.remove(oid)
-        if oid != self.currentOid:
+        self.tabs.remove(key)
+        active = (
+            (self._view == "relations" and key == RELATIONS_KEY)
+            or (self._view == "history" and key == f"history:{self._history_oid}")
+            or (self._view == "note" and key == self._oid())
+        )
+        if not active:
             return
-        remaining = self.tabs.oids()
-        if remaining:
-            self._activate(Note.load(self._vault, remaining[min(row, len(remaining) - 1)]))
-        else:
+        keys = self.tabs.tab_keys()
+        if not keys:
+            self._view = "note"
+            self.viewChanged.emit()
             self._set_current(None)
+            return
+        self.activateTab(keys[min(row, len(keys) - 1)])
 
     @Slot(str)
     def deleteNote(self, oid: str) -> None:
         self.flush()
         self._vault.delete(oid)
         self.tabs.remove(oid)
-        remaining = self.tabs.oids()
-        if self.currentOid == oid or self._current is None:
+        remaining = [key for key in self.tabs.tab_keys() if not key.startswith("history:")]
+        if self._current is not None and str(self._current.oid) == oid:
             if remaining:
-                self._activate(Note.load(self._vault, remaining[-1]))
+                self.openNote(remaining[-1])
             else:
+                self._view = "note"
+                self.viewChanged.emit()
                 self._set_current(None)
         self.notes.reload()
+        self.tagsListChanged.emit()
 
     # ---- 编辑 ----
     @Slot()
@@ -410,30 +616,42 @@ class Backend(QObject):
 
     @Slot(result=str)
     def deriveNote(self) -> str:
-        """以当前笔记为源派生一份，并建立 derived-from 边。"""
+        """以当前笔记为源复刻一份，并建立 derived-from 边（钉住源版本）。"""
         if self._current is None:
             return ""
         self.flush()
         source = self._current
-        title = f"{source.title or '未命名'}（派生）"
+        title = f"{source.title or '未命名'}（复刻）"
         note = Note.create(self._vault, source.text, title=title)
-        Relation.create(self._vault, note.oid, source.oid, relation=DERIVED_FROM)
+        Relation.create(
+            self._vault,
+            note.oid,
+            source.oid,
+            relation=DERIVED_FROM,
+            props={"at": str(source.info.seq)},
+        )
         self._activate(note)
         self.notes.reload()
         return str(note.oid)
 
-    @Slot(str)
-    def filterNotes(self, query: str) -> None:
-        self.notes.set_query(query)
-
+    # ---- 可见性 ----
     @Slot(str)
     def setVisibility(self, value: str) -> None:
-        """对象级可见性（存于 meta.props.visibility，个人离线时无感，P2P 时生效）。"""
+        """对象级可见性（meta.props.visibility，离线无感，P2P 时生效）。"""
         if self._current is None:
             return
         self._current.update(props={"visibility": value})
         self.visibilityChanged.emit()
         self.contentChanged.emit()
+
+    # ---- 过滤 ----
+    @Slot(str)
+    def filterNotes(self, query: str) -> None:
+        self.notes.set_query(query)
+
+    @Slot(str)
+    def filterByTag(self, tag: str) -> None:
+        self.notes.set_tag(tag)
 
     # ---- 标签 ----
     @Slot(str)
@@ -447,6 +665,7 @@ class Backend(QObject):
         tags.append(tag)
         self._current.update(tags=tags)
         self.tagsChanged.emit()
+        self.tagsListChanged.emit()
         self.notes.reload()
 
     @Slot(str)
@@ -456,6 +675,7 @@ class Backend(QObject):
         tags = [item for item in self._current.tags if item != tag]
         self._current.update(tags=tags)
         self.tagsChanged.emit()
+        self.tagsListChanged.emit()
         self.notes.reload()
 
 
@@ -480,22 +700,27 @@ def seed_demo(backend: Backend) -> None:
             ["客户端"],
         ),
     ]
+    created: list[Note] = []
     for title, text, tags in samples:
-        Note.create(backend._vault, text, title=title, tags=tags)
-    created = list(Note.list(backend._vault))
-    # 让「QML 外壳草案」派生自「布局取舍 v1」，供预览族谱
+        created.append(Note.create(backend._vault, text, title=title, tags=tags))
     qml_note = next((n for n in created if n.title == "QML 外壳草案"), None)
     layout_note = next((n for n in created if n.title == "布局取舍 v1"), None)
     if qml_note is not None and layout_note is not None:
-        Relation.create(backend._vault, qml_note.oid, layout_note.oid, relation=DERIVED_FROM)
+        Relation.create(
+            backend._vault,
+            qml_note.oid,
+            layout_note.oid,
+            relation=DERIVED_FROM,
+            props={"at": str(layout_note.info.seq)},
+        )
     backend.notes.reload()
     total = backend.notes.rowCount()
-    oids = [
+    keys = [
         str(backend.notes.data(backend.notes.index(row, 0), NotesModel.OidRole))
         for row in reversed(range(total))
     ]
-    for oid in oids:
-        backend.openNote(oid)
+    for key in keys:
+        backend.openNote(key)
 
 
 def env_vault_root() -> Path:

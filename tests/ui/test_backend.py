@@ -151,3 +151,59 @@ def test_visibility_override_survives_edit(backend: Backend) -> None:
     backend.queueSave("改过内容")
     backend.flush()
     assert backend.currentVisibility == "公开"
+
+
+def test_all_tags_and_filter(backend: Backend) -> None:
+    backend.captureNote("甲")
+    backend.addTag("设计")
+    backend.captureNote("乙")
+    backend.addTag("存储")
+
+    assert backend.allTags == ["存储", "设计"]
+
+    backend.openNote(backend.tabs.tab_keys()[0])
+    backend.filterByTag("设计")
+    assert backend.notes.rowCount() == 1
+    backend.filterByTag("")
+    assert backend.notes.rowCount() == 2
+
+
+def test_profiles(backend: Backend) -> None:
+    assert backend.currentAuthor == "本机"
+    backend.createProfile("韩")
+    assert backend.currentAuthor == "韩"
+    backend.createProfile("石")
+    assert backend.currentProfile == "石"
+    backend.switchProfile("韩")
+    assert backend.currentAuthor == "韩"
+    assert backend.profiles == ["韩", "石"]
+
+
+def test_views_relations_and_history(backend: Backend) -> None:
+    oid = backend.captureNote("视图笔记")
+    assert backend.currentView == "note"
+
+    backend.openRelations()
+    assert backend.currentView == "relations"
+    assert backend.tabs.index_of("relations") >= 0
+
+    backend.openHistory(oid)
+    assert backend.currentView == "history"
+    assert backend.currentVersions[0]["current"] is True
+
+    backend.activateTab(oid)
+    assert backend.currentView == "note"
+
+
+def test_restore_version_through_backend(backend: Backend) -> None:
+    backend.captureNote("第一版")
+    backend.queueSave("第二版")
+    backend.flush()
+
+    versions = backend.currentVersions
+    assert versions[0]["current"] is True
+    assert len(versions) == 2
+
+    backend.restoreVersion(1)
+    assert backend.currentText == "第一版"
+    assert len(backend.currentVersions) == 3
