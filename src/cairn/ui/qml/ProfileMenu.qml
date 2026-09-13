@@ -13,7 +13,7 @@ Item {
     signal closed()
 
     implicitWidth: 240
-    implicitHeight: 232
+    implicitHeight: 336
 
     Rectangle {
         id: panel
@@ -144,6 +144,87 @@ Item {
                     }
                 }
             }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: CairnTheme.borderFaint
+            }
+
+            Text {
+                text: "显示"
+                color: CairnTheme.faint
+                font.family: CairnTheme.fontFamily
+                font.pixelSize: CairnTheme.fsTiny
+                font.weight: Font.DemiBold
+            }
+
+            ToggleRow {
+                label: "减少动效"
+                on: CairnTheme.reduceMotion
+                onToggled: CairnTheme.reduceMotion = !CairnTheme.reduceMotion
+            }
+            ToggleRow {
+                label: "高对比"
+                on: CairnTheme.highContrast
+                onToggled: CairnTheme.highContrast = !CairnTheme.highContrast
+            }
+        }
+    }
+
+    component ToggleRow: Rectangle {
+        id: tr
+        property string label: ""
+        property bool on: false
+        signal toggled()
+        Layout.fillWidth: true
+        Layout.preferredHeight: 30
+        radius: CairnTheme.radiusSm
+        color: trMa.containsMouse ? CairnTheme.hover : "transparent"
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: CairnTheme.spaceSm
+            anchors.verticalCenter: parent.verticalCenter
+            text: tr.label
+            color: CairnTheme.text
+            font.family: CairnTheme.fontFamily
+            font.pixelSize: CairnTheme.fsTiny
+        }
+        Rectangle {
+            anchors.right: parent.right
+            anchors.rightMargin: CairnTheme.spaceSm
+            anchors.verticalCenter: parent.verticalCenter
+            width: 34
+            height: 18
+            radius: 9
+            color: tr.on ? CairnTheme.accent : CairnTheme.borderFaint
+            Behavior on color {
+                ColorAnimation {
+                    duration: CairnTheme.durBase
+                    easing.type: Easing.InOutQuad
+                }
+            }
+            Rectangle {
+                width: 14
+                height: 14
+                radius: 7
+                y: 2
+                x: tr.on ? 18 : 2
+                color: "#FFFFFF"
+                Behavior on x {
+                    NumberAnimation {
+                        duration: CairnTheme.durBase
+                        easing.type: Easing.InOutQuad
+                    }
+                }
+            }
+        }
+        MouseArea {
+            id: trMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: tr.toggled()
         }
     }
 }

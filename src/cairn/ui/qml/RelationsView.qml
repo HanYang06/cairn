@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 HanYang06
 // SPDX-License-Identifier: Apache-2.0
 
-// 关系 / 分支历史图：按拓扑深度分层，边为 derived-from，可拖拽、可点开。
+// 关系图（竖排，参照 Git 图）：左侧是泳道（分叉 / 固定 / 合并），右侧是整行卡片。
+// 位置由拓扑与时序算出，不自由拖拽——线条与文字各占其位，互不遮挡。
 import QtQuick
 import QtQuick.Layouts
 import "theme"
@@ -11,48 +12,109 @@ Rectangle {
     color: CairnTheme.surface
 
     property var graph: backend.currentGraph
-    property var positions: computePositions()
-    property var overrides: ({})
+    property var layout: compute()
 
-    function computePositions() {
-        const g = view.graph || {
-            "nodes": []
-        };
-        const nodes = g.nodes || [];
-        const byDepth = {};
+    function rootDepth() {
+        const nodes = (view.graph && view.graph.nodes) || [];
         for (let i = 0; i < nodes.length; i++) {
-            const d = nodes[i].depth;
-            if (!byDepth[d])
-                byDepth[d] = [];
-            byDepth[d].push(nodes[i]);
+            if (nodes[i].current)
+                return nodes[i].depth || 0;
         }
-        const keys = Object.keys(byDepth).map(Number).sort((a, b) => a - b);
-        let maxRows = 1;
-        for (const k in byDepth)
-            maxRows = Math.max(maxRows, byDepth[k].length);
-        const colW = 250;
-        const rowH = 100;
-        const padX = 60;
-        const padY = 40;
-        const result = {};
-        for (let ci = 0; ci < keys.length; ci++) {
-            const col = byDepth[keys[ci]];
-            const offset = (maxRows - col.length) * rowH / 2;
-            for (let j = 0; j < col.length; j++) {
-                result[col[j].oid] = {
-                    "x": padX + ci * colW,
-                    "y": padY + offset + j * rowH
-                };
-            }
-        }
-        return result;
+        return 0;
     }
 
-    function center(oid) {
-        const p = view.overrides[oid] || view.positions[oid];
-        if (!p)
-            return Qt.point(0, 0);
-        return Qt.point(p.x + 90, p.y + 32);
+    function compute() {
+        const g = view.graph || {
+            "nodes": [],
+            "edges": []
+        };
+        const nodes = (g.nodes || []).slice();
+        const edges = g.edges || [];
+        const rootD = view.rootDepth();
+
+        // child -> [parent]
+        const parentsOf = {};
+        for (let i = 0; i < nodes.length; i++)
+            parentsOf[nodes[i].oid] = [];
+        for (let i = 0; i < edges.length; i++) {
+            if (parentsOf[edges[i].from] === undefined)
+                parentsOf[edges[i].from] = [];
+            parentsOf[edges[i].from].push(edges[i].to);
+        }
+
+        // 时序：旧的在上（来源在上，派生在下）
+        nodes.sort(function (a, b) {
+            return (a.ts || 0) - (b.ts || 0);
+        });
+
+        // Git 式泳道分配：优先复用父节点所在泳道，否则开新道。
+        const laneTips = [];
+        const laneOf = {};
+        for (let i = 0; i < nodes.length; i++) {
+            const oid = nodes[i].oid;
+            const ps = parentsOf[oid] || [];
+            let lane = -1;
+            for (let j = 0; j < laneTips.length; j++) {
+                if (laneTips[j] !== undefined && ps.indexOf(laneTips[j]) >= 0) {
+                    lane = j;
+                    break;
+                }
+            }
+            if (lane < 0) {
+                lane = laneTips.indexOf(undefined);
+                if (lane < 0) {
+                    lane = laneTips.length;
+                    laneTips.push(undefined);
+                }
+            }
+            laneTips[lane] = oid;
+            laneOf[oid] = lane;
+            for (let j = 0; j < laneTips.length; j++) {
+                if (j !== lane && laneTips[j] !== undefined && ps.indexOf(laneTips[j]) >= 0)
+                    laneTips[j] = undefined;
+            }
+        }
+
+        let maxLane = 0;
+        for (const k in laneOf)
+            maxLane = Math.max(maxLane, laneOf[k]);
+
+        const rowH = 56;
+        const laneW = 26;
+        const gutter = 24;
+        const items = [];
+        const byOid = {};
+        for (let i = 0; i < nodes.length; i++) {
+            const n = nodes[i];
+            let origin = "";
+            for (let j = 0; j < edges.length; j++) {
+                if (edges[j].from === n.oid) {
+                    origin = "复刻自 v" + (edges[j].at || "?");
+                    break;
+                }
+            }
+            const role = n.current ? "当前" : ((n.depth || 0) < rootD ? "来源" : "派生");
+            const it = {
+                "oid": n.oid,
+                "title": n.title,
+                "role": role,
+                "author": n.author,
+                "updated": n.updated,
+                "current": n.current,
+                "origin": origin,
+                "x": gutter + laneOf[n.oid] * laneW,
+                "y": i * rowH + rowH / 2
+            };
+            items.push(it);
+            byOid[n.oid] = it;
+        }
+        return {
+            "items": items,
+            "edges": edges,
+            "byOid": byOid,
+            "rowH": rowH,
+            "cardsX": gutter + (maxLane + 1) * laneW + 8
+        };
     }
 
     ColumnLayout {
@@ -67,8 +129,7 @@ Rectangle {
                 anchors.bottom: parent.bottom
                 width: parent.width
                 height: 1
-                color: CairnTheme.border
-                opacity: 0.6
+                color: CairnTheme.borderFaint
             }
             RowLayout {
                 anchors.fill: parent
@@ -97,6 +158,13 @@ Rectangle {
                     font.pixelSize: CairnTheme.fsSmall
                     Layout.alignment: Qt.AlignVCenter
                 }
+                Text {
+                    text: "线＝衍生关系"
+                    color: CairnTheme.faint
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsTiny
+                    Layout.alignment: Qt.AlignVCenter
+                }
                 Item {
                     Layout.fillWidth: true
                 }
@@ -113,128 +181,128 @@ Rectangle {
             }
         }
 
-        Item {
-            id: canvas
+        Flickable {
+            id: flick
             Layout.fillWidth: true
             Layout.fillHeight: true
+            contentWidth: width
+            contentHeight: Math.max(content.height, height)
             clip: true
 
-            Canvas {
-                id: edges
-                anchors.fill: parent
-                onWidthChanged: requestPaint()
-                onHeightChanged: requestPaint()
-                Component.onCompleted: requestPaint()
-                Connections {
-                    target: view
-                    function onPositionsChanged() {
-                        edges.requestPaint();
-                    }
-                }
-                Connections {
-                    target: backend
-                    function onCurrentChanged() {
-                        edges.requestPaint();
-                    }
-                }
-                onPaint: {
-                    const ctx = getContext("2d");
-                    ctx.reset();
-                    const g = view.graph;
-                    if (!g || !g.edges)
-                        return;
-                    ctx.lineWidth = 1.6;
-                    ctx.strokeStyle = CairnTheme.accent;
-                    for (let i = 0; i < g.edges.length; i++) {
-                        const e = g.edges[i];
-                        const a = view.center(e.from);
-                        const b = view.center(e.to);
-                        const mx = (a.x + b.x) / 2;
-                        ctx.beginPath();
-                        ctx.moveTo(a.x, a.y);
-                        ctx.bezierCurveTo(mx, a.y, mx, b.y, b.x, b.y);
-                        ctx.stroke();
-                    }
-                }
-            }
+            Item {
+                id: content
+                width: flick.width
+                height: view.layout.items.length * view.layout.rowH + 40
 
-            Repeater {
-                model: view.graph.nodes
-                delegate: Rectangle {
-                    id: card
-                    width: 180
-                    height: 64
-                    radius: CairnTheme.radius
-                    readonly property var ov: view.overrides[modelData.oid]
-                    readonly property var base: view.positions[modelData.oid]
-                    x: ov ? ov.x : (base ? base.x : 0)
-                    y: ov ? ov.y : (base ? base.y : 0)
-                    color: CairnTheme.bg
-                    border.width: 1
-                    border.color: modelData.current ? CairnTheme.accent : CairnTheme.border
-                    z: cardDrag.active ? 10 : 1
-
-                    Rectangle {
-                        id: dot
-                        width: 6
-                        height: 6
-                        radius: 3
-                        x: CairnTheme.spaceMd
-                        y: CairnTheme.spaceMd
-                        color: modelData.current ? CairnTheme.accent : CairnTheme.muted
-                    }
-                    Text {
-                        anchors.left: dot.right
-                        anchors.leftMargin: 6
-                        anchors.verticalCenter: dot.verticalCenter
-                        text: modelData.current ? "当前" : "笔记"
-                        color: CairnTheme.faint
-                        font.family: CairnTheme.fontFamily
-                        font.pixelSize: CairnTheme.fsTiny
-                    }
-                    Text {
-                        anchors.left: parent.left
-                        anchors.leftMargin: CairnTheme.spaceMd
-                        anchors.right: parent.right
-                        anchors.rightMargin: CairnTheme.spaceMd
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: CairnTheme.spaceMd
-                        text: modelData.title
-                        color: CairnTheme.text
-                        font.family: CairnTheme.fontFamily
-                        font.pixelSize: CairnTheme.fsSmall
-                        font.weight: Font.Medium
-                        elide: Text.ElideRight
-                    }
-                    DragHandler {
-                        id: cardDrag
-                        target: null
-                        property point start
-                        onActiveChanged: {
-                            if (active)
-                                start = Qt.point(card.x, card.y);
-                        }
-                        onTranslationChanged: {
-                            if (!active)
-                                return;
-                            const next = Object.assign({}, view.overrides);
-                            next[modelData.oid] = {
-                                "x": start.x + translation.x,
-                                "y": start.y + translation.y
-                            };
-                            view.overrides = next;
+                Canvas {
+                    id: edges
+                    anchors.fill: parent
+                    onWidthChanged: requestPaint()
+                    onHeightChanged: requestPaint()
+                    Component.onCompleted: requestPaint()
+                    Connections {
+                        target: view
+                        function onLayoutChanged() {
                             edges.requestPaint();
                         }
                     }
-                    TapHandler {
-                        onTapped: backend.openNote(modelData.oid)
+                    onPaint: {
+                        const ctx = getContext("2d");
+                        ctx.reset();
+                        const L = view.layout;
+                        ctx.lineCap = "round";
+                        ctx.lineJoin = "round";
+                        // 边：竖直切线入园的平滑曲线（Git 式），避免直角"蚯蚓"。
+                        for (let i = 0; i < L.edges.length; i++) {
+                            const e = L.edges[i];
+                            const a = L.byOid[e.from];
+                            const b = L.byOid[e.to];
+                            if (!a || !b)
+                                continue;
+                            ctx.lineWidth = a.current || b.current ? 2.4 : 1.6;
+                            ctx.strokeStyle = (a.current || b.current) ? CairnTheme.accent : CairnTheme.borderStrong;
+                            ctx.beginPath();
+                            ctx.moveTo(a.x, a.y);
+                            if (a.x === b.x) {
+                                ctx.lineTo(b.x, b.y);
+                            } else {
+                                const midY = (a.y + b.y) / 2;
+                                ctx.bezierCurveTo(a.x, midY, b.x, midY, b.x, b.y);
+                            }
+                            ctx.stroke();
+                        }
+                        // 节点
+                        for (let i = 0; i < L.items.length; i++) {
+                            const it = L.items[i];
+                            ctx.beginPath();
+                            ctx.fillStyle = CairnTheme.surface;
+                            ctx.arc(it.x, it.y, 5, 0, 6.2831853);
+                            ctx.fill();
+                            ctx.beginPath();
+                            ctx.fillStyle = it.current ? CairnTheme.accent : CairnTheme.muted;
+                            ctx.arc(it.x, it.y, it.current ? 4 : 3.2, 0, 6.2831853);
+                            ctx.fill();
+                        }
+                    }
+                }
+
+                Repeater {
+                    model: view.layout.items
+                    delegate: Rectangle {
+                        id: card
+                        x: view.layout.cardsX
+                        y: modelData.y - view.layout.rowH / 2 + 6
+                        width: Math.max(120, content.width - view.layout.cardsX - 24)
+                        height: view.layout.rowH - 12
+                        radius: CairnTheme.radius
+                        color: CairnTheme.bg
+                        border.color: modelData.current ? CairnTheme.accent : CairnTheme.border
+                        border.width: 1
+                        z: 2
+
+                        Text {
+                            id: role
+                            x: CairnTheme.spaceMd
+                            width: 36
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.role
+                            color: modelData.current ? CairnTheme.accent : CairnTheme.faint
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsTiny
+                        }
+                        Text {
+                            anchors.left: role.right
+                            anchors.leftMargin: 8
+                            anchors.right: meta.left
+                            anchors.rightMargin: 10
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: modelData.title
+                            color: CairnTheme.text
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsSmall
+                            font.weight: Font.Medium
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            id: meta
+                            anchors.right: parent.right
+                            anchors.rightMargin: CairnTheme.spaceMd
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: (modelData.origin !== "" ? modelData.origin + " · " : "") + "作者 " + (modelData.author !== "" ? modelData.author : "—") + " · " + modelData.updated
+                            color: CairnTheme.faint
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsTiny
+                        }
+                        TapHandler {
+                            onTapped: backend.openNote(modelData.oid)
+                        }
                     }
                 }
             }
 
             Text {
                 anchors.centerIn: parent
-                visible: view.graph.nodes.length === 0
+                visible: view.layout.items.length === 0
                 text: "没有关系"
                 color: CairnTheme.faint
                 font.family: CairnTheme.fontFamily

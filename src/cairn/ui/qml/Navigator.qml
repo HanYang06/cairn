@@ -11,6 +11,48 @@ Rectangle {
     color: CairnTheme.surface
     property string mode: "notes"
     signal requestNotes()
+    signal noteMenuRequested(string oid, real x, real y)
+
+    // 多选
+    property bool selecting: false
+    property var selectedOids: ({})
+
+    function selectedCount() {
+        let n = 0;
+        for (const k in nav.selectedOids) {
+            if (nav.selectedOids[k])
+                n++;
+        }
+        return n;
+    }
+    function isSelected(oid) {
+        return nav.selectedOids[oid] === true;
+    }
+    function toggleSelect(oid) {
+        const m = Object.assign({}, nav.selectedOids);
+        if (m[oid])
+            delete m[oid];
+        else
+            m[oid] = true;
+        nav.selectedOids = m;
+    }
+    function clearSelection() {
+        nav.selectedOids = ({});
+    }
+    function selectedList() {
+        return Object.keys(nav.selectedOids);
+    }
+    function selectAll() {
+        const m = {};
+        const ids = backend.visibleNoteOids();
+        for (let i = 0; i < ids.length; i++)
+            m[ids[i]] = true;
+        nav.selectedOids = m;
+    }
+    function exitSelect() {
+        nav.selecting = false;
+        nav.clearSelection();
+    }
 
     Rectangle {
         anchors.right: parent.right
@@ -42,53 +84,23 @@ Rectangle {
                     Layout.fillWidth: true
                 }
                 IconGlyph {
+                    glyph: "\uE762"
+                    active: nav.selecting
+                    onClicked: {
+                        if (nav.selecting)
+                            nav.exitSelect();
+                        else
+                            nav.selecting = true;
+                    }
+                }
+                IconGlyph {
                     glyph: "\uE710"
                     onClicked: backend.createNote()
                 }
                 IconGlyph {
-                    glyph: "\uE712"
-                }
-            }
-        }
-
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.leftMargin: CairnTheme.spaceMd
-            Layout.rightMargin: CairnTheme.spaceMd
-            Layout.preferredHeight: 32
-            radius: CairnTheme.radiusSm
-            color: CairnTheme.bg
-            border.color: capture.activeFocus ? CairnTheme.accent : CairnTheme.border
-            border.width: 1
-            Text {
-                x: 9
-                anchors.verticalCenter: parent.verticalCenter
-                text: "\uE70F"
-                font.family: CairnTheme.iconFont
-                font.pixelSize: 12
-                color: CairnTheme.accent
-            }
-            TextInput {
-                id: capture
-                x: 28
-                width: parent.width - 36
-                anchors.verticalCenter: parent.verticalCenter
-                clip: true
-                color: CairnTheme.text
-                font.family: CairnTheme.fontFamily
-                font.pixelSize: CairnTheme.fsSmall
-                selectByMouse: true
-                onAccepted: {
-                    backend.captureNote(text);
-                    text = "";
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: capture.text === "" && !capture.activeFocus
-                    text: "快速记录，回车…"
-                    color: CairnTheme.faint
-                    font.family: CairnTheme.fontFamily
-                    font.pixelSize: CairnTheme.fsSmall
+                    glyph: "\uE7B8"
+                    active: backend.showArchived
+                    onClicked: backend.toggleShowArchived()
                 }
             }
         }
@@ -101,7 +113,7 @@ Rectangle {
             Layout.preferredHeight: 30
             radius: CairnTheme.radiusSm
             color: CairnTheme.bg
-            border.color: search.activeFocus ? CairnTheme.accent : CairnTheme.border
+            border.color: search.activeFocus ? CairnTheme.accent : "transparent"
             border.width: 1
             Text {
                 x: 9
@@ -139,7 +151,7 @@ Rectangle {
 
         Text {
             Layout.leftMargin: CairnTheme.spaceMd
-            text: "全部笔记"
+            text: backend.showTrash ? "回收站" : "全部笔记"
             color: CairnTheme.faint
             font.family: CairnTheme.fontFamily
             font.pixelSize: CairnTheme.fsTiny
@@ -156,6 +168,12 @@ Rectangle {
             model: notesModel
             boundsBehavior: Flickable.StopAtBounds
 
+            // 空白处双击＝新建空笔记（不必回到顶部按钮）。
+            TapHandler {
+                acceptedButtons: Qt.LeftButton
+                onDoubleTapped: backend.createNote()
+            }
+
             delegate: Item {
                 id: del
                 width: notesList.width
@@ -164,36 +182,48 @@ Rectangle {
 
                 Rectangle {
                     anchors.fill: parent
-                    color: del.active ? CairnTheme.selection : (delMa.containsMouse ? CairnTheme.hover : "transparent")
-                    Behavior on color {
-                        ColorAnimation {
-                            duration: CairnTheme.durFast
-                        }
-                    }
+                    color: (del.active || nav.isSelected(model.oid)) ? CairnTheme.selection : (delMa.containsMouse ? CairnTheme.hover : "transparent")
                 }
                 Rectangle {
-                    width: 2
-                    height: parent.height
-                    color: CairnTheme.accent
-                    opacity: del.active ? 1 : 0
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: CairnTheme.durFast
-                        }
+                    visible: nav.selecting
+                    x: CairnTheme.spaceMd
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 16
+                    height: 16
+                    radius: 4
+                    color: nav.isSelected(model.oid) ? CairnTheme.accent : "transparent"
+                    border.color: nav.isSelected(model.oid) ? CairnTheme.accent : CairnTheme.border
+                    border.width: 1
+                    Text {
+                        anchors.centerIn: parent
+                        visible: nav.isSelected(model.oid)
+                        text: "\uE73E"
+                        font.family: CairnTheme.iconFont
+                        font.pixelSize: 9
+                        color: CairnTheme.accentText
                     }
                 }
                 Column {
                     anchors.fill: parent
-                    anchors.leftMargin: CairnTheme.spaceMd
+                    anchors.leftMargin: nav.selecting ? CairnTheme.spaceMd + 22 : CairnTheme.spaceMd
                     anchors.rightMargin: CairnTheme.spaceMd
                     anchors.topMargin: CairnTheme.spaceSm
                     anchors.bottomMargin: CairnTheme.spaceSm
                     spacing: 3
                     RowLayout {
                         width: parent.width
+                        spacing: 5
+                        Text {
+                            visible: model.favorite
+                            text: "\uE735"
+                            color: CairnTheme.accent
+                            font.family: CairnTheme.iconFont
+                            font.pixelSize: 10
+                            Layout.alignment: Qt.AlignVCenter
+                        }
                         Text {
                             text: model.title
-                            color: CairnTheme.text
+                            color: model.archived ? CairnTheme.faint : CairnTheme.text
                             font.family: CairnTheme.fontFamily
                             font.pixelSize: CairnTheme.fsSmall
                             font.weight: Font.Medium
@@ -201,7 +231,7 @@ Rectangle {
                             Layout.fillWidth: true
                         }
                         Text {
-                            text: model.updated
+                            text: model.archived ? "已归档" : model.updated
                             color: CairnTheme.faint
                             font.family: CairnTheme.fontFamily
                             font.pixelSize: CairnTheme.fsTiny
@@ -210,7 +240,7 @@ Rectangle {
                     Text {
                         width: parent.width
                         text: model.preview !== "" ? model.preview : "空笔记"
-                        color: CairnTheme.muted
+                        color: model.archived ? CairnTheme.faint : CairnTheme.muted
                         font.family: CairnTheme.fontFamily
                         font.pixelSize: CairnTheme.fsTiny
                         maximumLineCount: 1
@@ -221,13 +251,169 @@ Rectangle {
                     id: delMa
                     anchors.fill: parent
                     hoverEnabled: true
-                    onClicked: backend.openNote(model.oid)
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: function (mouse) {
+                        if (mouse.button === Qt.RightButton) {
+                            const p = delMa.mapToItem(nav, mouse.x, mouse.y);
+                            nav.noteMenuRequested(model.oid, p.x, p.y);
+                        } else if (nav.selecting) {
+                            nav.toggleSelect(model.oid);
+                        } else {
+                            backend.openNote(model.oid);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 批量操作条
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 72
+            visible: nav.selecting
+            color: CairnTheme.chrome
+            Rectangle {
+                anchors.top: parent.top
+                width: parent.width
+                height: 1
+                color: CairnTheme.borderFaint
+            }
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.leftMargin: CairnTheme.spaceMd
+                anchors.rightMargin: CairnTheme.spaceSm
+                anchors.topMargin: CairnTheme.spaceSm
+                anchors.bottomMargin: CairnTheme.spaceSm
+                spacing: CairnTheme.spaceSm
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: CairnTheme.spaceSm
+                    Text {
+                        text: "已选 " + nav.selectedCount() + " 项"
+                        color: CairnTheme.text
+                        font.family: CairnTheme.fontFamily
+                        font.pixelSize: CairnTheme.fsTiny
+                        Layout.fillWidth: true
+                    }
+                    SelectAction {
+                        label: "全选"
+                        onTapped: nav.selectAll()
+                    }
+                    SelectAction {
+                        label: "完成"
+                        onTapped: nav.exitSelect()
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: CairnTheme.spaceSm
+                    Rectangle {
+                        Layout.fillWidth: true
+                        implicitHeight: 24
+                        radius: CairnTheme.radiusSm
+                        color: batchTag.activeFocus ? CairnTheme.bg : CairnTheme.hover
+                        border.color: batchTag.activeFocus ? CairnTheme.accent : "transparent"
+                        border.width: 1
+                        TextInput {
+                            id: batchTag
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            verticalAlignment: TextInput.AlignVCenter
+                            clip: true
+                            color: CairnTheme.text
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsTiny
+                            selectByMouse: true
+                            onAccepted: {
+                                backend.addTagToMany(nav.selectedList(), batchTag.text);
+                                batchTag.text = "";
+                            }
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: batchTag.text === ""
+                                text: "加标签…"
+                                color: CairnTheme.faint
+                                font.family: CairnTheme.fontFamily
+                                font.pixelSize: CairnTheme.fsTiny
+                            }
+                        }
+                    }
+                    SelectAction {
+                        label: "收藏"
+                        onTapped: backend.favoriteMany(nav.selectedList())
+                    }
+                    SelectAction {
+                        label: "回收"
+                        onTapped: {
+                            backend.trashMany(nav.selectedList());
+                            nav.clearSelection();
+                        }
+                    }
+                }
+            }
+        }
+
+        // 回收站入口：删除先进这里，避免每次确认。
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 36
+            color: backend.showTrash ? CairnTheme.selection : (trashMa.containsMouse ? CairnTheme.hover : "transparent")
+            Rectangle {
+                anchors.top: parent.top
+                width: parent.width
+                height: 1
+                color: CairnTheme.borderFaint
+            }
+            MouseArea {
+                id: trashMa
+                anchors.fill: parent
+                hoverEnabled: true
+                onClicked: backend.toggleShowTrash()
+            }
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: CairnTheme.spaceMd
+                anchors.rightMargin: CairnTheme.spaceSm
+                spacing: CairnTheme.spaceSm
+                Text {
+                    text: "\uE74D"
+                    font.family: CairnTheme.iconFont
+                    font.pixelSize: 12
+                    color: backend.showTrash ? CairnTheme.accent : CairnTheme.muted
+                }
+                Text {
+                    text: "回收站"
+                    color: backend.showTrash ? CairnTheme.text : CairnTheme.muted
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsTiny
+                    Layout.fillWidth: true
+                }
+                Text {
+                    visible: backend.trashedCount > 0
+                    text: "" + backend.trashedCount
+                    color: CairnTheme.faint
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsTiny
+                }
+                Text {
+                    visible: backend.showTrash && backend.trashedCount > 0
+                    text: "清空"
+                    color: clearMa.containsMouse ? CairnTheme.danger : CairnTheme.muted
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsTiny
+                    MouseArea {
+                        id: clearMa
+                        anchors.fill: parent
+                        anchors.margins: -6
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: backend.emptyTrash()
+                    }
                 }
             }
         }
     }
-
-    // ============ 项目导航（仓库形式）============
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -585,7 +771,7 @@ Rectangle {
             Layout.preferredHeight: 32
             radius: CairnTheme.radiusSm
             color: CairnTheme.bg
-            border.color: searchInput.activeFocus ? CairnTheme.accent : CairnTheme.border
+            border.color: searchInput.activeFocus ? CairnTheme.accent : "transparent"
             border.width: 1
             Text {
                 x: 9
@@ -662,16 +848,35 @@ Rectangle {
         }
     }
 
+    component SelectAction: Text {
+        id: sa
+        property string label: ""
+        signal tapped()
+        text: sa.label
+        color: saMa.containsMouse ? CairnTheme.text : CairnTheme.muted
+        font.family: CairnTheme.fontFamily
+        font.pixelSize: CairnTheme.fsTiny
+        MouseArea {
+            id: saMa
+            anchors.fill: parent
+            anchors.margins: -4
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: sa.tapped()
+        }
+    }
+
     component IconGlyph: Item {
         id: ig
         property string glyph
+        property bool active: false
         signal clicked()
         Layout.preferredWidth: 26
         Layout.preferredHeight: 26
         Rectangle {
             anchors.fill: parent
             radius: CairnTheme.radiusSm
-            color: igMa.containsMouse ? CairnTheme.hover : "transparent"
+            color: ig.active ? CairnTheme.selection : (igMa.containsMouse ? CairnTheme.hover : "transparent")
             Behavior on color {
                 ColorAnimation {
                     duration: CairnTheme.durFast
@@ -683,7 +888,7 @@ Rectangle {
             text: ig.glyph
             font.family: CairnTheme.iconFont
             font.pixelSize: 13
-            color: igMa.containsMouse ? CairnTheme.text : CairnTheme.muted
+            color: ig.active ? CairnTheme.accent : (igMa.containsMouse ? CairnTheme.text : CairnTheme.muted)
         }
         MouseArea {
             id: igMa

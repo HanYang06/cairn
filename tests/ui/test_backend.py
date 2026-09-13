@@ -228,3 +228,157 @@ def test_graph_and_path(backend: Backend) -> None:
     path = backend.currentPath
     assert [item["oid"] for item in path] == [source, child]
     assert path[-1]["current"] is True
+
+
+def _row_value(backend: Backend, oid: str, role: int) -> object:
+    model = backend.notes
+    for row in range(model.rowCount()):
+        index = model.index(row, 0)
+        if model.data(index, NotesModel.OidRole) == oid:
+            return model.data(index, role)
+    return None
+
+
+def test_favorite_and_archive(backend: Backend) -> None:
+    first = backend.captureNote("甲")
+    backend.captureNote("乙")
+    assert backend.notes.rowCount() == 2
+
+    backend.toggleFavorite(first)
+    assert backend.noteInfo(first)["favorite"] is True
+    assert _row_value(backend, first, NotesModel.FavoriteRole) is True
+
+    backend.toggleFavorite(first)
+    assert backend.noteInfo(first)["favorite"] is False
+
+    backend.toggleArchive(first)
+    assert backend.noteInfo(first)["archived"] is True
+    assert backend.showArchived is False
+    assert backend.notes.rowCount() == 1
+
+    backend.toggleShowArchived()
+    assert backend.showArchived is True
+    assert backend.notes.rowCount() == 2
+    assert _row_value(backend, first, NotesModel.ArchivedRole) is True
+
+
+def test_targeted_actions_do_not_switch_current(backend: Backend) -> None:
+    source = backend.captureNote("源")
+    current = backend.captureNote("当前")
+    assert backend.currentOid == current
+
+    backend.toggleHomepageOf(source)
+    assert backend.noteInfo(source)["homepage"] is True
+    assert backend.currentShares == []
+
+    derived = backend.deriveFrom(source)
+    assert derived != source
+    assert backend.currentOid == derived
+    assert [item["oid"] for item in backend.currentAncestors] == [source]
+
+
+def test_current_properties_schema(backend: Backend) -> None:
+    backend.captureNote("属性")
+    backend.addTag("设计")
+
+    props = {item["id"]: item for item in backend.currentProperties}
+    assert set(props) == {
+        "kind",
+        "space",
+        "author",
+        "tags",
+        "favorite",
+        "archived",
+        "created",
+        "updated",
+        "words",
+        "size",
+    }
+    assert props["tags"]["value"] == ["设计"]
+    assert props["tags"]["editable"] is True
+    assert props["favorite"]["value"] is False
+
+    backend.toggleFavorite(backend.currentOid)
+    props = {item["id"]: item for item in backend.currentProperties}
+    assert props["favorite"]["value"] is True
+
+
+def test_metadata_change_does_not_version(backend: Backend) -> None:
+    oid = backend.captureNote("正文")
+    assert [item["seq"] for item in backend.currentVersions] == [1]
+
+    backend.addTag("设计")
+    backend.toggleFavorite(oid)
+    backend.renameNote("新标题")
+    assert [item["seq"] for item in backend.currentVersions] == [1]
+
+    backend.queueSave("正文改了")
+    backend.flush()
+    assert [item["seq"] for item in backend.currentVersions] == [2, 1]
+
+
+def test_trash_restore_and_purge(backend: Backend) -> None:
+    oid = backend.captureNote("将删")
+    assert backend.notes.rowCount() == 1
+
+    backend.trashNote(oid)
+    assert backend.notes.rowCount() == 0
+    assert backend.trashedCount == 1
+
+    backend.toggleShowTrash()
+    assert backend.showTrash is True
+    assert backend.notes.rowCount() == 1
+
+    backend.restoreNote(oid)
+    assert backend.trashedCount == 0
+
+    backend.toggleShowTrash()
+    assert backend.notes.rowCount() == 1
+
+    backend.trashNote(oid)
+    backend.emptyTrash()
+    assert backend.trashedCount == 0
+    assert backend.notes.rowCount() == 0
+
+
+def test_share_targets_toggle(backend: Backend) -> None:
+    backend.captureNote("分享")
+    assert any(t["kind"] == "community" for t in backend.shareTargets)
+
+    backend.toggleShareTo("community", "Cairn 中文")
+    labels = [item["label"] for item in backend.currentShares]
+    assert "社区 · Cairn 中文" in labels
+
+    backend.toggleShareTo("community", "Cairn 中文")
+    assert backend.currentShares == []
+
+
+def test_tag_pairs_edit(backend: Backend) -> None:
+    backend.captureNote("标签KV")
+    backend.addTag("作者:韩")
+    assert backend.tagPairs == [{"key": "作者", "value": "韩", "raw": "作者:韩"}]
+
+    backend.replaceTag("作者:韩", "作者", "石")
+    assert list(backend.currentTags) == ["作者:石"]
+
+    backend.replaceTag("作者:石", "", "")
+    assert list(backend.currentTags) == []
+
+    backend.addTag("项目:Cairn")
+    backend.replaceTag("项目:Cairn", "项目", "")
+    assert "项目" in backend.currentTags
+
+
+def test_batch_tag_and_trash(backend: Backend) -> None:
+    first = backend.captureNote("甲")
+    second = backend.captureNote("乙")
+    third = backend.captureNote("丙")
+
+    backend.addTagToMany([first, second], "批")
+    assert "批" in backend._vault.info(first).tags
+    assert "批" in backend._vault.info(second).tags
+    assert "批" not in backend._vault.info(third).tags
+
+    backend.trashMany([first, second])
+    assert backend.trashedCount == 2
+    assert backend.notes.rowCount() == 1

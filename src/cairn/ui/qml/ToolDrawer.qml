@@ -13,6 +13,8 @@ Item {
     clip: true
     property bool open: false
     property bool editing: false
+    // 鼠标离开后自动回收延迟（毫秒）：太短会误收，太长拖沓。
+    property int autoCloseMs: 1500
     signal launch(string id)
     signal preview(string id, string label)
     signal addRequested()
@@ -51,7 +53,7 @@ Item {
         {
             "id": "lineage",
             "glyph": "\uE9D5",
-            "label": "族谱"
+            "label": "衍生"
         },
         {
             "id": "ai",
@@ -90,58 +92,67 @@ Item {
         }
     ]
 
-    // 顶部触发条
-    Rectangle {
+    // 顶部触发条：放进标题栏内（居中一窄条），不与标签页重合。
+    // 用 MouseArea（独占按下）压在标题栏拖拽区之上，避免与拖窗抢事件。
+    MouseArea {
         id: trigger
-        anchors.left: parent.left
-        anchors.right: parent.right
+        objectName: "drawerTrigger"
+        anchors.horizontalCenter: parent.horizontalCenter
         y: 0
-        height: 10
-        color: "transparent"
+        width: 260
+        height: 16
+        z: 10
+        hoverEnabled: true
+        onEntered: {
+            closeTimer.stop();
+            drawer.open = true;
+        }
+        onExited: {
+            if (!panelHover.hovered)
+                closeTimer.restart();
+        }
+        onClicked: drawer.open = !drawer.open
 
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
-            y: 2
+            y: 9
             width: 148
-            height: 5
-            radius: 2.5
+            height: 4
+            radius: 2
             color: CairnTheme.accent
-            opacity: triggerHover.hovered || drawer.open ? 0.9 : 0.4
+            opacity: trigger.containsMouse || drawer.open ? 0.95 : 0.45
             Behavior on opacity {
                 NumberAnimation {
-                    duration: CairnTheme.durFast
+                    duration: CairnTheme.durBase
+                    easing.type: Easing.OutQuad
                 }
             }
-        }
-        HoverHandler {
-            id: triggerHover
-            onHoveredChanged: {
-                if (hovered) {
-                    closeTimer.stop();
-                    drawer.open = true;
-                } else if (!panelHover.hovered) {
-                    closeTimer.restart();
-                }
-            }
-        }
-        TapHandler {
-            onTapped: drawer.open = !drawer.open
         }
     }
 
     Timer {
         id: closeTimer
-        interval: 300
+        interval: drawer.autoCloseMs
         onTriggered: drawer.open = false
+    }
+
+    // 打开时，点面板外任意处立即回收。
+    MouseArea {
+        id: backdrop
+        anchors.fill: parent
+        z: 1
+        visible: drawer.open
+        onClicked: drawer.open = false
     }
 
     // 向下滑出的覆盖面板
     Rectangle {
         id: panel
+        z: 5
         anchors.horizontalCenter: parent.horizontalCenter
         width: Math.min(parent.width - 24, 880)
         height: Math.min(parent.height - 12, 328)
-        y: drawer.open ? 10 : -height - 12
+        y: drawer.open ? (CairnTheme.titleBarH + 8) : -(CairnTheme.titleBarH + height + 20)
         radius: CairnTheme.radiusXl
         color: CairnTheme.surface
         border.color: CairnTheme.border
@@ -158,7 +169,7 @@ Item {
             onHoveredChanged: {
                 if (hovered)
                     closeTimer.stop();
-                else if (!triggerHover.hovered)
+                else if (!trigger.containsMouse)
                     closeTimer.restart();
             }
         }

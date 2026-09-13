@@ -82,6 +82,22 @@ def _title_of(vault: Vault, oid: Any) -> str:
         return "（缺失）"
 
 
+def _short_author(hex_key: str) -> str:
+    return hex_key[:8] if hex_key else ""
+
+
+def _node_meta(vault: Vault, oid: Any) -> dict[str, Any]:
+    try:
+        info = vault.info(oid)
+    except Exception:
+        return {"author": "", "updated": "", "ts": 0}
+    return {
+        "author": _short_author(info.author),
+        "updated": _fmt_time(info.updated),
+        "ts": info.updated,
+    }
+
+
 class ProfileStore:
     """本地档案：设备身份之上的若干昵称（暂时只是名字）。"""
 
@@ -132,6 +148,8 @@ class NotesModel(QAbstractListModel):
     TitleRole = Qt.ItemDataRole.UserRole + 2
     PreviewRole = Qt.ItemDataRole.UserRole + 3
     UpdatedRole = Qt.ItemDataRole.UserRole + 4
+    FavoriteRole = Qt.ItemDataRole.UserRole + 5
+    ArchivedRole = Qt.ItemDataRole.UserRole + 6
 
     def __init__(self, vault: Vault, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -139,8 +157,12 @@ class NotesModel(QAbstractListModel):
         self._rows: list[Any] = []
         self._texts: dict[str, str] = {}
         self._previews: dict[str, str] = {}
+        self._favorites: dict[str, bool] = {}
+        self._archived: dict[str, bool] = {}
         self._query = ""
         self._tag: str | None = None
+        self._show_archived = False
+        self._show_trash = False
         self.reload()
 
     def roleNames(self) -> dict[int, bytes]:  # type: ignore[override]
@@ -149,6 +171,8 @@ class NotesModel(QAbstractListModel):
             self.TitleRole: b"title",
             self.PreviewRole: b"preview",
             self.UpdatedRole: b"updated",
+            self.FavoriteRole: b"favorite",
+            self.ArchivedRole: b"archived",
         }
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
@@ -160,14 +184,19 @@ class NotesModel(QAbstractListModel):
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
             return None
         info = self._rows[index.row()]
+        oid = str(info.oid)
         if role == self.OidRole:
-            return str(info.oid)
+            return oid
         if role == self.TitleRole:
             return info.title or "未命名"
         if role == self.PreviewRole:
-            return self._previews.get(str(info.oid), "")
+            return self._previews.get(oid, "")
         if role == self.UpdatedRole:
             return _fmt_time(info.updated)
+        if role == self.FavoriteRole:
+            return self._favorites.get(oid, False)
+        if role == self.ArchivedRole:
+            return self._archived.get(oid, False)
         return None
 
     def set_query(self, query: str) -> None:
@@ -177,6 +206,17 @@ class NotesModel(QAbstractListModel):
     def set_tag(self, tag: str | None) -> None:
         self._tag = tag or None
         self.reload()
+
+    def set_show_archived(self, show: bool) -> None:
+        self._show_archived = show
+        self.reload()
+
+    def set_show_trash(self, show: bool) -> None:
+        self._show_trash = show
+        self.reload()
+
+    def oids(self) -> list[str]:
+        return [str(info.oid) for info in self._rows]
 
     def _query_matches(self) -> set[str] | None:
         """用索引检索返回命中的 oid；索引为空时返回 None（走内存回落）。"""
@@ -201,14 +241,32 @@ class NotesModel(QAbstractListModel):
         rows: list[Any] = []
         texts: dict[str, str] = {}
         previews: dict[str, str] = {}
+        favorites: dict[str, bool] = {}
+        archived: dict[str, bool] = {}
         for info in infos:
             oid = str(info.oid)
+            props: dict[str, Any] = {}
             try:
-                text = Note.load(self._vault, info.oid).text
+                note = Note.load(self._vault, info.oid)
+                text = note.text
+                props = note.props()
             except Exception:
                 text = ""
+            favorite = bool(props.get("favorite"))
+            is_archived = bool(props.get("archived"))
+            is_trashed = bool(props.get("trashed"))
             texts[oid] = text
             previews[oid] = text.strip().replace("\n", " ")[:90]
+            favorites[oid] = favorite
+            archived[oid] = is_archived
+            if self._show_trash:
+                if not is_trashed:
+                    continue
+            else:
+                if is_trashed:
+                    continue
+                if is_archived and not self._show_archived:
+                    continue
             if self._tag is not None and self._tag not in info.tags:
                 continue
             if needle:
@@ -221,6 +279,8 @@ class NotesModel(QAbstractListModel):
         self._rows = rows
         self._texts = texts
         self._previews = previews
+        self._favorites = favorites
+        self._archived = archived
         self.endResetModel()
 
 
@@ -303,6 +363,8 @@ class Backend(QObject):
     versionsChanged = Signal()
     tagsListChanged = Signal()
     profilesChanged = Signal()
+    archivedViewChanged = Signal()
+    propsChanged = Signal()
 
     def __init__(self, vault: Vault, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -315,6 +377,8 @@ class Backend(QObject):
         self._history_oid = ""
         self._pending_oid: str | None = None
         self._pending_text: str = ""
+        self._show_archived = False
+        self._show_trash = False
         self._save = QTimer(self)
         self._save.setSingleShot(True)
         self._save.setInterval(900)
@@ -380,6 +444,91 @@ class Backend(QObject):
     def currentTags(self) -> list[str]:
         return list(self._current.tags) if self._current is not None else []
 
+    @Property(bool, notify=propsChanged)
+    def currentFavorite(self) -> bool:
+        if self._current is None:
+            return False
+        return bool(self._current.props().get("favorite"))
+
+    @Property(bool, notify=propsChanged)
+    def currentArchived(self) -> bool:
+        if self._current is None:
+            return False
+        return bool(self._current.props().get("archived"))
+
+    @Property(list, notify=propsChanged)
+    def currentProperties(self) -> list[dict[str, Any]]:
+        """当前笔记的属性（KV 检查器数据源）：每个属性带 id / type / editable。"""
+        if self._current is None:
+            return []
+        props = self._current.props()
+        return [
+            {"id": "kind", "key": "类型", "value": "笔记", "type": "text", "editable": False},
+            {
+                "id": "space",
+                "key": "空间",
+                "value": self.currentSpace,
+                "type": "text",
+                "editable": False,
+            },
+            {
+                "id": "author",
+                "key": "作者",
+                "value": self.currentAuthor,
+                "type": "text",
+                "editable": False,
+            },
+            {
+                "id": "tags",
+                "key": "标签",
+                "value": list(self._current.tags),
+                "type": "tags",
+                "editable": True,
+            },
+            {
+                "id": "favorite",
+                "key": "收藏",
+                "value": bool(props.get("favorite")),
+                "type": "bool",
+                "editable": True,
+            },
+            {
+                "id": "archived",
+                "key": "归档",
+                "value": bool(props.get("archived")),
+                "type": "bool",
+                "editable": True,
+            },
+            {
+                "id": "created",
+                "key": "创建",
+                "value": self.currentCreated,
+                "type": "text",
+                "editable": False,
+            },
+            {
+                "id": "updated",
+                "key": "修改",
+                "value": self.currentUpdated,
+                "type": "text",
+                "editable": False,
+            },
+            {
+                "id": "words",
+                "key": "字数",
+                "value": self.currentWords,
+                "type": "count",
+                "editable": False,
+            },
+            {
+                "id": "size",
+                "key": "大小",
+                "value": self.currentSize,
+                "type": "text",
+                "editable": False,
+            },
+        ]
+
     @Property(list, notify=sharesChanged)
     def currentShares(self) -> list[dict[str, str]]:
         return self._shares()
@@ -408,7 +557,7 @@ class Backend(QObject):
 
     @Property(list, notify=currentChanged)
     def currentPath(self) -> list[dict[str, Any]]:
-        """谱系面包屑：来源（旧的在前）→ 当前。"""
+        """来源面包屑：来源（旧的在前）→ 当前。"""
         if self._current is None:
             return []
         path: list[dict[str, Any]] = [
@@ -449,6 +598,7 @@ class Backend(QObject):
                 "title": self._current.title or "未命名",
                 "depth": 0,
                 "current": True,
+                **_node_meta(self._vault, self._current.oid),
             }
         }
         edges: dict[tuple[str, str], dict[str, Any]] = {}
@@ -458,26 +608,34 @@ class Backend(QObject):
             cur, depth = queue.pop(0)
             for edge in Relation.outbound(self._vault, cur, relation=DERIVED_FROM):
                 target = str(edge.target)
-                edges.setdefault((cur, target), {"from": cur, "to": target, "at": edge.at})
+                edges.setdefault(
+                    (cur, target),
+                    {"from": cur, "to": target, "at": edge.at, "kind": DERIVED_FROM},
+                )
                 if target not in nodes:
                     nodes[target] = {
                         "oid": target,
                         "title": _title_of(self._vault, target),
                         "depth": depth - 1,
                         "current": False,
+                        **_node_meta(self._vault, target),
                     }
                 if target not in seen:
                     seen.add(target)
                     queue.append((target, depth - 1))
             for edge in Relation.backlinks(self._vault, cur, relation=DERIVED_FROM):
                 source = str(edge.source)
-                edges.setdefault((source, cur), {"from": source, "to": cur, "at": edge.at})
+                edges.setdefault(
+                    (source, cur),
+                    {"from": source, "to": cur, "at": edge.at, "kind": DERIVED_FROM},
+                )
                 if source not in nodes:
                     nodes[source] = {
                         "oid": source,
                         "title": _title_of(self._vault, source),
                         "depth": depth + 1,
                         "current": False,
+                        **_node_meta(self._vault, source),
                     }
                 if source not in seen:
                     seen.add(source)
@@ -510,6 +668,7 @@ class Backend(QObject):
                     "updated": _fmt_time(version.updated),
                     "size": _fmt_size(version.size),
                     "current": version.is_current,
+                    "author": _short_author(version.author),
                 }
                 for version in self._vault.versions(oid)
             ]
@@ -550,6 +709,7 @@ class Backend(QObject):
         self.currentChanged.emit()
         self.tagsChanged.emit()
         self.sharesChanged.emit()
+        self.propsChanged.emit()
 
     def _activate(self, note: Note) -> None:
         self._set_current(note)
@@ -665,6 +825,187 @@ class Backend(QObject):
         self.notes.reload()
         self.tagsListChanged.emit()
 
+    # ---- 列表项操作（按 oid，不切换当前选中）----
+    @Property(bool, notify=archivedViewChanged)
+    def showArchived(self) -> bool:
+        return self._show_archived
+
+    @Slot()
+    def toggleShowArchived(self) -> None:
+        self._show_archived = not self._show_archived
+        self.notes.set_show_archived(self._show_archived)
+        self.archivedViewChanged.emit()
+
+    def _apply_flag(self, oid: str, key: str, value: bool) -> None:
+        note = Note.load(self._vault, oid)
+        props = note.props()
+        props[key] = value
+        note.update(props=props)
+        if self._current is not None and str(self._current.oid) == oid:
+            self._current = Note.load(self._vault, oid)
+            self.propsChanged.emit()
+        self.notes.reload()
+
+    @Slot(str)
+    def toggleFavorite(self, oid: str) -> None:
+        if not oid:
+            return
+        try:
+            note = Note.load(self._vault, oid)
+        except Exception:
+            return
+        self._apply_flag(oid, "favorite", not bool(note.props().get("favorite")))
+
+    @Slot(str)
+    def toggleArchive(self, oid: str) -> None:
+        if not oid:
+            return
+        try:
+            note = Note.load(self._vault, oid)
+        except Exception:
+            return
+        self._apply_flag(oid, "archived", not bool(note.props().get("archived")))
+
+    @Slot(str)
+    def toggleHomepageOf(self, oid: str) -> None:
+        if not oid:
+            return
+        try:
+            note = Note.load(self._vault, oid)
+        except Exception:
+            return
+        shares = list(note.props().get("share") or [])
+        if any(str(entry.get("kind")) == "homepage" for entry in shares):
+            shares = [entry for entry in shares if str(entry.get("kind")) != "homepage"]
+        else:
+            shares.append({"kind": "homepage", "name": ""})
+        props = note.props()
+        props["share"] = shares
+        note.update(props=props)
+        if self._current is not None and str(self._current.oid) == oid:
+            self._current = Note.load(self._vault, oid)
+            self.sharesChanged.emit()
+            self.propsChanged.emit()
+        self.notes.reload()
+
+    @Slot(str, result=str)
+    def deriveFrom(self, oid: str) -> str:
+        """以指定笔记为源复刻一份，并建立 derived-from 边。"""
+        if not oid:
+            return ""
+        self.flush()
+        try:
+            source = Note.load(self._vault, oid)
+        except Exception:
+            return ""
+        title = f"{source.title or '未命名'}（复刻）"
+        note = Note.create(self._vault, source.text, title=title)
+        Relation.create(
+            self._vault,
+            note.oid,
+            source.oid,
+            relation=DERIVED_FROM,
+            props={"at": str(source.info.seq)},
+        )
+        self._activate(note)
+        self.notes.reload()
+        return str(note.oid)
+
+    @Slot(str, result="QVariantMap")
+    def noteInfo(self, oid: str) -> dict[str, Any]:
+        try:
+            note = Note.load(self._vault, oid)
+        except Exception:
+            return {}
+        props = note.props()
+        return {
+            "oid": str(note.oid),
+            "title": note.title or "未命名",
+            "favorite": bool(props.get("favorite")),
+            "archived": bool(props.get("archived")),
+            "trashed": bool(props.get("trashed")),
+            "homepage": any(
+                str(entry.get("kind")) == "homepage" for entry in (props.get("share") or [])
+            ),
+        }
+
+    # ---- 回收站 ----
+    @Property(bool, notify=propsChanged)
+    def showTrash(self) -> bool:
+        return self._show_trash
+
+    @Slot()
+    def toggleShowTrash(self) -> None:
+        self._show_trash = not self._show_trash
+        self.notes.set_show_trash(self._show_trash)
+        self.propsChanged.emit()
+
+    @Property(int, notify=propsChanged)
+    def trashedCount(self) -> int:
+        count = 0
+        for info in self._vault.iter(type=Note.kind):
+            try:
+                if Note.load(self._vault, info.oid).props().get("trashed"):
+                    count += 1
+            except Exception:
+                continue
+        return count
+
+    def _flag_trashed(self, oid: str, value: bool) -> None:
+        if not oid:
+            return
+        try:
+            note = Note.load(self._vault, oid)
+        except Exception:
+            return
+        props = note.props()
+        props["trashed"] = value
+        note.update(props=props)
+        if self._current is not None and str(self._current.oid) == oid:
+            self._current = Note.load(self._vault, oid)
+        self.notes.reload()
+        self.propsChanged.emit()
+
+    @Slot(str)
+    def trashNote(self, oid: str) -> None:
+        self._flag_trashed(oid, True)
+
+    @Slot(str)
+    def restoreNote(self, oid: str) -> None:
+        self._flag_trashed(oid, False)
+
+    @Slot(str)
+    def purgeNote(self, oid: str) -> None:
+        if not oid:
+            return
+        self.flush()
+        self._vault.delete(oid)
+        self.tabs.remove(oid)
+        if self._current is not None and str(self._current.oid) == oid:
+            self._view = "note"
+            self.viewChanged.emit()
+            self._set_current(None)
+        self.notes.reload()
+        self.propsChanged.emit()
+
+    @Slot()
+    def emptyTrash(self) -> None:
+        self.flush()
+        for info in list(self._vault.iter(type=Note.kind)):
+            try:
+                trashed = bool(Note.load(self._vault, info.oid).props().get("trashed"))
+            except Exception:
+                continue
+            if trashed:
+                self._vault.delete(info.oid)
+                self.tabs.remove(str(info.oid))
+        if self._current is not None and self.tabs.index_of(str(self._current.oid)) < 0:
+            self._view = "note"
+            self.viewChanged.emit()
+            self._set_current(None)
+        self.notes.reload()
+        self.propsChanged.emit()
+
     # ---- 编辑 ----
     @Slot()
     def flush(self) -> None:
@@ -739,6 +1080,7 @@ class Backend(QObject):
             return
         self._current.update(props={"share": shares})
         self.sharesChanged.emit()
+        self.propsChanged.emit()
         self.contentChanged.emit()
 
     @Slot(str, str)
@@ -778,6 +1120,87 @@ class Backend(QObject):
             shares.append({"kind": "homepage", "name": ""})
         self._write_shares(shares)
 
+    @Property(list, notify=profilesChanged)
+    def shareTargets(self) -> list[dict[str, str]]:
+        """可分享对象：社区 + 本机成员（不再让用户手输）。"""
+        targets = [
+            {"kind": "community", "name": name}
+            for name in ("Cairn 中文", "本地优先软件", "开源设计")
+        ]
+        targets += [{"kind": "person", "name": name} for name in self._profiles.names()]
+        return targets
+
+    @Slot(str, str)
+    def toggleShareTo(self, kind: str, name: str) -> None:
+        if self._current is None or kind not in ("community", "person"):
+            return
+
+        def same(entry: dict[str, Any]) -> bool:
+            return str(entry.get("kind")) == kind and str(entry.get("name") or "") == name
+
+        shares = list(self._current.props().get("share") or [])
+        if any(same(entry) for entry in shares):
+            shares = [entry for entry in shares if not same(entry)]
+        else:
+            shares.append({"kind": kind, "name": name})
+        self._write_shares(shares)
+
+    # ---- 批量 ----
+    @Slot(list)
+    def trashMany(self, oids: list) -> None:
+        self._set_many(oids, lambda props: props.update({"trashed": True}))
+
+    @Slot(list)
+    def restoreMany(self, oids: list) -> None:
+        self._set_many(oids, lambda props: props.update({"trashed": False}))
+
+    @Slot(list)
+    def favoriteMany(self, oids: list) -> None:
+        self._set_many(oids, lambda props: props.update({"favorite": True}))
+
+    @Slot(list, str)
+    def addTagToMany(self, oids: list, tag: str) -> None:
+        tag = tag.strip()
+        if not tag:
+            return
+        for raw in oids:
+            oid = str(raw)
+            try:
+                note = Note.load(self._vault, oid)
+            except Exception:
+                continue
+            tags = list(note.tags)
+            if tag in tags:
+                continue
+            tags.append(tag)
+            note.update(tags=tags)
+            if self._current is not None and str(self._current.oid) == oid:
+                self._current = Note.load(self._vault, oid)
+        self.notes.reload()
+        self.tagsChanged.emit()
+        self.tagsListChanged.emit()
+        self.propsChanged.emit()
+
+    def _set_many(self, oids: list, mutate: Any) -> None:
+        self.flush()
+        for raw in oids:
+            oid = str(raw)
+            try:
+                note = Note.load(self._vault, oid)
+            except Exception:
+                continue
+            props = note.props()
+            mutate(props)
+            note.update(props=props)
+            if self._current is not None and str(self._current.oid) == oid:
+                self._current = Note.load(self._vault, oid)
+        self.notes.reload()
+        self.propsChanged.emit()
+
+    @Slot(result=list)
+    def visibleNoteOids(self) -> list[str]:
+        return self.notes.oids()
+
     # ---- 过滤 ----
     @Slot(str)
     def filterNotes(self, query: str) -> None:
@@ -800,6 +1223,7 @@ class Backend(QObject):
         self._current.update(tags=tags)
         self.tagsChanged.emit()
         self.tagsListChanged.emit()
+        self.propsChanged.emit()
         self.notes.reload()
 
     @Slot(str)
@@ -810,6 +1234,39 @@ class Backend(QObject):
         self._current.update(tags=tags)
         self.tagsChanged.emit()
         self.tagsListChanged.emit()
+        self.propsChanged.emit()
+        self.notes.reload()
+
+    @Property(list, notify=propsChanged)
+    def tagPairs(self) -> list[dict[str, str]]:
+        """标签按 KV 呈现：``K:V`` 拆成 key/value；无冒号则 value 为空。"""
+        pairs: list[dict[str, str]] = []
+        for raw in (self._current.tags if self._current is not None else ()):
+            key, _, value = str(raw).partition(":")
+            pairs.append({"key": key, "value": value, "raw": str(raw)})
+        return pairs
+
+    @Slot(str, str, str)
+    def replaceTag(self, old: str, key: str, value: str) -> None:
+        """把某个标签改写为 ``key:value``；key 为空则删除。"""
+        if self._current is None:
+            return
+        key = key.strip()
+        value = value.strip()
+        tags = list(self._current.tags)
+        entry = f"{key}:{value}" if value else key
+        if old in tags:
+            position = tags.index(old)
+            if key:
+                tags[position] = entry
+            else:
+                tags.pop(position)
+        elif key:
+            tags.append(entry)
+        self._current.update(tags=tags)
+        self.tagsChanged.emit()
+        self.tagsListChanged.emit()
+        self.propsChanged.emit()
         self.notes.reload()
 
 
@@ -830,7 +1287,7 @@ def seed_demo(backend: Backend) -> None:
         ),
         (
             "QML 外壳草案",
-            "领域栏、工具册、标签工作区、上下文右区、谱系面包屑。",
+            "领域栏、工具册、标签工作区、上下文右区、来源面包屑。",
             ["客户端"],
         ),
     ]

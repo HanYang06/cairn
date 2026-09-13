@@ -15,7 +15,14 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QFileSystemWatcher, QObject, QTimer, QUrl
+from PySide6.QtCore import (
+    Property,
+    QFileSystemWatcher,
+    QObject,
+    QTimer,
+    QUrl,
+    Signal,
+)
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
@@ -42,12 +49,44 @@ def apply_round_corners(window: QObject) -> None:
         pass
 
 
-class HotReloader(QObject):
-    """监视 QML 目录；改动后重载 Shell（通过窗口里的 Loader，无窗口重建）。"""
+class ShellSource(QObject):
+    """把 `Loader.source` 暴露成可绑定的属性。
 
-    def __init__(self, engine: QQmlApplicationEngine) -> None:
+    热重载只改这里的 URL，由 QML 绑定驱动 Loader 重载；不通过 findChild 去
+    改 Loader 本身，避免 PySide6 包装器被回收后 ``setProperty`` 抛
+    "Internal C++ object already deleted"。
+    """
+
+    changed = Signal()
+
+    def __init__(self, url: QUrl) -> None:
         super().__init__()
+        self._url = url
+
+    def get_url(self) -> QUrl:
+        return self._url
+
+    def set_url(self, url: QUrl) -> None:
+        if url != self._url:
+            self._url = url
+            self.changed.emit()
+
+    shellSource = Property(QUrl, get_url, set_url, notify=changed)
+
+
+class HotReloader(QObject):
+    """监视 QML 目录；改动后用带版本号的 URL 触发 Shell 重载（不重建窗口）。"""
+
+    def __init__(
+        self,
+        engine: QQmlApplicationEngine,
+        source: ShellSource,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(parent)
         self._engine = engine
+        self._source = source
+        self._revision = 0
         self._watcher = QFileSystemWatcher(self)
         self._watcher.fileChanged.connect(self._schedule)
         self._watcher.directoryChanged.connect(self._schedule)
@@ -70,25 +109,14 @@ class HotReloader(QObject):
     def _schedule(self, *_args: object) -> None:
         self._timer.start()
 
-    def _loader(self) -> QObject | None:
-        for root in self._engine.rootObjects():
-            found = root.findChild(QObject, "rootLoader")
-            if found is not None:
-                return found
-        return None
-
     def _reload(self) -> None:
-        self._engine.clearComponentCache()
-        loader = self._loader()
-        if loader is None:
-            print("[watch] 找不到 rootLoader，跳过", file=sys.stderr)
-            return
-        loader.setProperty("source", QUrl())
-        QTimer.singleShot(
-            60, lambda: loader.setProperty("source", QUrl.fromLocalFile(str(SHELL)))
-        )
+        self._revision += 1
+        # 版本号让 URL 变化：Loader 会重新实例化，绕过组件缓存。
+        url = QUrl.fromLocalFile(str(SHELL))
+        url.setQuery(f"v={self._revision}")
+        self._source.set_url(url)
         self._scan()
-        print("[watch] 重新加载 Shell.qml")
+        print(f"[watch] 重新加载 Shell.qml（v{self._revision}）", flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -112,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
     context.setContextProperty("backend", backend)
     context.setContextProperty("notesModel", backend.notes)
     context.setContextProperty("tabsModel", backend.tabs)
+    shell_source = ShellSource(QUrl.fromLocalFile(str(SHELL)))
+    context.setContextProperty("reloader", shell_source)
     engine.load(QUrl.fromLocalFile(str(ENTRY)))
     if not engine.rootObjects():
         print("QML 加载失败", file=sys.stderr)
@@ -120,8 +150,10 @@ def main(argv: list[str] | None = None) -> int:
         apply_round_corners(obj)
 
     if "--watch" in args or "--dev" in args:
-        HotReloader(engine)
+        # 必须留引用（并挂到 engine 上）：否则 QObject 会被 GC，watcher 随之失效。
+        _hot_reloader = HotReloader(engine, shell_source, engine)
         print("[watch] 已开启 QML 热重载（改动 qml/ 下文件即生效）")
+        print(f"[watch] 监视目录：{QML_DIR}")
 
     if "--smoke" in args:
         QTimer.singleShot(800, app.quit)

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 HanYang06
 // SPDX-License-Identifier: Apache-2.0
 
-// 右侧上下文信息面板：随领域（笔记 / 项目 / 社区）切换内容。
+// 右侧上下文信息面板：KV 属性检查器 + 关系文字树；随领域（笔记 / 项目 / 社区）切换。
 import QtQuick
 import QtQuick.Layouts
 import "theme"
@@ -11,23 +11,13 @@ Rectangle {
     color: CairnTheme.surface
     property string mode: "notes"
     property string preview: ""
-    property bool confirmDelete: false
-    property bool shareOpen: false
-
-    Connections {
-        target: backend
-        function onCurrentChanged() {
-            dock.confirmDelete = false;
-            dock.shareOpen = false;
-        }
-    }
+    signal collapseRequested()
 
     Rectangle {
         anchors.left: parent.left
         width: 1
         height: parent.height
-        color: CairnTheme.border
-        opacity: 0.6
+        color: CairnTheme.borderFaint
     }
 
     ColumnLayout {
@@ -53,7 +43,15 @@ Rectangle {
                     text: "\uE76C"
                     font.family: CairnTheme.iconFont
                     font.pixelSize: 12
-                    color: CairnTheme.faint
+                    color: collapseMa.containsMouse ? CairnTheme.text : CairnTheme.faint
+                    MouseArea {
+                        id: collapseMa
+                        anchors.fill: parent
+                        anchors.margins: -6
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: dock.collapseRequested()
+                    }
                 }
             }
         }
@@ -109,206 +107,252 @@ Rectangle {
                     }
                 }
 
-                // ===== 笔记：属性（真实数据）=====
+                // ===== 笔记：KV 属性检查器 =====
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 0
                     visible: dock.mode === "notes" && dock.preview === "" && backend.currentOid !== ""
+
                     Section {
-                        text: "基本"
+                        text: "属性"
                     }
-                    PropRow {
-                        k: "类型"
-                        v: "笔记"
-                    }
-                    PropRow {
-                        k: "空间"
-                        v: backend.currentSpace
-                    }
-                    PropRow {
-                        k: "作者"
-                        v: backend.currentAuthor
-                    }
-                    Section {
-                        text: "分享给"
-                    }
-                    Flow {
-                        Layout.leftMargin: CairnTheme.spaceMd
-                        Layout.rightMargin: CairnTheme.spaceMd
+
+                    Column {
                         Layout.fillWidth: true
-                        spacing: 6
-                        Text {
-                            visible: backend.currentShares.length === 0
-                            text: "仅自己可见（私密）"
-                            color: CairnTheme.faint
-                            font.family: CairnTheme.fontFamily
-                            font.pixelSize: CairnTheme.fsTiny
-                        }
+                        spacing: 2
+
                         Repeater {
-                            model: backend.currentShares
-                            delegate: Rectangle {
-                                width: shareChip.implicitWidth + 22
-                                height: 22
-                                radius: 11
-                                color: modelData.kind === "homepage" ? CairnTheme.selection : CairnTheme.elevated
-                                border.color: modelData.kind === "homepage" ? CairnTheme.accent : CairnTheme.border
-                                border.width: 1
-                                Row {
-                                    id: shareChip
-                                    anchors.centerIn: parent
-                                    spacing: 4
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: modelData.label
-                                        color: CairnTheme.muted
-                                        font.family: CairnTheme.fontFamily
-                                        font.pixelSize: CairnTheme.fsTiny
+                            model: backend.currentProperties
+                            delegate: Item {
+                                id: entry
+                                width: parent.width
+                                height: content.implicitHeight
+
+                                Column {
+                                    id: content
+                                    width: parent.width
+                                    spacing: 6
+
+                                    Item {
+                                        width: parent.width
+                                        height: 28
+                                        implicitHeight: 28
+                                        Text {
+                                            anchors.left: parent.left
+                                            anchors.leftMargin: CairnTheme.spaceMd
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: modelData.key
+                                            color: CairnTheme.muted
+                                            font.family: CairnTheme.fontFamily
+                                            font.pixelSize: CairnTheme.fsTiny
+                                        }
+
+                                        // 只读文本：浅；可编辑：深
+                                        Text {
+                                            visible: modelData.type === "text" || modelData.type === "count"
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: CairnTheme.spaceMd
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: parent.width * 0.62
+                                            text: "" + modelData.value
+                                            color: modelData.editable ? CairnTheme.text : CairnTheme.faint
+                                            font.family: CairnTheme.fontFamily
+                                            font.pixelSize: CairnTheme.fsTiny
+                                            elide: Text.ElideRight
+                                            horizontalAlignment: Text.AlignRight
+                                        }
+
+                                        Text {
+                                            visible: modelData.type === "tags"
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: CairnTheme.spaceMd
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: modelData.value.length + " 个"
+                                            color: CairnTheme.text
+                                            font.family: CairnTheme.fontFamily
+                                            font.pixelSize: CairnTheme.fsTiny
+                                        }
+
+                                        // 布尔：可编辑开关
+                                        Rectangle {
+                                            visible: modelData.type === "bool"
+                                            anchors.right: parent.right
+                                            anchors.rightMargin: CairnTheme.spaceMd
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 34
+                                            height: 18
+                                            radius: 9
+                                            color: modelData.value ? CairnTheme.accent : CairnTheme.borderFaint
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: CairnTheme.durBase
+                                                    easing.type: Easing.InOutQuad
+                                                }
+                                            }
+                                            Rectangle {
+                                                width: 14
+                                                height: 14
+                                                radius: 7
+                                                y: 2
+                                                x: modelData.value ? 18 : 2
+                                                color: "#FFFFFF"
+                                                Behavior on x {
+                                                    NumberAnimation {
+                                                        duration: CairnTheme.durBase
+                                                        easing.type: Easing.InOutQuad
+                                                    }
+                                                }
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    if (modelData.id === "favorite")
+                                                        backend.toggleFavorite(backend.currentOid);
+                                                    else if (modelData.id === "archived")
+                                                        backend.toggleArchive(backend.currentOid);
+                                                }
+                                            }
+                                        }
                                     }
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "\uE8BB"
-                                        font.family: CairnTheme.iconFont
-                                        font.pixelSize: 8
-                                        color: CairnTheme.faint
+
+                                    // 标签：KV 编辑（云控制台风格）
+                                    Item {
+                                        visible: modelData.type === "tags"
+                                        width: parent.width
+                                        implicitHeight: tagCol.implicitHeight
+                                        Column {
+                                            id: tagCol
+                                            x: CairnTheme.spaceMd
+                                            width: parent.width - CairnTheme.spaceMd * 2
+                                            spacing: 4
+
+                                            Repeater {
+                                                model: backend.tagPairs
+                                                delegate: RowLayout {
+                                                    width: parent.width
+                                                    spacing: 6
+
+                                                    Rectangle {
+                                                        Layout.preferredWidth: 88
+                                                        implicitWidth: 88
+                                                        implicitHeight: 24
+                                                        radius: CairnTheme.radiusSm
+                                                        color: tagKey.activeFocus ? CairnTheme.bg : CairnTheme.hover
+                                                        border.color: tagKey.activeFocus ? CairnTheme.accent : "transparent"
+                                                        border.width: 1
+                                                        TextInput {
+                                                            id: tagKey
+                                                            anchors.fill: parent
+                                                            anchors.leftMargin: 8
+                                                            anchors.rightMargin: 8
+                                                            verticalAlignment: TextInput.AlignVCenter
+                                                            clip: true
+                                                            text: modelData.key
+                                                            color: CairnTheme.text
+                                                            font.family: CairnTheme.fontFamily
+                                                            font.pixelSize: CairnTheme.fsTiny
+                                                            selectByMouse: true
+                                                            onEditingFinished: backend.replaceTag(modelData.raw, tagKey.text, tagValue.text)
+                                                        }
+                                                    }
+                                                    Text {
+                                                        text: ":"
+                                                        color: CairnTheme.faint
+                                                        font.family: CairnTheme.fontFamily
+                                                        font.pixelSize: CairnTheme.fsTiny
+                                                    }
+                                                    Rectangle {
+                                                        Layout.fillWidth: true
+                                                        implicitHeight: 24
+                                                        radius: CairnTheme.radiusSm
+                                                        color: tagValue.activeFocus ? CairnTheme.bg : CairnTheme.hover
+                                                        border.color: tagValue.activeFocus ? CairnTheme.accent : "transparent"
+                                                        border.width: 1
+                                                        TextInput {
+                                                            id: tagValue
+                                                            anchors.fill: parent
+                                                            anchors.leftMargin: 8
+                                                            anchors.rightMargin: 8
+                                                            verticalAlignment: TextInput.AlignVCenter
+                                                            clip: true
+                                                            text: modelData.value
+                                                            color: CairnTheme.muted
+                                                            font.family: CairnTheme.fontFamily
+                                                            font.pixelSize: CairnTheme.fsTiny
+                                                            selectByMouse: true
+                                                            onEditingFinished: backend.replaceTag(modelData.raw, tagKey.text, tagValue.text)
+                                                        }
+                                                    }
+                                                    Text {
+                                                        text: "\uE8BB"
+                                                        font.family: CairnTheme.iconFont
+                                                        font.pixelSize: 9
+                                                        color: tagRemove.containsMouse ? CairnTheme.danger : CairnTheme.faint
+                                                        MouseArea {
+                                                            id: tagRemove
+                                                            anchors.fill: parent
+                                                            anchors.margins: -6
+                                                            hoverEnabled: true
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            onClicked: backend.removeTag(modelData.raw)
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                width: parent.width
+                                                implicitHeight: 24
+                                                radius: CairnTheme.radiusSm
+                                                color: kvTagInput.activeFocus ? CairnTheme.bg : CairnTheme.hover
+                                                border.color: kvTagInput.activeFocus ? CairnTheme.accent : "transparent"
+                                                border.width: 1
+                                                TextInput {
+                                                    id: kvTagInput
+                                                    anchors.fill: parent
+                                                    anchors.leftMargin: 8
+                                                    anchors.rightMargin: 8
+                                                    verticalAlignment: TextInput.AlignVCenter
+                                                    clip: true
+                                                    color: CairnTheme.text
+                                                    font.family: CairnTheme.fontFamily
+                                                    font.pixelSize: CairnTheme.fsTiny
+                                                    selectByMouse: true
+                                                    onAccepted: {
+                                                        backend.addTag(kvTagInput.text);
+                                                        kvTagInput.text = "";
+                                                    }
+                                                    Text {
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        visible: kvTagInput.text === ""
+                                                        text: "＋ 添加标签（K:V 或 K）"
+                                                        color: CairnTheme.faint
+                                                        font.family: CairnTheme.fontFamily
+                                                        font.pixelSize: CairnTheme.fsTiny
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    onClicked: backend.removeShare(modelData.kind, modelData.name)
-                                }
-                            }
-                        }
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.leftMargin: CairnTheme.spaceMd
-                        Layout.rightMargin: CairnTheme.spaceMd
-                        Layout.topMargin: CairnTheme.spaceSm
-                        Layout.preferredHeight: 28
-                        radius: CairnTheme.radiusSm
-                        color: shareMa.containsMouse ? CairnTheme.hover : CairnTheme.bg
-                        border.color: CairnTheme.border
-                        border.width: 1
-                        Text {
-                            anchors.centerIn: parent
-                            text: "＋ 分享给…"
-                            color: CairnTheme.accent
-                            font.family: CairnTheme.fontFamily
-                            font.pixelSize: CairnTheme.fsTiny
-                        }
-                        MouseArea {
-                            id: shareMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onClicked: dock.shareOpen = !dock.shareOpen
-                        }
-                    }
-                    Section {
-                        text: "时间"
-                    }
-                    PropRow {
-                        k: "创建"
-                        v: backend.currentCreated
-                    }
-                    PropRow {
-                        k: "修改"
-                        v: backend.currentUpdated
-                    }
-                    Section {
-                        text: "内容"
-                    }
-                    PropRow {
-                        k: "字数"
-                        v: "" + backend.currentWords
-                    }
-                    PropRow {
-                        k: "大小"
-                        v: backend.currentSize
-                    }
-                    Section {
-                        text: "标签"
-                    }
-                    Flow {
-                        Layout.leftMargin: CairnTheme.spaceMd
-                        Layout.rightMargin: CairnTheme.spaceMd
-                        Layout.fillWidth: true
-                        spacing: 6
-                        Repeater {
-                            model: backend.currentTags
-                            delegate: Rectangle {
-                                width: chipRow.implicitWidth + 18
-                                height: 22
-                                radius: 11
-                                color: CairnTheme.elevated
-                                border.color: CairnTheme.border
-                                border.width: 1
-                                Row {
-                                    id: chipRow
-                                    anchors.centerIn: parent
-                                    spacing: 4
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: modelData
-                                        color: CairnTheme.muted
-                                        font.family: CairnTheme.fontFamily
-                                        font.pixelSize: CairnTheme.fsTiny
-                                    }
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "\uE8BB"
-                                        font.family: CairnTheme.iconFont
-                                        font.pixelSize: 8
-                                        color: CairnTheme.faint
-                                    }
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    onClicked: backend.removeTag(modelData)
-                                }
-                            }
-                        }
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.leftMargin: CairnTheme.spaceMd
-                        Layout.rightMargin: CairnTheme.spaceMd
-                        Layout.topMargin: CairnTheme.spaceSm
-                        Layout.bottomMargin: CairnTheme.spaceMd
-                        Layout.preferredHeight: 30
-                        radius: CairnTheme.radiusSm
-                        color: CairnTheme.bg
-                        border.color: tagInput.activeFocus ? CairnTheme.accent : CairnTheme.border
-                        border.width: 1
-                        TextInput {
-                            id: tagInput
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            anchors.rightMargin: 10
-                            verticalAlignment: TextInput.AlignVCenter
-                            clip: true
-                            color: CairnTheme.text
-                            font.family: CairnTheme.fontFamily
-                            font.pixelSize: CairnTheme.fsTiny
-                            selectByMouse: true
-                            onAccepted: {
-                                backend.addTag(tagInput.text);
-                                tagInput.text = "";
-                            }
-                            Text {
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: tagInput.text === ""
-                                text: "加标签，回车…"
-                                color: CairnTheme.faint
-                                font.family: CairnTheme.fontFamily
-                                font.pixelSize: CairnTheme.fsTiny
                             }
                         }
                     }
 
+                    // ---- 关系：文字树（只读）----
                     Section {
                         text: "关系"
+                    }
+                    Text {
+                        Layout.leftMargin: CairnTheme.spaceMd
+                        Layout.bottomMargin: CairnTheme.spaceXs
+                        visible: backend.currentAncestors.length === 0 && backend.currentDescendants.length === 0
+                        text: "无"
+                        color: CairnTheme.faint
+                        font.family: CairnTheme.fontFamily
+                        font.pixelSize: CairnTheme.fsTiny
                     }
                     Repeater {
                         model: backend.currentAncestors
@@ -317,16 +361,15 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.leftMargin: CairnTheme.spaceMd
                             Layout.rightMargin: CairnTheme.spaceMd
-                            Layout.preferredHeight: 26
+                            Layout.preferredHeight: 24
                             radius: CairnTheme.radiusSm
                             color: ancMa.containsMouse ? CairnTheme.hover : "transparent"
                             Text {
-                                anchors.left: parent.left
-                                anchors.leftMargin: CairnTheme.spaceSm
+                                x: 8 + index * 12
                                 anchors.right: parent.right
                                 anchors.rightMargin: CairnTheme.spaceSm
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "← " + modelData.title
+                                text: "\u2196 " + modelData.title
                                 color: CairnTheme.muted
                                 font.family: CairnTheme.fontFamily
                                 font.pixelSize: CairnTheme.fsTiny
@@ -347,16 +390,15 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.leftMargin: CairnTheme.spaceMd
                             Layout.rightMargin: CairnTheme.spaceMd
-                            Layout.preferredHeight: 26
+                            Layout.preferredHeight: 24
                             radius: CairnTheme.radiusSm
                             color: descMa.containsMouse ? CairnTheme.hover : "transparent"
                             Text {
-                                anchors.left: parent.left
-                                anchors.leftMargin: CairnTheme.spaceSm
+                                x: 8 + index * 12
                                 anchors.right: parent.right
                                 anchors.rightMargin: CairnTheme.spaceSm
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: "→ " + modelData.title
+                                text: "\u2198 " + modelData.title
                                 color: CairnTheme.muted
                                 font.family: CairnTheme.fontFamily
                                 font.pixelSize: CairnTheme.fsTiny
@@ -370,58 +412,8 @@ Rectangle {
                             }
                         }
                     }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.leftMargin: CairnTheme.spaceMd
-                        Layout.rightMargin: CairnTheme.spaceMd
-                        Layout.topMargin: CairnTheme.spaceSm
-                        Layout.bottomMargin: CairnTheme.spaceMd
-                        Layout.preferredHeight: 30
-                        radius: CairnTheme.radiusSm
-                        color: deriveMa.containsMouse ? CairnTheme.selection : CairnTheme.bg
-                        border.color: CairnTheme.accent
-                        border.width: 1
-                        Text {
-                            anchors.centerIn: parent
-                            text: "复刻一份"
-                            color: CairnTheme.accent
-                            font.family: CairnTheme.fontFamily
-                            font.pixelSize: CairnTheme.fsTiny
-                            font.weight: Font.Medium
-                        }
-                        MouseArea {
-                            id: deriveMa
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onClicked: backend.deriveNote()
-                        }
-                    }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.leftMargin: CairnTheme.spaceMd
-                        Layout.rightMargin: CairnTheme.spaceMd
-                        Layout.bottomMargin: CairnTheme.spaceMd
-                        spacing: CairnTheme.spaceSm
-                        DockButton {
-                            label: "关系图"
-                            onClicked: backend.openRelations()
-                        }
-                        DockButton {
-                            label: "版本"
-                            onClicked: backend.openHistory(backend.currentOid)
-                        }
-                        DockButton {
-                            label: dock.confirmDelete ? "确认删除？" : "删除"
-                            danger: true
-                            onClicked: {
-                                if (dock.confirmDelete) {
-                                    backend.deleteNote(backend.currentOid);
-                                    dock.confirmDelete = false;
-                                } else {
-                                    dock.confirmDelete = true;
-                                }
-                            }
-                        }
+                    Item {
+                        Layout.preferredHeight: CairnTheme.spaceMd
                     }
                 }
 
@@ -475,9 +467,7 @@ Rectangle {
                                 width: 26
                                 height: 26
                                 radius: 13
-                                color: CairnTheme.elevated
-                                border.color: CairnTheme.border
-                                border.width: 1
+                                color: CairnTheme.hover
                                 Text {
                                     anchors.centerIn: parent
                                     text: modelData
@@ -559,148 +549,6 @@ Rectangle {
                     }
                 }
             }
-        }
-    }
-
-    Rectangle {
-        id: sharePanel
-        visible: dock.shareOpen
-        z: 50
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.margins: CairnTheme.spaceMd
-        height: shareCol.implicitHeight + CairnTheme.spaceLg * 2
-        radius: CairnTheme.radiusLg
-        color: CairnTheme.elevated
-        border.color: CairnTheme.borderStrong
-        border.width: 1
-
-        ColumnLayout {
-            id: shareCol
-            anchors.fill: parent
-            anchors.margins: CairnTheme.spaceLg
-            spacing: CairnTheme.spaceSm
-
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    text: "分享给"
-                    color: CairnTheme.text
-                    font.family: CairnTheme.fontFamily
-                    font.pixelSize: CairnTheme.fsSmall
-                    font.weight: Font.DemiBold
-                    Layout.fillWidth: true
-                }
-                Text {
-                    text: "\uE8BB"
-                    font.family: CairnTheme.iconFont
-                    font.pixelSize: 10
-                    color: CairnTheme.faint
-                    MouseArea {
-                        anchors.fill: parent
-                        anchors.margins: -6
-                        onClicked: dock.shareOpen = false
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 30
-                radius: CairnTheme.radiusSm
-                color: backend.currentShares.some(function (s) {
-                    return s.kind === "homepage";
-                }) ? CairnTheme.selection : CairnTheme.bg
-                border.color: backend.currentShares.some(function (s) {
-                    return s.kind === "homepage";
-                }) ? CairnTheme.accent : CairnTheme.border
-                border.width: 1
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: CairnTheme.spaceSm
-                    text: "个人主页（公开）"
-                    color: CairnTheme.text
-                    font.family: CairnTheme.fontFamily
-                    font.pixelSize: CairnTheme.fsTiny
-                }
-                MouseArea {
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onClicked: backend.toggleHomepage()
-                }
-            }
-
-            ShareInput {
-                hint: "分享给社区，回车…"
-                onSubmitted: backend.addShare("community", value)
-            }
-            ShareInput {
-                hint: "分享给某人，回车…"
-                onSubmitted: backend.addShare("person", value)
-            }
-        }
-    }
-
-    component ShareInput: Rectangle {
-        id: si
-        property string hint
-        signal submitted(string value)
-        Layout.fillWidth: true
-        Layout.preferredHeight: 30
-        radius: CairnTheme.radiusSm
-        color: CairnTheme.bg
-        border.color: siInput.activeFocus ? CairnTheme.accent : CairnTheme.border
-        border.width: 1
-        TextInput {
-            id: siInput
-            anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            verticalAlignment: TextInput.AlignVCenter
-            clip: true
-            color: CairnTheme.text
-            font.family: CairnTheme.fontFamily
-            font.pixelSize: CairnTheme.fsTiny
-            selectByMouse: true
-            onAccepted: {
-                si.submitted(text);
-                text = "";
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                visible: siInput.text === ""
-                text: si.hint
-                color: CairnTheme.faint
-                font.family: CairnTheme.fontFamily
-                font.pixelSize: CairnTheme.fsTiny
-            }
-        }
-    }
-
-    component DockButton: Rectangle {
-        id: db
-        property string label
-        property bool danger: false
-        signal clicked()
-        Layout.fillWidth: true
-        Layout.preferredHeight: 28
-        radius: CairnTheme.radiusSm
-        color: dbMa.containsMouse ? CairnTheme.hover : CairnTheme.bg
-        border.color: db.danger ? CairnTheme.danger : CairnTheme.border
-        border.width: 1
-        Text {
-            anchors.centerIn: parent
-            text: db.label
-            color: db.danger ? CairnTheme.danger : CairnTheme.muted
-            font.family: CairnTheme.fontFamily
-            font.pixelSize: CairnTheme.fsTiny
-        }
-        MouseArea {
-            id: dbMa
-            anchors.fill: parent
-            hoverEnabled: true
-            onClicked: db.clicked()
         }
     }
 }

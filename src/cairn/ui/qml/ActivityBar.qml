@@ -135,22 +135,12 @@ Rectangle {
             anchors.verticalCenter: parent.verticalCenter
             color: CairnTheme.accent
             opacity: rb.active ? 1 : 0
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: CairnTheme.durFast
-                }
-            }
         }
         Rectangle {
             anchors.fill: parent
             anchors.margins: 5
             radius: CairnTheme.radiusSm
             color: rbMa.containsMouse && !rb.active ? CairnTheme.hover : "transparent"
-            Behavior on color {
-                ColorAnimation {
-                    duration: CairnTheme.durFast
-                }
-            }
         }
 
         // —— 领域 Logo（自绘）——

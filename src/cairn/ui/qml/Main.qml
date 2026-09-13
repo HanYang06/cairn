@@ -39,6 +39,82 @@ Window {
         id: rootLoader
         objectName: "rootLoader"
         anchors.fill: parent
-        source: "Shell.qml"
+        // 热重载：由 app.py 注入的 reloader.shellSource 驱动（带版本号 URL）。
+        // 未注入时（如单独预览 Main.qml）回退到相对路径。
+        source: typeof reloader !== "undefined" && reloader ? reloader.shellSource : "Shell.qml"
+    }
+
+    // 无边框窗没有原生可拖边，自己补命中区，交给系统缩放（跟手）。
+    component ResizeArea: MouseArea {
+        required property int edges
+        property int band: 5
+        cursorShape: {
+            if (edges === (Qt.LeftEdge | Qt.TopEdge) || edges === (Qt.RightEdge | Qt.BottomEdge))
+                return Qt.SizeFDiagCursor;
+            if (edges === (Qt.RightEdge | Qt.TopEdge) || edges === (Qt.LeftEdge | Qt.BottomEdge))
+                return Qt.SizeBDiagCursor;
+            if (edges === Qt.LeftEdge || edges === Qt.RightEdge)
+                return Qt.SizeHorCursor;
+            return Qt.SizeVerCursor;
+        }
+        enabled: win.visibility !== Window.Maximized
+        onPressed: win.startSystemResize(edges)
+    }
+
+    ResizeArea {
+        edges: Qt.LeftEdge
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: band
+    }
+    ResizeArea {
+        edges: Qt.RightEdge
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: band
+    }
+    ResizeArea {
+        edges: Qt.TopEdge
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: band
+    }
+    ResizeArea {
+        edges: Qt.BottomEdge
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        height: band
+    }
+    ResizeArea {
+        edges: Qt.LeftEdge | Qt.TopEdge
+        anchors.left: parent.left
+        anchors.top: parent.top
+        width: band
+        height: band
+    }
+    ResizeArea {
+        edges: Qt.RightEdge | Qt.TopEdge
+        anchors.right: parent.right
+        anchors.top: parent.top
+        width: band
+        height: band
+    }
+    ResizeArea {
+        edges: Qt.LeftEdge | Qt.BottomEdge
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        width: band
+        height: band
+    }
+    ResizeArea {
+        edges: Qt.RightEdge | Qt.BottomEdge
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        width: band
+        height: band
     }
 }

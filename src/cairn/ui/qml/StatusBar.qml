@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 HanYang06
 // SPDX-License-Identifier: Apache-2.0
 
-// 底部状态栏：可见性 + 谱系面包屑 + 作者/时间。
+// 底部状态栏：可见性 + 来源面包屑 + 作者/时间。
 import QtQuick
 import QtQuick.Layouts
 import "theme"

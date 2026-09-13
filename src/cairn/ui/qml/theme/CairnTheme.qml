@@ -8,17 +8,22 @@ import QtQuick
 QtObject {
     // 深浅可切换：默认亮色
     property bool dark: false
+    // 无障碍开关
+    property bool reduceMotion: false
+    property bool highContrast: false
 
     // ===== palette =====
     readonly property color bg: dark ? "#1C1A18" : "#F4EFE7"
     readonly property color chrome: dark ? "#171512" : "#EDE6DB"
     readonly property color surface: dark ? "#242120" : "#FFFFFF"
     readonly property color elevated: dark ? "#2E2A26" : "#FFFFFF"
-    readonly property color border: dark ? "#3A3F44" : "#E4DCCF"
-    readonly property color borderStrong: dark ? "#4A5058" : "#CFC4B3"
-    readonly property color text: dark ? "#E8E4DC" : "#2E2A26"
-    readonly property color muted: dark ? "#9A938A" : "#7C746A"
-    readonly property color faint: dark ? "#6E6860" : "#A89F93"
+    readonly property color border: highContrast ? (dark ? "#6A7078" : "#B9AD9C") : (dark ? "#3A3F44" : "#E4DCCF")
+    readonly property color borderStrong: highContrast ? (dark ? "#8A929C" : "#8A7F70") : (dark ? "#4A5058" : "#CFC4B3")
+    // 结构分隔用的更淡边界（软化页面观感，不喧宾夺主）
+    readonly property color borderFaint: highContrast ? (dark ? "#4A5058" : "#CFC4B3") : (dark ? "#2B2926" : "#EFE8DD")
+    readonly property color text: highContrast ? (dark ? "#FFFFFF" : "#141210") : (dark ? "#E8E4DC" : "#2E2A26")
+    readonly property color muted: highContrast ? (dark ? "#CFC8BE" : "#4A453E") : (dark ? "#9A938A" : "#7C746A")
+    readonly property color faint: highContrast ? (dark ? "#A8A096" : "#6A635A") : (dark ? "#6E6860" : "#A89F93")
     readonly property color accent: "#D08A45"
     readonly property color accentAlt: dark ? "#7B9166" : "#6B7F5A"
     readonly property color accentText: dark ? "#1C1A18" : "#FFFFFF"
@@ -57,7 +62,7 @@ QtObject {
     readonly property int statusH: 24
 
     // ===== motion =====
-    readonly property int durFast: 120
-    readonly property int durBase: 180
-    readonly property int durSlow: 260
+    readonly property int durFast: reduceMotion ? 0 : 120
+    readonly property int durBase: reduceMotion ? 0 : 180
+    readonly property int durSlow: reduceMotion ? 0 : 260
 }
