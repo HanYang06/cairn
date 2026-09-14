@@ -65,6 +65,18 @@ uv run python tools/preview_qml.py Shell.qml build/x.png 1440 900
 
 提交前顺序：`ruff -> mypy -> pytest`。
 
+### 打包（Windows）
+
+```powershell
+uv run python tools/build.py               # 绿色包 -> dist/cairn/
+uv run python tools/build.py --clean       # 先清 build/ 与 dist/
+uv run python tools/build.py --installer   # 再出安装包（需已装 Inno Setup）
+```
+
+- PyInstaller 配置：`packaging/cairn.spec`；安装包脚本：`packaging/windows/cairn.iss`。
+- 产物：`dist/cairn/`（免安装 zip）、`dist/installer/Cairn-<ver>-win-x64-setup.exe`。
+- CI：`.github/workflows/build-windows.yml`（打 `v*` tag 或手动触发）。
+
 ## 平台与分发（规划）
 
 内核跨平台，但打包按需投入，当前优先级：
@@ -77,7 +89,8 @@ uv run python tools/preview_qml.py Shell.qml build/x.png 1440 900
 | Linux 桌面 | AppImage | P2 |
 | macOS 桌面 | `.dmg` + 公证 | 暂缓 |
 
-打包工具倾向 **PyInstaller（`--onedir`）+ Inno Setup**；代码签名留待发布前补齐。以上均为规划，未实现。
+Windows 打包脚本已就绪（见「开发 · 打包」）：**PyInstaller（`--onedir`）+ Inno Setup**，出免安装 zip 与安装包。
+代码签名留待发布前补齐；其余平台为规划。
 
 ## 北极星
 

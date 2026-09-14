@@ -36,6 +36,15 @@
 
 - [ ] `src/cairn/ui/theme/`（Widgets + QSS 时代）应用已不引用，仅 `tests/ui/test_theme.py` 在测；待迁移为 QML 令牌或删除。
 - [ ] `rules` / `memory` 自建骨架「备注待补」。
-- [ ] 构建未落地：计划 PyInstaller `--onedir` + Inno Setup；产物 = sdist/wheel + Windows 安装包 + 免安装 zip。
+- [ ] 包体偏大（onedir 约 206MB）：未剔除 `Qt6Widgets` / Quick3D / Graphs 等未用模块。
 - [ ] 可复现构建（为日后代码签名留后路；签名后不可再改文件）。
+- [ ] 代码签名（Authenticode）未做；当前产物会被 SmartScreen 拦。
 - [ ] Linux 服务端 / CLI 入口与 Docker：待 `src/server` 成熟再做；macOS 暂缓。
+
+## 数据结构（`data-model.md` 待落地）
+
+- [ ] **基板升格**为公共底座；`note` 降为角色；建 `type → format` 映射表。
+- [ ] **阈值溢出**（内联 ↔ 独立叶）+ 滞回；`shape` / `group` 片段。
+- [ ] **物理打包**（追加 pack + 索引 + 压实）；**加密前压缩**。
+- [ ] **表示升级**（单叶 ↔ 基板树 / rope，"big note"＝rope 根）。
+- [ ] **可视区惰性加载** + 叶 LRU 缓存。
