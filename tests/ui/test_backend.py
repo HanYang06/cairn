@@ -209,7 +209,12 @@ def test_restore_version_through_backend(backend: Backend) -> None:
 
     versions = backend.currentVersions
     assert versions[0]["current"] is True
-    assert len(versions) == 1
+    assert [item["seq"] for item in versions] == [2, 1]
+    assert backend.previewVersion(1) == "第一版"
+
+    backend.restoreVersion(1)
+    assert backend.currentText == "第一版"
+    assert [item["seq"] for item in backend.currentVersions] == [3, 2, 1]
 
 
 def test_graph_and_path(backend: Backend) -> None:

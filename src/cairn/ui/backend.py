@@ -28,7 +28,7 @@ from PySide6.QtCore import (
 
 from ..core import Vault
 from ..core.store import CATALOG_NAME as _CATALOG_NAME
-from ..domains import Note, Relation, ancestors, decode_substrate, descendants, plain_text
+from ..domains import Note, Relation, ancestors, descendants
 from ..domains.provenance import DERIVED_FROM
 
 DEV_PASSPHRASE = "cairn-dev"
@@ -652,7 +652,8 @@ class Backend(QObject):
         if not oid:
             return ""
         try:
-            return plain_text(decode_substrate(self._vault.read_version(oid, seq)))
+            body = Note.load(self._vault, oid).body_at(seq)
+            return "".join(segment for segment in body if isinstance(segment, str))
         except Exception:
             return ""
 
@@ -662,16 +663,29 @@ class Backend(QObject):
         if not oid:
             return []
         try:
-            return [
+            note = Note.load(self._vault, oid)
+            entries = note.history()
+            latest = max((entry["seq"] for entry in entries), default=1)
+            versions = [
                 {
-                    "seq": version.seq,
-                    "updated": _fmt_time(version.updated),
-                    "size": _fmt_size(version.size),
-                    "current": version.is_current,
-                    "author": _short_author(version.author),
+                    "seq": latest,
+                    "updated": _fmt_time(note.updated),
+                    "size": _fmt_size(note.size),
+                    "current": True,
+                    "author": "",
                 }
-                for version in self._vault.versions(oid)
             ]
+            for entry in sorted(entries, key=lambda item: item["seq"], reverse=True):
+                versions.append(
+                    {
+                        "seq": entry["seq"] - 1,
+                        "updated": _fmt_time(entry["at"]),
+                        "size": "",
+                        "current": False,
+                        "author": "",
+                    }
+                )
+            return versions
         except Exception:
             return []
 
@@ -770,7 +784,7 @@ class Backend(QObject):
         oid = self._history_oid or self._oid()
         if not oid:
             return
-        self._vault.restore_version(oid, seq)
+        Note.load(self._vault, oid).restore(seq)
         if self._current is not None and str(self._current.oid) == oid:
             self._current = Note.load(self._vault, oid)
             self.currentChanged.emit()

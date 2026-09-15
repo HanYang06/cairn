@@ -416,6 +416,17 @@ class Note(Block):
             return list(self.body)
         return body_at(self._vault, self.id, seq, list(self.body))
 
+    def restore(self, seq: int) -> Self:
+        """把第 ``seq`` 版的内容作为新版本写回（线性历史继续向前）。"""
+        body = self.body_at(seq)
+        old_styles = list(self.style)
+        self.body = body
+        self.style = [
+            old_styles[index] if index < len(old_styles) else Style() for index in range(len(body))
+        ]
+        self.save()
+        return self
+
     def link(self, target: Oid | str, relation: str = "references") -> Any:
         from ..relation import Relation
 
