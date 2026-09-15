@@ -28,6 +28,7 @@ from typing import Any, ClassVar, Self
 from ...core.store import Attr, Block, Body
 from ...types import Oid
 from ..base import UNSET
+from .edit import apply_text_edit
 from .versions import body_at, compact, history, record
 
 NOTE_KIND = "cairn.note"
@@ -298,6 +299,27 @@ class Note(Block):
     trashed = Attr(default=False)
     share = Attr(factory=list)
 
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        # 上次落盘时的正文；``save()`` 以此为基线记版本
+        self._saved_body: list[Any] | None = None
+
+    @classmethod
+    def load(cls, vault: Any, oid: Oid | str) -> Self:
+        note = super().load(vault, oid)
+        note._saved_body = list(note.body)
+        return note
+
+    def save(self, *, search_text: str | None = None) -> Self:
+        if search_text is None:
+            search_text = _search_text(self.title, self.text)
+        previous = self._saved_body
+        super().save(search_text=search_text)
+        if previous is not None and previous != list(self.body):
+            self._record_version(previous, list(self.body))
+        self._saved_body = list(self.body)
+        return self
+
     @classmethod
     def create(
         cls,
@@ -324,9 +346,13 @@ class Note(Block):
         return "".join(segment for segment in self.body if isinstance(segment, str))
 
     def set_text(self, text: str) -> None:
-        body, styles = normalize([text])
+        """改正文文字；画板 / 多媒体占位按位置保留（见 ``note/edit.py``）。"""
+        old_styles = list(self.style)
+        body = apply_text_edit(list(self.body), text)
         self.body = body
-        self.style = styles
+        self.style = [
+            old_styles[index] if index < len(old_styles) else Style() for index in range(len(body))
+        ]
 
     def reorder(self, order: Sequence[int]) -> None:
         """按旧下标顺序重排正文；样式跟着走，保持一一对齐。
@@ -338,11 +364,17 @@ class Note(Block):
         self.body = [body[index] for index in order]
         self.style = [styles[index] if index < len(styles) else Style() for index in order]
 
-    # ---- 多媒体嵌入 ----
+    # ---- 画板 / 多媒体嵌入 ----
     @property
     def references(self) -> tuple[Oid, ...]:
         """正文里引用到的多媒体对象（``access`` 里的 oid）。"""
         return tuple(Oid.parse(item.oid) for item in self.access if item.oid)
+
+    def add_canvas(self, canvas: Canvas) -> Canvas:
+        """把一块画板嵌进正文：追加到 ``canvas``，并在 body 末尾放占位。"""
+        self.canvas = [*self.canvas, canvas]
+        self._append_marker(canvas_ref(len(self.canvas) - 1))
+        return canvas
 
     def add_access(
         self,
@@ -353,17 +385,17 @@ class Note(Block):
         size: float = 0.0,
     ) -> Access:
         """把一段多媒体嵌进正文：追加到 ``access``，并在 body 末尾放占位。"""
-        old_body = list(self.body)
         entry = Access(oid=str(oid), mime=mime, name=name, size=size)
         self.access = [*self.access, entry]
-        body, styles = normalize(
-            [*self.body, access_ref(len(self.access) - 1)],
-            [*self.style, Style()],
-        )
+        self._append_marker(access_ref(len(self.access) - 1))
+        return entry
+
+    def _append_marker(self, marker: dict[str, int]) -> None:
+        body, styles = normalize([*self.body, marker], [*self.style, Style()])
         self.body = body
         self.style = styles
-        self._record_version(old_body, list(self.body))
-        return entry
+        if self._vault is not None:
+            self.save()
 
     # ---- 版本（增量 diff，落 DB；惰性压实）----
     def _record_version(self, old_body: list[Any], new_body: list[Any]) -> None:
@@ -398,7 +430,6 @@ class Note(Block):
         tags: Iterable[str] | Mapping[str, Any] | None = None,
         props: dict[str, Any] | None = None,
     ) -> Self:
-        old_body = list(self.body)
         merged = self.props()
         if props:
             merged.update(props)
@@ -409,7 +440,6 @@ class Note(Block):
         self.attrs["props"] = merged
         if text is not None:
             self.set_text(text)
-        self._record_version(old_body, list(self.body))
         self.save(search_text=_search_text(self.title, self.text))
         return self
 

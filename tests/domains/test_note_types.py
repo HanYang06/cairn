@@ -137,3 +137,29 @@ def test_reorder_keeps_body_and_style_aligned() -> None:
 
     assert note.body == ["c", "a", "b"]
     assert note.style == [Style(italic=True), Style(bold=True), Style()]
+
+
+def test_set_text_preserves_markers() -> None:
+    note = Note()
+    note.body = ["前面", {"access": 0}, "后面"]
+    note.style = [Style(), Style(), Style()]
+    note.access = [Access(oid=str(Oid.new()), mime="image/png")]
+
+    note.set_text("前面后面改")
+
+    assert note.body == ["前面", {"access": 0}, "后面改"]
+
+
+def test_set_text_keeps_boundary_marker_drops_inner() -> None:
+    note = Note()
+    note.body = ["前面", {"access": 0}, "后面"]
+    note.style = [Style(), Style(), Style()]
+    note.access = [Access(oid=str(Oid.new()), mime="image/png")]
+    note.set_text("前面后面改")          # 占位在边界 → 保留
+    assert note.body == ["前面", {"access": 0}, "后面改"]
+
+    inner = Note()
+    inner.body = ["abc", {"canvas": 0}, "def"]
+    inner.canvas = [Canvas()]
+    inner.set_text("abXYZ")             # 占位落在被替换区间内 → 消失
+    assert inner.body == ["abXYZ"]
