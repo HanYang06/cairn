@@ -28,6 +28,7 @@ from typing import Any, ClassVar, Self
 from ...core.store import Attr, Block, Body
 from ...types import Oid
 from ..base import UNSET
+from .versions import body_at, compact, history, record
 
 NOTE_KIND = "cairn.note"
 NOTE_MIME = "application/x-cairn-note"
@@ -352,6 +353,7 @@ class Note(Block):
         size: float = 0.0,
     ) -> Access:
         """把一段多媒体嵌进正文：追加到 ``access``，并在 body 末尾放占位。"""
+        old_body = list(self.body)
         entry = Access(oid=str(oid), mime=mime, name=name, size=size)
         self.access = [*self.access, entry]
         body, styles = normalize(
@@ -360,7 +362,27 @@ class Note(Block):
         )
         self.body = body
         self.style = styles
+        self._record_version(old_body, list(self.body))
         return entry
+
+    # ---- 版本（增量 diff，落 DB；惰性压实）----
+    def _record_version(self, old_body: list[Any], new_body: list[Any]) -> None:
+        if self._vault is None or old_body == new_body:
+            return
+        entries = history(self._vault, self.id)
+        seq = max((item["seq"] for item in entries), default=1) + 1
+        record(self._vault, self.id, seq, new_body, old_body)
+        compact(self._vault, self.id)
+
+    def history(self) -> list[dict[str, int]]:
+        if self._vault is None:
+            return []
+        return history(self._vault, self.id)
+
+    def body_at(self, seq: int) -> list[Any]:
+        if self._vault is None:
+            return list(self.body)
+        return body_at(self._vault, self.id, seq, list(self.body))
 
     def link(self, target: Oid | str, relation: str = "references") -> Any:
         from ..relation import Relation
@@ -376,6 +398,7 @@ class Note(Block):
         tags: Iterable[str] | Mapping[str, Any] | None = None,
         props: dict[str, Any] | None = None,
     ) -> Self:
+        old_body = list(self.body)
         merged = self.props()
         if props:
             merged.update(props)
@@ -386,6 +409,7 @@ class Note(Block):
         self.attrs["props"] = merged
         if text is not None:
             self.set_text(text)
+        self._record_version(old_body, list(self.body))
         self.save(search_text=_search_text(self.title, self.text))
         return self
 
