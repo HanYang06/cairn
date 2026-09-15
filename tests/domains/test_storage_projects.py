@@ -76,12 +76,12 @@ def test_note_embed_and_link(tmp_path: Path) -> None:
     other = Note.create(vault, "target")
 
     note = Note.create(vault, "see this")
-    note.add_embed(image.oid, role="image", caption="figure 1")
+    note.add_access(image.oid, mime="image/png", name="a.png")
     note.link(other.oid, relation="references")
 
     assert note.references == (image.oid,)
-    assert note.embeds[0]["role"] == "image"
-    assert note.embeds[0]["caption"] == "figure 1"
+    assert note.access[0].mime == "image/png"
+    assert note.body[-1] == {"access": 0}
 
     backlinks = [edge.oid for edge in Relation.backlinks(vault, other.oid)]
     assert len(backlinks) == 1

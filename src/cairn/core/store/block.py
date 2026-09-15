@@ -80,16 +80,22 @@ def _type_name(value: str | Enum) -> str:
 
 
 class Attr:
-    """原生属性的声明：读写都落在 ``Block.attrs`` 上。"""
+    """原生属性的声明：读写都落在 ``Block.attrs`` 上。
+
+    ``item=`` 用于列表字段：存储里是紧凑数据（dict），取出来是类型化对象。
+    元素类型需提供 ``to_data()`` / ``from_data()``。
+    """
 
     def __init__(
         self,
         default: Any = _MISSING,
         *,
         factory: Callable[[], Any] | None = None,
+        item: Any = None,
     ) -> None:
         self._default = default
         self._factory = factory
+        self._item = item
         self.key = ""
 
     def __set_name__(self, _owner: type, name: str) -> None:
@@ -100,6 +106,16 @@ class Attr:
             return self._factory()
         return None if self._default is _MISSING else self._default
 
+    def _decode(self, value: Any) -> Any:
+        if isinstance(value, self._item):
+            return value
+        if hasattr(self._item, "from_data"):
+            return self._item.from_data(value)
+        return self._item(**value)
+
+    def _encode(self, value: Any) -> Any:
+        return value.to_data() if hasattr(value, "to_data") else value
+
     def __get__(self, obj: Block | None, _owner: type | None = None) -> Any:
         if obj is None:
             return self
@@ -108,9 +124,14 @@ class Attr:
                 obj.attrs[self.key] = self._initial()
             else:
                 return None
-        return obj.attrs[self.key]
+        value = obj.attrs[self.key]
+        if self._item is not None and isinstance(value, (list, tuple)):
+            return [self._decode(entry) for entry in value]
+        return value
 
     def __set__(self, obj: Block, value: Any) -> None:
+        if self._item is not None and isinstance(value, (list, tuple)):
+            value = [self._encode(entry) for entry in value]
         obj.attrs[self.key] = value
 
 

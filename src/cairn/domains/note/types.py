@@ -69,11 +69,11 @@ class Style:
     color: str = ""
     size: float = 0.0
 
-    def to_dict(self) -> dict[str, Any]:
+    def to_data(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Style:
+    def from_data(cls, data: dict[str, Any]) -> Style:
         known = {key: data[key] for key in cls.__dataclass_fields__ if key in data}
         return cls(**known)
 
@@ -197,6 +197,24 @@ class Link:
 
 
 @dataclass(slots=True)
+class Access:
+    """正文里嵌入的多媒体引用：真正的字节在资产（``Asset``）块里。"""
+
+    oid: str = ""
+    mime: str = ""
+    name: str = ""
+    size: float = 0.0
+
+    def to_data(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_data(cls, data: dict[str, Any]) -> Access:
+        known = {key: data[key] for key in cls.__dataclass_fields__ if key in data}
+        return cls(**known)
+
+
+@dataclass(slots=True)
 class Canvas:
     """画板：图形 + 图形之间的关系。"""
 
@@ -225,6 +243,11 @@ def bare(text: str) -> list[Segment]:
 def canvas_ref(index: int) -> dict[str, int]:
     """正文里的画板占位：指向 ``canvas`` 列表的第 ``index`` 块。"""
     return {"canvas": index}
+
+
+def access_ref(index: int) -> dict[str, int]:
+    """正文里的多媒体占位：指向 ``access`` 列表的第 ``index`` 项。"""
+    return {"access": index}
 
 
 def blank_styles(count: int) -> list[Style]:
@@ -257,11 +280,11 @@ class Note(Block):
 
     type = NOTE_KIND
     mime: ClassVar[str | None] = NOTE_MIME
-    body = Body(factory=list)
 
-    # 内容相关
-    style = Attr(factory=list)
-    canvas = Attr(factory=list)             # 画板数据（Canvas.to_data() 列表）
+    body: list[Segment] = Body(factory=list)  # type: ignore[assignment]
+    style: list[Style] = Attr(factory=list, item=Style)  # type: ignore[assignment]
+    canvas: list[Canvas] = Attr(factory=list, item=Canvas)  # type: ignore[assignment]
+    access: list[Access] = Attr(factory=list, item=Access)  # type: ignore[assignment]
 
     # 属性（正文之外，全在这里）
     schema = Attr(default=NOTE_SCHEMA)
@@ -302,7 +325,7 @@ class Note(Block):
     def set_text(self, text: str) -> None:
         body, styles = normalize([text])
         self.body = body
-        self.attrs["style"] = [style.to_dict() for style in styles]
+        self.style = styles
 
     def reorder(self, order: Sequence[int]) -> None:
         """按旧下标顺序重排正文；样式跟着走，保持一一对齐。
@@ -310,45 +333,34 @@ class Note(Block):
         ``order`` 是旧索引的新排列，例如 ``[2, 0, 1]`` 把第 2 段提到最前。
         """
         body = list(self.body)
-        styles = list(self.attrs.get("style") or ())
+        styles = list(self.style)
         self.body = [body[index] for index in order]
-        self.attrs["style"] = [
-            styles[index] if index < len(styles) else {} for index in order
-        ]
+        self.style = [styles[index] if index < len(styles) else Style() for index in order]
 
-    # ---- 画板 ----
-    @property
-    def canvases(self) -> list[Canvas]:
-        """画板对象视图；落盘是紧凑数值数据（``canvas``）。"""
-        return [Canvas.from_data(data) for data in (self.attrs.get("canvas") or ())]
-
-    def set_canvases(self, items: Iterable[Canvas]) -> None:
-        self.attrs["canvas"] = [canvas.to_data() for canvas in items]
-
-    # ---- 引用 / 嵌入 ----
-    @property
-    def embeds(self) -> list[dict[str, Any]]:
-        return [dict(item) for item in (self.attrs.get("embeds") or ())]
-
+    # ---- 多媒体嵌入 ----
     @property
     def references(self) -> tuple[Oid, ...]:
-        return tuple(Oid.parse(str(item["oid"])) for item in self.embeds if "oid" in item)
+        """正文里引用到的多媒体对象（``access`` 里的 oid）。"""
+        return tuple(Oid.parse(item.oid) for item in self.access if item.oid)
 
-    def add_embed(
+    def add_access(
         self,
         oid: Oid | str,
         *,
-        role: str = "embed",
-        caption: str | None = None,
-    ) -> Self:
-        items = self.embeds
-        entry: dict[str, Any] = {"oid": str(oid), "role": role}
-        if caption is not None:
-            entry["caption"] = str(caption)
-        items.append(entry)
-        self.attrs["embeds"] = items
-        self.save()
-        return self
+        mime: str = "",
+        name: str = "",
+        size: float = 0.0,
+    ) -> Access:
+        """把一段多媒体嵌进正文：追加到 ``access``，并在 body 末尾放占位。"""
+        entry = Access(oid=str(oid), mime=mime, name=name, size=size)
+        self.access = [*self.access, entry]
+        body, styles = normalize(
+            [*self.body, access_ref(len(self.access) - 1)],
+            [*self.style, Style()],
+        )
+        self.body = body
+        self.style = styles
+        return entry
 
     def link(self, target: Oid | str, relation: str = "references") -> Any:
         from ..relation import Relation
@@ -386,6 +398,7 @@ __all__ = [
     "NOTE_KIND",
     "NOTE_MIME",
     "NOTE_SCHEMA",
+    "Access",
     "Canvas",
     "Form",
     "Graphic",
@@ -395,6 +408,7 @@ __all__ = [
     "Paint",
     "Segment",
     "Style",
+    "access_ref",
     "bare",
     "blank_styles",
     "canvas_ref",

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from cairn.domains.note.types import (
+    Access,
     Canvas,
     Form,
     Graphic,
@@ -12,11 +13,13 @@ from cairn.domains.note.types import (
     Note,
     Paint,
     Style,
+    access_ref,
     bare,
     blank_styles,
     canvas_ref,
     normalize,
 )
+from cairn.types import Oid
 
 
 def _graphic(**overrides: object) -> Graphic:
@@ -39,19 +42,19 @@ def test_normalize_drops_empty_and_aligns() -> None:
     assert style == [Style(bold=True), Style()]
 
 
-def test_normalize_keeps_canvas_marker() -> None:
-    body, style = normalize(["文字", canvas_ref(0), "尾"])
-    assert body == ["文字", {"canvas": 0}, "尾"]
-    assert style == [Style(), Style(), Style()]
+def test_normalize_keeps_embed_markers() -> None:
+    body, style = normalize(["文字", canvas_ref(0), access_ref(1), "尾"])
+    assert body == ["文字", {"canvas": 0}, {"access": 1}, "尾"]
+    assert style == [Style(), Style(), Style(), Style()]
 
 
 def test_normalize_empty() -> None:
     assert normalize([]) == ([""], [Style()])
 
 
-def test_style_roundtrips_through_dict() -> None:
+def test_style_roundtrips_through_data() -> None:
     style = Style(bold=True, font="serif")
-    assert Style.from_dict(style.to_dict()) == style
+    assert Style.from_data(style.to_data()) == style
 
 
 def test_graphic_serializes_to_numbers_and_back() -> None:
@@ -91,26 +94,46 @@ def test_canvas_roundtrips_graphics_and_links() -> None:
     assert Canvas.from_data(data) == canvas
 
 
-def test_note_body_holds_canvas_marker_and_canvas_view() -> None:
+def test_note_typed_canvas_and_marker() -> None:
     note = Note()
     note.body = ["床前明月光，", canvas_ref(0), "低头思故乡"]
-    note.set_canvases([Canvas(graphics=[_graphic()])])
+    note.canvas = [Canvas(graphics=[_graphic()])]
 
     assert note.body[1] == {"canvas": 0}
     assert note.text == "床前明月光，低头思故乡"
-    assert note.canvases[0].graphics == [_graphic()]
+    assert isinstance(note.canvas[0], Canvas)          # 取出来是对象，不是 dict
+    assert note.canvas[0].graphics == [_graphic()]
+
+
+def test_note_typed_access_and_marker() -> None:
+    oid = str(Oid.new())
+    note = Note()
+    note.body = ["图：", access_ref(0)]
+    note.access = [Access(oid=oid, mime="image/png", name="a.png", size=3.0)]
+
+    assert note.body[1] == {"access": 0}
+    assert isinstance(note.access[0], Access)
+    assert note.access[0].mime == "image/png"
+    assert note.references == (note.access[0].oid,)
+
+
+def test_add_access_embeds_into_body() -> None:
+    note = Note()
+    note.body = ["看图"]
+    note.style = [Style()]
+    note.access = []
+    entry = note.add_access(str(Oid.new()), mime="video/mp4", name="clip.mp4")
+    assert entry.mime == "video/mp4"
+    assert note.body[-1] == {"access": 0}
+    assert note.access[0] == entry
 
 
 def test_reorder_keeps_body_and_style_aligned() -> None:
     note = Note()
     note.body = ["a", "b", "c"]
-    note.attrs["style"] = [Style(bold=True).to_dict(), {}, Style(italic=True).to_dict()]
+    note.style = [Style(bold=True), Style(), Style(italic=True)]
 
     note.reorder([2, 0, 1])
 
     assert note.body == ["c", "a", "b"]
-    assert note.attrs["style"] == [
-        Style(italic=True).to_dict(),
-        Style(bold=True).to_dict(),
-        {},
-    ]
+    assert note.style == [Style(italic=True), Style(bold=True), Style()]
