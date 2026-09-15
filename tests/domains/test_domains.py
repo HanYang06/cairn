@@ -9,7 +9,6 @@ import pytest
 
 from cairn.core import Vault
 from cairn.domains import (
-    Composition,
     KindMismatchError,
     Note,
     Relation,
@@ -24,7 +23,7 @@ def _vault(tmp_path: Path) -> Vault:
 
 
 def test_registry_has_builtin_kinds() -> None:
-    assert {"cairn.note", "cairn.composition"} <= set(known_kinds())
+    assert {"cairn.note", "cairn.asset", "cairn.project"} <= set(known_kinds())
 
 
 def test_note_roundtrip(tmp_path: Path) -> None:
@@ -106,13 +105,3 @@ def test_relation_backlinks_and_outbound(tmp_path: Path) -> None:
 
     outbound = [rel.oid for rel in Relation.outbound(vault, source.oid)]
     assert outbound == [relation.oid]
-
-
-def test_composition_items(tmp_path: Path) -> None:
-    vault = _vault(tmp_path)
-    first = Note.create(vault, "a")
-    second = Note.create(vault, "b")
-
-    document = Composition.create(vault, [first.oid, second.oid], title="Doc")
-    assert document.title == "Doc"
-    assert document.items == (first.oid, second.oid)

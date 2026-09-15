@@ -1,9 +1,10 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""领域层：note / asset / project / relation / composition。
+"""领域层：note / asset / project / relation。
 
 每个领域都**继承 ``Block``**；自己的数据结构放各自的 ``types``，行为放各自模块。
+组装（文档 / 博客）不再是独立对象——它就是"正文里放一堆引用"的 note。
 """
 
 from __future__ import annotations
@@ -15,7 +16,6 @@ from .base import (
     UnknownKindError,
     known_kinds,
 )
-from .composition import Composition
 from .note import Note
 from .project import Project
 from .provenance import ancestors, derivatives, descendants, lineage
@@ -32,7 +32,6 @@ from .types import (
 
 __all__ = [
     "Asset",
-    "Composition",
     "DomainError",
     "KindMismatchError",
     "Note",
