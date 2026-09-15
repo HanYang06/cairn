@@ -14,5 +14,15 @@
 - 2026-09-14 · 已定 · 新增 `src/cairn/__main__.py`：`python -m cairn` 与冻结入口 | —
 - 2026-09-14 · 已定 · 多选 + 批量（标签/收藏/回收）、关系图信息增强（作者/时间/因果）、无障碍（reduceMotion / highContrast）、`ObjectInfo` / `VersionInfo` 加 `author` | 见 `ui-theme.md` §7.6–7.8
 - 2026-09-14 · 已定 · 笔记页去「快速记录」只留搜索、空白双击新建；左栏悬停去过渡（修双高亮）；工具册修复 `triggerHover` 悬空引用 + 延时回收 + 点外即收；关系图重做为竖排 Git 式泳道 | 见 `ui-theme.md` §7.8–7.10
-- 2026-09-14 · 已定 · 新增 `docs/architecture/data-model.md`：数据结构总纲（对象拓扑三图 + 三种边、命名层级、身份 vs 地址、阈值溢出、表示升级、打包、加密/去重、内存态/存储态、不变量）；`storage.md`/`note-model.md`/`AGENTS.md` 加指针 | 见 `data-model.md`
-- 2026-09-15 · 已定 · 数据模型大改（**平行分布存储 / 结构进 DB / 画板 / 正文块列表**）：重写 `data-model.md`（对象间不嵌套、双源、画板、删除大文档机制）；`storage.md`（双源公理 + `pool/`·`db/`·`.cairn/` 布局 + §9.2 权威结构库半加密）；`domains.md`（§2.2 结构数据走 DB）；`note-model.md`（块列表 + runs、关系落 DB、sketch 存笔画） | 决策见 `decisions.md` 2026-09-15
+- 2026-09-14 · 已定 · 新增 `docs/architecture/data-model.md`：数据结构总纲；`storage.md`/`note-model.md`/`AGENTS.md` 加指针 | 见 `data-model.md`
+- 2026-09-15 · 已定 · 数据模型大改（平行分布存储 / 结构进 DB / 画板 / 正文块列表） | 决策见 `decisions.md` 2026-09-15
+- 2026-09-16 · 已定 · **存储层重写**：新增 `core/store`（Bucket/Block/Catalog/Table）；`Vault` 降为应用门面；
+  删除 `core/storage/*` 与 `core/crypto.py`（加密/清单/空间/分块池）。落盘格式不兼容。
+- 2026-09-16 · 已定 · 领域全部**直接继承 `Block`**；note 结构迁入 `note/types.py`（body=list、style 对齐、
+  `Canvas`/`Graphic`/`Paint`/`Access`）；`Attr(item=)` 类型化列表。
+- 2026-09-16 · 已定 · 外置图形集 `config/shapes.json` + `note/shapes.py`；标签改 dict；新增 `author`/`authors`；
+  `Asset` 入库先转码（草案，恒等）。
+- 2026-09-16 · 已定 · 关系落 DB（`relations` 表，多类型）；`composition` 并入 note。
+- 2026-09-16 · 已定 · 笔记版本：增量 diff 落 DB（`note/versions.py` + `versions` 表），30 天惰性压实；
+  历史面板接真实版本。
+- 2026-09-16 · 已定 · UI 主题换 GitHub 色盘 + 等宽字体链 + 苹果式圆角/柔和阴影。
