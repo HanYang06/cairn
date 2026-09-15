@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from ...core.storage.codec import decode_cbor, encode_cbor
+from ...core.codec import decode_cbor, encode_cbor
 from ...types import CorruptObjectError, Oid
 
 

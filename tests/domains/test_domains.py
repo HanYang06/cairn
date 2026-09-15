@@ -33,7 +33,7 @@ def test_note_roundtrip(tmp_path: Path) -> None:
 
     assert note.text == "hello world"
     assert note.title == "Hi"
-    assert note.tags == ("a", "b")
+    assert note.tags == {"a": None, "b": None}
     assert note.info.type == "cairn.note"
 
     loaded = Note.load(vault, note.oid)
@@ -73,6 +73,22 @@ def test_kind_mismatch(tmp_path: Path) -> None:
 
     with pytest.raises(KindMismatchError):
         Relation.load(vault, note.oid)
+
+
+def test_note_authors_and_dict_tags(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    note = Note.create(vault, "x", tags={"作者": "韩", "草稿": None})
+    note.author = "韩"
+    note.authors = ["韩", {"name": "石"}]
+    note.save()
+
+    loaded = Note.load(vault, note.oid)
+    assert loaded.tags == {"作者": "韩", "草稿": None}
+    assert loaded.author == "韩"
+    assert loaded.authors == ["韩", {"name": "石"}]
+
+    assert {info.oid for info in vault.iter(tags={"作者": "韩"})} == {note.oid}
+    assert {info.oid for info in vault.iter(tags={"作者": "石"})} == set()
 
 
 def test_relation_backlinks_and_outbound(tmp_path: Path) -> None:

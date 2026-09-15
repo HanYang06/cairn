@@ -5,7 +5,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from ...types import Cid, Oid, SpaceId, Visibility
 
@@ -30,7 +31,7 @@ class ObjectInfo:
     created: int
     updated: int
     title: str | None = None
-    tags: tuple[str, ...] = ()
+    tags: dict[str, Any] = field(default_factory=dict)
     seq: int = 0
     author: str = ""
 

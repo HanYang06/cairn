@@ -1,45 +1,25 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""关系领域：一等、可署名的边。
-
-关系是独立对象（`cairn.relation`），因此第三方可以对你的笔记加边而不改你的对象。
-"""
+"""关系领域：继承 ``Block`` 的边（可署名、可加属性）。"""
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Any, ClassVar, Self
+from collections.abc import Iterable, Iterator, Mapping
+from typing import Any, Self
 
-from ..core.types import Oid, SpaceId
-from .base import DomainObject, get_handler, register
+from ..core.store import Attr, Block, Body
+from ..types import Oid
 
 RELATION_KIND = "cairn.relation"
 RELATION_SCHEMA = 1
 
 
-class RelationHandler:
-    kind: str = RELATION_KIND
-    schema_version: int = RELATION_SCHEMA
+class Relation(Block):
+    type = RELATION_KIND
+    body = Body(factory=list)
 
-    def normalize_meta(self, **fields: Any) -> dict[str, Any]:
-        props = dict(fields.get("props") or {})
-        props["source"] = str(fields["source"])
-        props["target"] = str(fields["target"])
-        props["relation"] = str(fields.get("relation", "references"))
-        return {
-            "title": None,
-            "tags": [str(tag) for tag in (fields.get("tags") or ())],
-            "schema": RELATION_SCHEMA,
-            "props": props,
-        }
-
-
-register(RelationHandler())
-
-
-class Relation(DomainObject):
-    kind: ClassVar[str] = RELATION_KIND
+    schema = Attr(default=RELATION_SCHEMA)
 
     @classmethod
     def create(
@@ -49,15 +29,25 @@ class Relation(DomainObject):
         target: Oid | str,
         relation: str = "references",
         *,
-        tags: list[str] | None = None,
+        tags: Iterable[str] | Mapping[str, Any] | None = None,
         props: dict[str, Any] | None = None,
-        space: str | SpaceId = "default",
+        space: Any = None,
     ) -> Self:
-        meta = get_handler(cls.kind).normalize_meta(
-            source=source, target=target, relation=relation, tags=tags, props=props
+        del space
+        edge = cls()
+        edge._vault = vault
+        merged = dict(props or {})
+        merged.update(
+            {
+                "source": str(source),
+                "target": str(target),
+                "relation": str(relation),
+            }
         )
-        oid = vault.put(b"", space=space, type=cls.kind, meta=meta)
-        return cls.load(vault, oid)
+        edge.attrs["props"] = merged
+        edge.tags = tags or {}
+        edge.save()
+        return edge
 
     @property
     def source(self) -> Oid:
@@ -73,7 +63,7 @@ class Relation(DomainObject):
 
     @property
     def at(self) -> str | None:
-        """该边所钉的被派生版本（fork 时的源 seq/哈希）；无则 None。"""
+        """该边所钉的被派生版本；无则 None。"""
         value = self.props().get("at")
         return None if value is None else str(value)
 
@@ -84,10 +74,11 @@ class Relation(DomainObject):
         target: Oid | str,
         *,
         relation: str | None = None,
-        space: str | SpaceId | None = None,
+        space: Any = None,
     ) -> Iterator[Self]:
+        del space
         wanted = str(target)
-        for item in cls.list(vault, space=space):
+        for item in cls.list(vault):
             if str(item.target) == wanted and (relation is None or item.relation == relation):
                 yield item
 
@@ -98,9 +89,13 @@ class Relation(DomainObject):
         source: Oid | str,
         *,
         relation: str | None = None,
-        space: str | SpaceId | None = None,
+        space: Any = None,
     ) -> Iterator[Self]:
+        del space
         wanted = str(source)
-        for item in cls.list(vault, space=space):
+        for item in cls.list(vault):
             if str(item.source) == wanted and (relation is None or item.relation == relation):
                 yield item
+
+
+__all__ = ["RELATION_KIND", "RELATION_SCHEMA", "Relation"]

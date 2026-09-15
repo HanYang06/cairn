@@ -15,6 +15,7 @@ from cairn.domains import (
     descendants,
     known_kinds,
 )
+from cairn.domains.asset import transcode, unified_target
 
 PASSPHRASE = "correct horse battery staple"
 
@@ -41,6 +42,23 @@ def test_asset_from_bytes(tmp_path: Path) -> None:
     assert asset.content_type == "image/png"
     assert asset.size == len(b"\x89PNG...")
     assert Asset.load(vault, asset.oid).read() == b"\x89PNG..."
+
+
+def test_unified_target_and_identity_transcode() -> None:
+    assert unified_target("image/jpeg") == "image/png"
+    assert unified_target("audio/wav") == "audio/flac"
+    assert unified_target("application/pdf") is None
+    assert unified_target(None) is None
+
+    data, mime = transcode(b"\x00\x01", "image/jpeg")
+    assert data == b"\x00\x01"
+    assert mime == "image/jpeg"
+
+
+def test_asset_records_origin_mime(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    asset = Asset.create(vault, b"raw", name="clip.mp4", mime="video/mp4")
+    assert asset.attrs["origin_mime"] == "video/mp4"
 
 
 def test_asset_from_path(tmp_path: Path) -> None:

@@ -34,5 +34,9 @@ class SpaceNotFoundError(CairnError):
     """空间不存在。"""
 
 
+class KindMismatchError(CairnError):
+    """对象类型与期望的类型不匹配。"""
+
+
 class CorruptObjectError(CairnError):
     """对象数据损坏或校验失败。"""

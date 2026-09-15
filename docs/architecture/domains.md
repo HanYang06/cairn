@@ -62,6 +62,19 @@ note 对象 (payload = 正文, props.attachments = [oid1, oid2])
 
 这样"啥都能存"由 payload 与对象组合保证，而 manifest 始终轻、始终可签名。
 
+### 2.2 结构数据走 DB（不是对象）
+
+对象只承载**内容**（字节流）。**关系 / 成员 / 标签 / 属性**是**结构数据**，
+以一等行落 `db/structure.db`（见 [`data-model.md`](./data-model.md) §4.2、
+[`storage.md`](./storage.md) §9.2）：
+
+- **关系**（`cairn.relation` 的落地形态）：`relations(src_oid, dst_oid, kind, author, at, …)`，
+  **不再是一个对象**——省掉"一条边一个 manifest + 签名 + 文件"的税，查询从全盘扫描变成一次索引。
+- **项目成员 / 层级**：`members(project_oid, member_oid, kind)`。
+- **标签 / `props`**：`tags` / `props` 表（半加密 + `keyed_hash`，见 `storage.md` §9.2）。
+
+红线：结构数据**只走 DB**，不要为了"统一"再包成对象；内容数据**只走对象**，不要塞进 `props`。
+
 ---
 
 ## 3. 领域契约（注册表 + 基类）
@@ -78,13 +91,15 @@ Handler 协议（每个 type 注册一个）：
   type: str
   schema_version: int
   validate(meta) -> None                 # 写入前校验
-  index_rows(info) -> Iterable[Row]      # 供 SQLite 索引
+  index_rows(info) -> Iterable[Row]      # 派生索引行（index.db）
+  structure_rows(entity) -> Iterable[Row] # 结构行（structure.db，一等；§2.2）
   migrate(meta, from_version) -> dict    # 版本迁移
   search_text(payload) -> str | None     # 可选：供 FTS
 ```
 
 - 注册表：`type -> Handler`。`Vault.put` 时按 `meta.schema` 与注册表校验。
 - 领域之间互不依赖，只依赖 core 的公共 API。
+- **结构行（关系 / 成员 / 标签 / 属性）落 `structure.db`，是权威、不可重建**（§2.2）。
 
 ---
 

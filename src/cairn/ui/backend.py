@@ -26,8 +26,8 @@ from PySide6.QtCore import (
     Slot,
 )
 
-from ..conf import TOML_NAME
 from ..core import Vault
+from ..core.store import CATALOG_NAME as _CATALOG_NAME
 from ..domains import Note, Relation, ancestors, decode_substrate, descendants, plain_text
 from ..domains.provenance import DERIVED_FROM
 
@@ -50,7 +50,7 @@ DEV_VAULT = _default_vault_root()
 def open_vault(root: Path | str, passphrase: str = DEV_PASSPHRASE) -> Vault:
     """打开或创建库（开发期用固定口令；正式解锁流程后续再补）。"""
     root = Path(root)
-    if (root / TOML_NAME).exists():
+    if (root / _CATALOG_NAME).exists():
         vault = Vault.load(root)
         vault.unlock(passphrase)
         return vault
@@ -1016,6 +1016,8 @@ class Backend(QObject):
         note = Note.load(self._vault, oid)
         if note.text != text:
             note.update(text=text)
+            if self._current is not None and str(self._current.oid) == oid:
+                self._current = note
             self.notes.reload()
             self.contentChanged.emit()
 
@@ -1169,10 +1171,11 @@ class Backend(QObject):
                 note = Note.load(self._vault, oid)
             except Exception:
                 continue
-            tags = list(note.tags)
-            if tag in tags:
+            tags = dict(note.tags)
+            key = tag.partition(":")[0].strip()
+            if key in tags:
                 continue
-            tags.append(tag)
+            tags[key] = tag.partition(":")[2].strip() or None
             note.update(tags=tags)
             if self._current is not None and str(self._current.oid) == oid:
                 self._current = Note.load(self._vault, oid)
@@ -1216,10 +1219,9 @@ class Backend(QObject):
         tag = tag.strip()
         if not tag or self._current is None:
             return
-        tags = list(self._current.tags)
-        if tag in tags:
-            return
-        tags.append(tag)
+        key, _, value = tag.partition(":")
+        tags = dict(self._current.tags)
+        tags[key.strip()] = value.strip() or None
         self._current.update(tags=tags)
         self.tagsChanged.emit()
         self.tagsListChanged.emit()
@@ -1230,7 +1232,9 @@ class Backend(QObject):
     def removeTag(self, tag: str) -> None:
         if self._current is None:
             return
-        tags = [item for item in self._current.tags if item != tag]
+        key = str(tag).partition(":")[0].strip()
+        tags = dict(self._current.tags)
+        tags.pop(key, None)
         self._current.update(tags=tags)
         self.tagsChanged.emit()
         self.tagsListChanged.emit()
@@ -1239,12 +1243,12 @@ class Backend(QObject):
 
     @Property(list, notify=propsChanged)
     def tagPairs(self) -> list[dict[str, str]]:
-        """标签按 KV 呈现：``K:V`` 拆成 key/value；无冒号则 value 为空。"""
-        pairs: list[dict[str, str]] = []
-        for raw in (self._current.tags if self._current is not None else ()):
-            key, _, value = str(raw).partition(":")
-            pairs.append({"key": key, "value": value, "raw": str(raw)})
-        return pairs
+        """标签按 KV 呈现：键值各自列出，无值则 value 为空。"""
+        tags = self._current.tags if self._current is not None else {}
+        return [
+            {"key": key, "value": value or "", "raw": f"{key}:{value}" if value else key}
+            for key, value in tags.items()
+        ]
 
     @Slot(str, str, str)
     def replaceTag(self, old: str, key: str, value: str) -> None:
@@ -1253,16 +1257,11 @@ class Backend(QObject):
             return
         key = key.strip()
         value = value.strip()
-        tags = list(self._current.tags)
-        entry = f"{key}:{value}" if value else key
-        if old in tags:
-            position = tags.index(old)
-            if key:
-                tags[position] = entry
-            else:
-                tags.pop(position)
-        elif key:
-            tags.append(entry)
+        tags = dict(self._current.tags)
+        old_key = str(old).partition(":")[0].strip()
+        tags.pop(old_key, None)
+        if key:
+            tags[key] = value or None
         self._current.update(tags=tags)
         self.tagsChanged.emit()
         self.tagsListChanged.emit()

@@ -1,0 +1,292 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from cairn.core.store import INDEX_TYPE, Attr, Block, Body, Bucket, BucketConfig
+from cairn.types import CairnError, CorruptObjectError, ObjectNotFoundError
+
+
+class Note(Block):
+    """示例领域结构：继承块，重新描述 body，声明原生属性与关联业务表。"""
+
+    type = "cairn.test.note"
+    body = Body(factory=list)
+    title = Attr()
+    tags = Attr(factory=list)
+
+    @classmethod
+    def tables(cls) -> dict[str, dict[str, str]]:
+        return {
+            "notes": {"id": "TEXT PRIMARY KEY", "title": "TEXT"},
+            "note_relations": {"src": "TEXT", "dst": "TEXT", "kind": "TEXT"},
+        }
+
+
+class Project(Block):
+    type = "cairn.test.project"
+
+
+class Strict(Block):
+    type = "cairn.test.strict"
+
+    def validate(self) -> None:
+        if not self.attrs.get("ok"):
+            raise ValueError("缺少 ok")
+
+
+def _bucket(tmp_path: Path, **overrides: object) -> Bucket:
+    return Bucket.create(tmp_path / "bucket", BucketConfig(**overrides))  # type: ignore[arg-type]
+
+
+def test_body_default_and_edit() -> None:
+    note = Note()
+    assert note.body == []
+    note.body.append("正文")
+    assert note.body == ["正文"]
+
+
+def test_object_edit_roundtrip(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = bucket.new(Note)
+    note.title = "Hello"
+    note.body.append("正文")
+    note.tags = {"a": None}
+    returned = bucket.put(note)
+    assert returned is note
+    assert note.checksum
+
+    loaded = bucket.get(Note, note.id)
+    assert isinstance(loaded, Note)
+    assert loaded.id == note.id
+    assert loaded.title == "Hello"
+    assert loaded.body == ["正文"]
+    assert loaded.tags == {"a": None}
+
+
+def test_id_is_locked() -> None:
+    note = Note()
+    with pytest.raises(AttributeError):
+        note.id = "another-id"
+
+
+def test_same_content_dedupes_physically(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    first = Note(body=["same"])
+    second = Note(body=["same"])
+    bucket.put(first)
+    bucket.put(second)
+    assert first.id != second.id
+    assert bucket.catalog.count_blocks() == 2
+    assert bucket.catalog.count_contents() == 1
+
+
+def test_unknown_type_falls_back_to_base(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    block = Block(type="cairn.test.unknown", body=["x"])
+    bucket.put(block)
+    loaded = bucket.get(Block, block.id)
+    assert type(loaded) is Block
+    assert loaded.type == "cairn.test.unknown"
+
+
+def test_wrong_class_is_rejected(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = Note()
+    bucket.put(note)
+    with pytest.raises(CairnError):
+        bucket.get(Project, note.id)
+
+
+def test_chunked_content_roundtrip(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path, block_max_bytes=16)
+    data = bytes(range(64))
+    root = bucket.put_content(data, kind="image")
+    block = bucket.get(Block, root)
+    assert block.type == INDEX_TYPE
+    assert len(block.body) == 4
+    assert bucket.read_content(root) == data
+
+
+def test_small_content_is_one_block(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path, block_max_bytes=1024)
+    root = bucket.put_content(b"tiny", kind="image")
+    assert bucket.get(Block, root).type == "image"
+    assert bucket.read_content(root) == b"tiny"
+
+
+def test_pack_seals_and_rolls_over(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path, pack_max_blocks=2, block_max_bytes=1024)
+    ids = [bucket.put(Block(type="cairn.note", body=[str(i)])).id for i in range(5)]
+    assert bucket.catalog.count_packs() == 3  # 2 + 2 + 1
+    for block_id in ids:
+        assert bucket.get(Block, block_id).id == block_id
+
+
+def test_persistence_across_reopen(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = bucket.new(Note)
+    note.body.append("persist")
+    bucket.put(note)
+    bucket.close()
+
+    reopened = Bucket.open(tmp_path / "bucket")
+    loaded = reopened.get(Note, note.id)
+    assert isinstance(loaded, Note)
+    assert loaded.body == ["persist"]
+
+
+def test_config_persists_across_reopen(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path, block_max_bytes=32, pack_max_blocks=7)
+    bucket.close()
+    reopened = Bucket.open(tmp_path / "bucket")
+    assert reopened.config.block_max_bytes == 32
+    assert reopened.config.pack_max_blocks == 7
+
+
+def test_delete_removes_object(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = Note()
+    bucket.put(note)
+    assert bucket.delete(note.id) is True
+    with pytest.raises(ObjectNotFoundError):
+        bucket.get(Note, note.id)
+    assert bucket.delete(note.id) is False
+
+
+def test_corruption_is_detected(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = Note(body=["good"])
+    bucket.put(note)
+    checksum = bucket.catalog.block_checksum(note.id)
+    assert checksum is not None
+    location = bucket.catalog.find_content(checksum)
+    assert location is not None
+    path = bucket.packs_dir / f"{location.pack_id:06d}.pack"
+    with path.open("r+b") as handle:
+        handle.seek(location.offset)
+        handle.write(b"\xff")
+    with pytest.raises(CorruptObjectError):
+        bucket.get(Note, note.id)
+
+
+def test_decode_rebuilds_subclass() -> None:
+    note = Note(body=["x"])
+    note.title = "T"
+    decoded = Block.decode(note.encode(), id=note.id)
+    assert isinstance(decoded, Note)
+    assert decoded.title == "T"
+
+
+def test_validation_runs_on_put(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    with pytest.raises(ValueError):
+        bucket.put(Strict())
+    good = Strict(attrs={"ok": True})
+    bucket.put(good)
+    assert bucket.get(Strict, good.id).attrs == {"ok": True}
+
+
+def test_author_persists(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = Note(body=["x"])
+    note.author = "韩"
+    bucket.put(note)
+    assert bucket.get(Note, note.id).author == "韩"
+
+
+def test_block_metadata_fields(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = bucket.new(Note)
+    note.body.append("v1")
+    bucket.put(note)
+    assert note.created > 0
+    assert note.updated > 0
+    assert note.size > 0
+
+
+def test_fields_and_config_persist(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = bucket.new(Note)
+    note.title = "T"
+    note.body.append("x")
+    note.config["isolated"] = False
+    bucket.put(note)
+
+    loaded = bucket.get(Note, note.id)
+    assert loaded.size == note.size
+    assert loaded.created == note.created
+    assert loaded.updated == note.updated
+    assert loaded.config == {"isolated": False}
+
+
+def test_transaction_rolls_back(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = bucket.new(Note)
+    with pytest.raises(RuntimeError), bucket.transaction():
+        bucket.put(note)
+        raise RuntimeError("boom")
+    assert bucket.has(note.id) is False
+
+
+def test_transaction_commits(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = bucket.new(Note)
+    with bucket.transaction():
+        bucket.put(note)
+    assert bucket.has(note.id) is True
+
+
+def test_custom_table_crud(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    kv = bucket.table("kv", k="TEXT PRIMARY KEY", v="TEXT")
+    kv.insert({"k": "a", "v": "1"})
+    kv.upsert({"k": "a", "v": "2"})
+    assert kv.select(k="a")[0]["v"] == "2"
+    assert kv.count() == 1
+    kv.update({"v": "3"}, k="a")
+    assert kv.all()[0]["v"] == "3"
+    kv.delete(k="a")
+    assert kv.count() == 0
+
+
+def test_mount_builds_domain_tables(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    bucket.mount(Note)
+    notes = bucket.table("notes")
+    note = bucket.new(Note)
+    note.title = "T"
+    bucket.put(note)
+    notes.upsert({"id": note.id, "title": note.title})
+    rows = notes.select(id=note.id)
+    assert rows[0]["title"] == "T"
+    relations = bucket.table("note_relations")
+    relations.insert({"src": note.id, "dst": "other", "kind": "ref"})
+    assert relations.count() == 1
+
+
+def test_put_auto_mounts_domain_tables(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    bucket.put(bucket.new(Note))  # 首次写入即触发 Note.bind
+    names = {
+        row["name"]
+        for row in bucket.query("SELECT name FROM sqlite_master WHERE type = 'table'")
+    }
+    assert {"notes", "note_relations"} <= names
+
+
+def test_isolated_config_gets_own_pack(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = bucket.new(Note)
+    note.config["isolated"] = True
+    bucket.put(note)
+    assert bucket.catalog.count_packs() == 1
+
+    other = bucket.new(Note)
+    other.body.append("x")
+    bucket.put(other)
+    assert bucket.catalog.count_packs() == 2

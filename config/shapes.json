@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "name": "Cairn 图形集",
+  "coordinate": {
+    "origin": "center",
+    "unit": "normalized",
+    "range": [-1, 1],
+    "note": "顶点先按 [-1,1] 归一化，再乘半宽/半高；缩放 scale=0 表示原始，factor=1+scale"
+  },
+  "fields": {
+    "id": "预制编号（对应 Form / Line 枚举，落盘只存这个 int）",
+    "key": "英文键，代码引用",
+    "name": "显示名（UI）",
+    "desc": "说明（UI 提示）",
+    "gen": "生成器名，映射到 shapes.py 里的算法",
+    "params": "外置参数：key / name / type / default / min / max"
+  },
+  "shapes": [
+    {
+      "id": 0,
+      "key": "circle",
+      "name": "圆",
+      "desc": "正圆，半径取短边的一半",
+      "gen": "circle",
+      "params": []
+    },
+    {
+      "id": 1,
+      "key": "ellipse",
+      "name": "椭圆",
+      "desc": "横纵半径独立",
+      "gen": "ellipse",
+      "params": []
+    },
+    {
+      "id": 2,
+      "key": "polygon",
+      "name": "正多边形",
+      "desc": "边数可调；三角、六边、菱形等都由它出",
+      "gen": "polygon",
+      "params": [
+        {"key": "sides", "name": "边数", "type": "int", "default": 6, "min": 3, "max": 64}
+      ]
+    },
+    {
+      "id": 3,
+      "key": "trapezoid",
+      "name": "梯形",
+      "desc": "上窄下宽",
+      "gen": "trapezoid",
+      "params": [
+        {"key": "top", "name": "上底比", "type": "float", "default": 0.5, "min": 0.0, "max": 1.0}
+      ]
+    },
+    {
+      "id": 4,
+      "key": "parallelogram",
+      "name": "平行四边形",
+      "desc": "两组对边分别平行；倾斜为 0 时退化为矩形",
+      "gen": "parallelogram",
+      "params": [
+        {"key": "slant", "name": "倾斜", "type": "float", "default": 0.5, "min": -0.9, "max": 0.9}
+      ]
+    },
+    {
+      "id": 5,
+      "key": "arrow",
+      "name": "箭头",
+      "desc": "向右的指示形",
+      "gen": "arrow",
+      "params": [
+        {"key": "head", "name": "头长比", "type": "float", "default": 0.4, "min": 0.1, "max": 0.9},
+        {"key": "tail", "name": "尾宽比", "type": "float", "default": 0.5, "min": 0.05, "max": 1.0}
+      ]
+    }
+  ],
+  "lines": [
+    {"id": 0, "key": "straight", "name": "直线", "desc": "两端直连", "gen": "straight", "params": []},
+    {
+      "id": 1,
+      "key": "curve",
+      "name": "曲线",
+      "desc": "自动优化的顺滑走线",
+      "gen": "curve",
+      "params": [
+        {"key": "bend", "name": "弯曲", "type": "float", "default": 0.0, "min": -1.0, "max": 1.0}
+      ]
+    },
+    {"id": 2, "key": "arrow", "name": "箭头线", "desc": "终点带箭头", "gen": "arrow", "params": []},
+    {
+      "id": 3,
+      "key": "dashed",
+      "name": "虚线",
+      "desc": "分段直线",
+      "gen": "dashed",
+      "params": [
+        {"key": "dash", "name": "段长比", "type": "float", "default": 0.1, "min": 0.01, "max": 0.5}
+      ]
+    }
+  ]
+}

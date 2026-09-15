@@ -44,9 +44,10 @@
 | rough.js | JS | MIT | 手绘风格图形 |
 | Qt 原生 | Py/C++ | LGPL/商业 | `QTextEdit`/`QGraphicsView`；富编辑能力有限 |
 
-**建议**：数据格式用我们自己的 **substrate 片段（CBOR）**，编辑器的文档 JSON 只作**投影/输入**。
+**建议**：数据格式用我们自己的 **substrate 块列表（CBOR）**，编辑器的文档 JSON 只作**投影/输入**。
 - 富文本/块：`ProseMirror`（或 Tiptap）
-- 画布/手绘：`Excalidraw`（MIT，避开 tldraw 的许可风险）+ `perfect-freehand`
+- **逻辑图（diagram）：自造**——只存节点 + 边、布局与连线自算（`data-model.md` §5.3）；`Excalidraw` 是**自由画布**，不适合语义图。
+- 自由手绘（sketch）：`Excalidraw`（MIT，避开 tldraw 的许可风险）+ `perfect-freehand`
 - Qt 侧用 `QtWebEngine` 承载 Web 编辑器；**捕捉面保持原生**（及时性）。
 
 ---
@@ -60,7 +61,8 @@
 | Google QuickDraw / sketch-rnn | 数据/模型重 | ❌ 过重 |
 | shapely / numpy | 几何拟合、简化、规整 | ✅ 辅助 |
 
-**建议**：先实现 `$P` 模板识别（纯 Python/JS 皆可），把"歪扭 → 标准图元"跑通；精度不够再引端侧小模型。**只存识别后的形状**（见 `note-model.md` §6）。
+**建议**：先实现 `$P` 模板识别（纯 Python/JS 皆可），把"歪扭 → 标准图元"跑通；精度不够再引端侧小模型。
+注意：**sketch 存原始笔画，识别是可选增强**（不阻塞保存），识别结果只作附加产物（见 `note-model.md` §6.1）。逻辑图（diagram）不需要识别。
 
 ---
 

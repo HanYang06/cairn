@@ -8,7 +8,7 @@
 > 跨层的**数据结构总纲**（逻辑/内存态/存储态、基板、对象图）见 [`data-model.md`](./data-model.md)。
 > 访问策略 / 密钥分发 / P2P 相关内容见 [`access.md`](./access.md)。
 
-状态：**草案 v0.2**（并入 Space 层、签名版本链、可见性档位）
+状态：**草案 v0.3**（并入 Space 层、签名版本链、可见性档位；结构数据迁往权威结构库）
 
 ---
 
@@ -23,8 +23,11 @@
 
 **核心公理（相对 README 的修正）：**
 
-- 旧表述「文件是本体，SQLite 只是可重建的索引」修正为：
-  **manifest、space 记录与 chunk 是本体；SQLite 是它们的派生索引。**
+- 旧表述「文件是本体，SQLite 只是可重建的索引」修正为**双源**：
+  - **内容真源** = `pool/` 里的 manifest / space 记录 / chunk；
+  - **结构真源** = `db/structure.db`（关系 / 成员 / 标签 / 属性）——它不是派生物，**删了即丢**；
+  - `.cairn/index.db` 只是内容对象的**派生索引**，可全量重建。
+  - 详见 [`data-model.md`](./data-model.md) §4.2、§6.4。
 - 块与清单不透明、顺序无法自证；没有 manifest，chunk 就是孤儿字节。
 - **分片不等于保密**：分散只服务于去重与寻址；机密性完全由密码学提供。
 - **加密是策略，不是布尔值**：按可见性档位选择密钥机制。
@@ -59,19 +62,22 @@
 ```
 <vault>/
   cairn.toml                       # 明文：版本、库 ID、KDF 参数、封装 MK、算法参数
-  pool/
+  pool/                            # 内容真源（对象池）
     spaces/<space_id>              # 空间记录（CBOR，加密）：可见性、成员、封装后的 SK
     chunks/<cid[:2]>/<cid>         # 块密文，文件名 = CID
     objects/<oid[:2]>/<oid>        # 当前（head）信封：明文 space_id + 密封的 manifest
     manifests/<h[:2]>/<h>          # 历史 manifest 密文（不可变），h = BLAKE3(密文)
-  .cairn/                          # 全可删可重建
-    index.sqlite
+  db/
+    structure.db                   # 结构真源（关系/成员/标签/属性），半加密，不可重建
+  .cairn/                          # 仅派生，全可删可重建
+    index.db                       # 内容对象索引（由 pool/ 派生）
     cache/  logs/
   .lock                            # 单写者锁
 ```
 
 - 分片深度 1 级（`[:2]`，256 桶）起步，桶满可在后续版本升 2 级（需迁移）。
 - 文件名只含 **CID / OID / 内容哈希 / ULID**，**不含任何明文**。
+- `db/` 与 `.cairn/` 分开是**语义分区**（不是安全边界）：`.cairn/` 是"可删可重建"，`db/structure.db` 是权威——清理 / 重建**只允许碰 `.cairn/`**。
 
 ---
 
@@ -190,7 +196,12 @@ AEAD：**ChaCha20-Poly1305**（12B 随机 nonce，16B tag）。
 
 ---
 
-## 9. 索引（SQLite，可重建）
+## 9. 数据库
+
+数据库分两类，物理上分文件：**派生索引 `index.db`（可重建）** 与 **权威结构库 `structure.db`（不可重建）**。
+由多库管理器统一打开——未来 P2P 连接时可把"涌入的索引流量"与结构库隔离，互不锁。
+
+### 9.1 派生索引（`.cairn/index.db`，可重建）
 
 解锁后遍历 `pool/objects/**` → 验签/解密 manifest 构建。明文、仅本地。
 
@@ -201,13 +212,30 @@ objects(oid PK, space_id, type, mime, size, created, updated,
 obj_tags(oid, tag, PRIMARY KEY(oid, tag))
 obj_chunks(oid, idx, cid, size, PRIMARY KEY(oid, idx))
 chunks(cid PK, size, refcount)          -- refcount 派生缓存，非权威
-links(src_oid, dst_oid, kind)           -- 预留：双链/引用
 meta(key PK, value)                     -- index_format_version, built_at ...
 search_fts(oid, body)                   -- FTS5，供可提取纯文本的对象
 ```
 
-- 全量重建是恢复兜底；增量在**写入路径**即时维护（put/delete 直接更新受影响对象及其引用计数）。
+- 全量重建是恢复兜底；增量在**写入路径**即时维护。
 - 索引与磁盘冲突时，以磁盘 manifest 为准。
+- **所有表都可删可重建**；这里不放任何"唯一一份"的数据。
+
+### 9.2 结构库（`db/structure.db`，权威，半加密）
+
+关系 / 成员 / 标签 / 属性是**结构数据，不是对象**（见 [`data-model.md`](./data-model.md) §4.2、§6.4）。
+它们以**一等行**落在这里，**删了即丢，不可由 `pool/` 重建**。
+
+```sql
+relations(src_oid, dst_oid, kind, author, at, value_enc, value_hash)  -- 一等边，带署名
+members(project_oid, member_oid, kind)                                -- 项目成员
+tags(oid, tag_enc, tag_hash)
+props(oid, key_enc, key_hash, value_enc)
+```
+
+- **半加密**：OID / 边用**明文**（ULID 是随机串，不泄语义）；带语义的值（标签 / 标题 / `props` 文本）用空间 `meta_key` **AEAD 加密**。
+- **等值查询**：加密列另存 `keyed_hash(meta_key, value)` 列，支持等值匹配、不露明文；**不做**范围 / 模糊查询（结构数据本以等值和连接为主）。
+- **整库加密（SQLCipher）** 作为可替换的**薄层**另研，**不与半加密叠加**（二选一；加密收在一层后面，换实现不改业务）。
+- 结构库不参与对象 GC。
 
 ---
 
@@ -289,9 +317,10 @@ search_fts(oid, body)                   -- FTS5，供可提取纯文本的对象
 1. 分片深度与阈值。
 2. 历史 manifest 的保留策略（全留 / N 版 / 时间窗）。
 3. 系统钥匙串缓存 MK 的默认开关。
-4. 小对象 packfile 合并的必要性与时机。
-5. FTS 文本提取契约（依赖 L3）。
-6. 空间密钥轮换（epoch）对旧块的处理策略（重加密 vs 懒重封装）。
+4. FTS 文本提取契约（依赖 L3）。
+5. 结构库的整库加密（SQLCipher）取舍与许可核实。
+6. 结构库 `keyed_hash` 列的具体设计（哪些列需要等值查询）。
+7. 内容对象的远期物理打包（pack）——结构不再做对象后已不紧迫。
 
 ---
 

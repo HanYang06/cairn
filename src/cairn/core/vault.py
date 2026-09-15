@@ -1,413 +1,157 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""Vault：Core 的唯一公共入口。
+"""Vault：应用级门面，架在新存储（``Bucket`` / ``Block``）之上。
 
-对外只暴露一个门面与一套极简动词：create/load/unlock/lock、
-put/open/info/delete/iter、space/create_space。所有内容都是对象。
+本层**不再有本地加密、空间、清单、分块**——那些都归入桶与块；
+这里只把「对象」这个概念翻译成块，并提供检索与领域要用的查询。
+
+- 对象 = 块（``Block``）：正文进 ``body``，标题 / 标签 / props 进 ``attrs``。
+- 内容按 checksum 去重；对象身份是稳定 id。
+- 版本不属于块：本门面只提供"当前版本"占位，具体版本策略留给领域层。
 """
 
 from __future__ import annotations
 
-import base64
-import contextlib
 import io
-import os
-import secrets
-import shutil
-import tempfile
-import tomllib
-from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, replace
+from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, BinaryIO
+from typing import Any, BinaryIO
 
-import tomli_w
-from blake3 import blake3
-
-from ..conf import (
-    DEFAULT_SPACE as _DEFAULT_SPACE,
-)
-from ..conf import (
-    TOML_NAME as _TOML_NAME,
-)
-from ..conf import (
-    VAULT_META_CONTEXT as _CTX_VAULT_META,
-)
-from ..conf import (
-    VERSION_WINDOW_MS as _VERSION_WINDOW_MS,
-)
-from .crypto import (
-    ARGON2_MEMORY_COST,
-    ARGON2_PARALLELISM,
-    ARGON2_TIME_COST,
-    KEY_LEN,
-    SALT_LEN,
-    Identity,
-    derive_kek,
-    derive_subkey,
-    keyed_hash,
-    new_master_key,
-    seal,
-    unseal,
-)
 from .events import (
     Event,
     EventBus,
     Handler,
     ObjectDeleted,
     ObjectPut,
-    SpaceCreated,
     Subscription,
-    VaultLocked,
-    VaultUnlocked,
 )
-from .storage.chunker import Chunk, Source, iter_chunks
-from .storage.codec import (
-    FORMAT_VERSION,
-    chunk_aad,
-    decode_cbor,
-    encode_cbor,
-    manifest_aad,
-    pack_record,
-    unpack_record,
-)
-from .storage.manifest import Manifest, sign_manifest, verify_manifest
-from .storage.pool import Pool, atomic_write, prune_empty_dirs
+from .store import Block, Bucket
 from .types import (
-    AuthError,
-    ChunkRef,
-    Cid,
-    CorruptObjectError,
     ObjectInfo,
     ObjectNotFoundError,
     Oid,
     Space,
     SpaceId,
     SpaceNotFoundError,
-    VaultError,
-    VaultLockedError,
     VerifyReport,
     VersionInfo,
     Visibility,
     now_ms,
 )
 
-if TYPE_CHECKING:
-    from .storage.index import Index
+DEFAULT_SPACE = "default"
+_SpaceName = str
 
-def _space_contexts(space_id: SpaceId) -> tuple[str, str, str]:
-    base = f"cairn/v1/space/{space_id}"
-    return (
-        f"{base}/chunk-address",
-        f"{base}/chunk-data",
-        f"{base}/manifest-data",
-    )
+Source = bytes | bytearray | memoryview | str | Path | BinaryIO
 
 
-def _b64(data: bytes) -> str:
-    return base64.b64encode(data).decode("ascii")
+class _PoolShim:
+    """兼容旧调用点：``vault.pool.iter_object_ids()``。"""
 
+    def __init__(self, vault: Vault) -> None:
+        self._vault = vault
 
-def _unb64(text: str) -> bytes:
-    return base64.b64decode(text.encode("ascii"))
-
-
-@dataclass(frozen=True, slots=True)
-class _SpaceKeys:
-    space: Space
-    secret: bytes
-    addr_key: bytes
-    data_key: bytes
-    meta_key: bytes
-
-    @classmethod
-    def from_secret(cls, space: Space, secret: bytes) -> _SpaceKeys:
-        addr_ctx, data_ctx, meta_ctx = _space_contexts(space.space_id)
-        return cls(
-            space=space,
-            secret=secret,
-            addr_key=derive_subkey(secret, addr_ctx),
-            data_key=derive_subkey(secret, data_ctx),
-            meta_key=derive_subkey(secret, meta_ctx),
-        )
-
-
-class _ObjectReader(io.RawIOBase):
-    """按需解密块的只读流。"""
-
-    def __init__(self, refs: list[ChunkRef], fetch: Any) -> None:
-        self._refs = refs
-        self._fetch = fetch
-        self._index = 0
-        self._buffer = b""
-        self._offset = 0
-
-    def readable(self) -> bool:
-        return True
-
-    def readinto(self, target: Any) -> int:
-        while self._offset >= len(self._buffer):
-            if self._index >= len(self._refs):
-                return 0
-            self._buffer = self._fetch(self._refs[self._index])
-            self._index += 1
-            self._offset = 0
-        count = min(len(target), len(self._buffer) - self._offset)
-        target[:count] = self._buffer[self._offset : self._offset + count]
-        self._offset += count
-        return count
-
-
-def _iter_source(src: Source | BinaryIO) -> Iterator[Chunk]:
-    """字节/路径直接分块；其余流先落临时文件再经 mmap 分块，避免整块进内存。"""
-    if isinstance(src, (bytes, bytearray, memoryview, str, Path)):
-        yield from iter_chunks(src)
-        return
-    with tempfile.NamedTemporaryFile(delete=False) as handle:
-        name = handle.name
-        shutil.copyfileobj(src, handle)
-    try:
-        yield from iter_chunks(name)
-    finally:
-        with contextlib.suppress(FileNotFoundError):
-            os.unlink(name)
-
-
-def _envelope(space_id: SpaceId, sealed_manifest: bytes) -> bytes:
-    return pack_record(
-        encode_cbor(
-            {
-                "v": FORMAT_VERSION,
-                "space_id": str(space_id),
-                "manifest": sealed_manifest,
-            }
-        )
-    )
-
-
-def _open_envelope(blob: bytes) -> tuple[SpaceId, bytes]:
-    raw = decode_cbor(unpack_record(blob))
-    try:
-        return SpaceId.parse(raw["space_id"]), raw["manifest"]
-    except (KeyError, TypeError, ValueError) as exc:
-        raise CorruptObjectError("对象信封解析失败") from exc
+    def iter_object_ids(self) -> Iterator[Oid]:
+        return self._vault.iter_object_ids()
 
 
 class Vault:
-    """本地加密对象池的门面。"""
+    """应用级门面：对象进、对象出。"""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path | str, bucket: Bucket) -> None:
         self.root = Path(root)
-        self.pool = Pool(self.root / "pool")
-        self._header: dict[str, Any] = {}
-        self._master_key: bytes | None = None
-        self._vault_key: bytes | None = None
-        self._identity: Identity | None = None
-        self._spaces: dict[str, _SpaceKeys] = {}
-        self._by_id: dict[SpaceId, _SpaceKeys] = {}
-        self._index: Index | None = None
+        self.bucket = bucket
+        self.pool = _PoolShim(self)
         self._events = EventBus()
+        self._search = bucket.table("search", oid="TEXT PRIMARY KEY", body="TEXT")
+        self._space = self._load_space()
 
+    # ---- 生命周期 ----
     @classmethod
-    def create(cls, path: Path | str, passphrase: str) -> Vault:
+    def create(cls, path: Path | str, passphrase: str | None = None) -> Vault:
+        del passphrase
         root = Path(path)
-        toml_path = root / _TOML_NAME
-        if toml_path.exists():
-            raise VaultError(f"库已存在: {root}")
-        root.mkdir(parents=True, exist_ok=True)
-        vault = cls(root)
-        vault.pool.ensure()
-
-        master = new_master_key()
-        salt = secrets.token_bytes(SALT_LEN)
-        kek = derive_kek(passphrase, salt)
-        vault_key = derive_subkey(master, _CTX_VAULT_META)
-        identity = Identity.generate()
-
-        header = {
-            "format_version": FORMAT_VERSION,
-            "vault_id": str(Oid.new()),
-            "created": now_ms(),
-            "kdf": {
-                "algo": "argon2id",
-                "salt": _b64(salt),
-                "time_cost": ARGON2_TIME_COST,
-                "memory_cost": ARGON2_MEMORY_COST,
-                "parallelism": ARGON2_PARALLELISM,
-            },
-            "wrap": {"algo": "chacha20poly1305", "blob": _b64(seal(kek, master))},
-            "identity": {
-                "sign": _b64(seal(vault_key, identity.sign_seed)),
-                "kex": _b64(seal(vault_key, identity.kex_seed)),
-            },
-        }
-
-        vault._header = header
-        vault._master_key = master
-        vault._vault_key = vault_key
-        vault._identity = identity
-        from .storage.index import Index
-
-        vault._index = Index(vault.root / ".cairn" / "index.sqlite")
-        vault._create_space(_DEFAULT_SPACE, Visibility.PRIVATE)
-        atomic_write(toml_path, tomli_w.dumps(header).encode("utf-8"))
-        return vault
+        bucket = Bucket.create(root)
+        bucket.catalog.set_meta("space_id", str(SpaceId.new()))
+        bucket.catalog.set_meta("space_created", str(now_ms()))
+        bucket.commit()
+        return cls(root, bucket)
 
     @classmethod
     def load(cls, path: Path | str) -> Vault:
         root = Path(path)
-        toml_path = root / _TOML_NAME
-        if not toml_path.is_file():
-            raise VaultError(f"不是有效的 Cairn 库: {root}")
-        vault = cls(root)
-        with toml_path.open("rb") as handle:
-            vault._header = tomllib.load(handle)
-        if vault._header.get("format_version") != FORMAT_VERSION:
-            raise VaultError("库格式版本不受支持")
-        return vault
+        return cls(root, Bucket.open(root))
 
-    def unlock(self, passphrase: str) -> None:
-        if not self._header:
-            raise VaultError("库未加载")
-        kdf = self._header["kdf"]
-        kek = derive_kek(
-            passphrase,
-            _unb64(kdf["salt"]),
-            time_cost=kdf["time_cost"],
-            memory_cost=kdf["memory_cost"],
-            parallelism=kdf["parallelism"],
-        )
-        master = unseal(kek, _unb64(self._header["wrap"]["blob"]))
-        vault_key = derive_subkey(master, _CTX_VAULT_META)
-        identity = self._header["identity"]
-        self._master_key = master
-        self._vault_key = vault_key
-        self._identity = Identity(
-            sign_seed=unseal(vault_key, _unb64(identity["sign"])),
-            kex_seed=unseal(vault_key, _unb64(identity["kex"])),
-        )
-        self._load_spaces()
-        from .storage.index import Index
-
-        self._index = Index(self.root / ".cairn" / "index.sqlite")
-        for keys in self._spaces.values():
-            self._index.add_space(keys.space)
-        self._index.commit()
-        self._events.emit(VaultUnlocked(vault_id=self._vault_id()))
+    def unlock(self, passphrase: str | None = None) -> None:
+        del passphrase
 
     def lock(self) -> None:
-        vault_id = self._vault_id()
-        if self._index is not None:
-            self._index.close()
-            self._index = None
-        self._master_key = None
-        self._vault_key = None
-        self._identity = None
-        self._spaces.clear()
-        self._by_id.clear()
-        self._events.emit(VaultLocked(vault_id=vault_id))
-
-    def subscribe(
-        self,
-        handler: Handler,
-        event_type: type[Event] = Event,
-    ) -> Subscription:
-        """订阅内核事件；返回可取消的句柄。"""
-        return self._events.subscribe(handler, event_type)
-
-    def _vault_id(self) -> str:
-        return str(self._header.get("vault_id", ""))
+        return None
 
     @property
     def is_locked(self) -> bool:
-        return self._master_key is None
+        return False
 
+    def close(self) -> None:
+        self.bucket.close()
+
+    # ---- 空间（已收敛为单一默认空间，保留签名）----
     def spaces(self) -> list[Space]:
-        return [keys.space for keys in self._spaces.values()]
+        return [self._space]
 
-    def space(self, name: str = _DEFAULT_SPACE) -> Space:
-        return self._keys(name).space
+    def space(self, name: _SpaceName = DEFAULT_SPACE) -> Space:
+        if name != DEFAULT_SPACE:
+            raise SpaceNotFoundError(name)
+        return self._space
 
-    def create_space(self, name: str, visibility: Visibility = Visibility.PRIVATE) -> Space:
-        self._require_unlocked()
-        if name in self._spaces:
-            raise VaultError(f"空间已存在: {name}")
-        return self._create_space(name, visibility).space
+    # ---- 事件 ----
+    def subscribe(self, handler: Handler, event_type: type[Event] = Event) -> Subscription:
+        return self._events.subscribe(handler, event_type)
 
+    # ---- 写 ----
     def put(
         self,
-        src: Source | BinaryIO,
+        src: Source,
         *,
-        space: str | SpaceId = _DEFAULT_SPACE,
+        space: _SpaceName | SpaceId = DEFAULT_SPACE,
         type: str = "blob",
         mime: str | None = None,
         meta: dict[str, Any] | None = None,
         oid: Oid | str | None = None,
         search_text: str | None = None,
     ) -> Oid:
-        self._require_unlocked()
-        if self._identity is None:
-            raise VaultLockedError("库已锁定")
-        keys = self._resolve_keys(space)
-
-        previous: Manifest | None = None
+        del space
+        payload = _read_source(src)
+        attrs: dict[str, Any] = dict(meta or {})
+        if mime is not None:
+            attrs["mime"] = mime
+        created = oid is None
         if oid is not None:
-            new_oid = Oid.parse(str(oid))
-            previous = self._try_load_manifest(new_oid)
-            if previous is not None and previous.space_id != keys.space.space_id:
-                raise VaultError("对象已存在于其他空间")
+            target = str(oid)
+            try:
+                block = self.bucket.get(Block, target)
+            except ObjectNotFoundError:
+                block = Block(body=payload, attrs=attrs, type=type)
+            else:
+                block.body = payload
+                block.attrs = attrs
+                block.type = type
         else:
-            new_oid = Oid.new()
-
-        total = 0
-        refs: list[ChunkRef] = []
-        for chunk in _iter_source(src):
-            total += len(chunk.data)
-            cid = Cid.from_digest(keyed_hash(keys.addr_key, chunk.data))
-            if not self.pool.has_chunk(cid):
-                sealed = seal(keys.data_key, chunk.data, chunk_aad())
-                self.pool.write_chunk(cid, pack_record(sealed))
-            refs.append(ChunkRef(cid=cid, size=len(chunk.data)))
-
-        timestamp = now_ms()
-        archive_blob: bytes | None = None
-        prev_hash: str | None = None
-        if previous is not None:
-            archive_blob = self.pool.read_object(new_oid)
-            prev_hash = blake3(archive_blob).hexdigest()
-
-        manifest = Manifest(
-            oid=new_oid,
-            space_id=keys.space.space_id,
-            type=type,
-            mime=mime,
-            size=total,
-            created=previous.created if previous is not None else timestamp,
-            updated=timestamp,
-            chunks=tuple(refs),
-            meta=dict(meta or {}),
-            seq=(previous.seq + 1) if previous is not None else 1,
-            prev=prev_hash,
-            author=b"",
-            sig=b"",
-        )
-        signed = sign_manifest(manifest, self._identity)
-        sealed_manifest = seal(keys.meta_key, signed.to_cbor(), manifest_aad(new_oid))
-        if archive_blob is not None and prev_hash is not None:
-            self.pool.write_manifest(prev_hash, archive_blob)
-        self.pool.write_object(new_oid, _envelope(keys.space.space_id, sealed_manifest))
-        self._index_add(signed, previous, search_text)
+            block = Block(body=payload, attrs=attrs, type=type)
+        self.bucket.put(block)
+        self._set_search(block.id, search_text)
+        result = Oid.parse(block.id)
         self._events.emit(
             ObjectPut(
-                oid=new_oid,
-                space_id=keys.space.space_id,
+                oid=result,
+                space_id=self._space.space_id,
                 type=type,
-                seq=signed.seq,
-                created=previous is None,
+                seq=1,
+                created=created,
             )
         )
-        return new_oid
+        return result
 
     def put_meta(
         self,
@@ -416,370 +160,199 @@ class Vault:
         meta: dict[str, Any] | None = None,
         search_text: str | None = None,
     ) -> Oid:
-        """只改元数据（标题 / 标签 / props）：不新增版本、不动块，仅重签当前 head。"""
-        self._require_unlocked()
-        if self._identity is None:
-            raise VaultLockedError("库已锁定")
-        target = Oid.parse(str(oid))
-        keys, current = self._load_manifest(target)
-        merged = dict(current.meta or {})
+        target = str(oid)
+        block = self.bucket.get(Block, target)
+        merged = dict(block.attrs)
         if meta:
             merged.update(meta)
-        manifest = replace(current, updated=now_ms(), meta=merged)
-        signed = sign_manifest(manifest, self._identity)
-        sealed = seal(keys.meta_key, signed.to_cbor(), manifest_aad(target))
-        self.pool.write_object(target, _envelope(keys.space.space_id, sealed))
-        if self._index is not None:
-            self._index.update_meta(signed, search_text=search_text)
-            self._index.commit()
-        return target
+        block.attrs = merged
+        self.bucket.put(block)
+        self._set_search(target, search_text)
+        return Oid.parse(target)
 
-    def open(self, oid: Oid | str) -> io.RawIOBase:
-        self._require_unlocked()
-        target = Oid.parse(str(oid))
-        keys, manifest = self._load_manifest(target)
-        return _ObjectReader(list(manifest.chunks), lambda ref: self._fetch(keys, ref))
-
-    def info(self, oid: Oid | str) -> ObjectInfo:
-        self._require_unlocked()
-        target = Oid.parse(str(oid))
-        _, manifest = self._load_manifest(target)
-        return _manifest_info(manifest)
-
-    def meta(self, oid: Oid | str) -> dict[str, Any]:
-        """返回对象的完整 meta（含领域扩展域 props）。"""
-        self._require_unlocked()
-        target = Oid.parse(str(oid))
-        _, manifest = self._load_manifest(target)
-        return dict(manifest.meta or {})
+    def put_block(self, block: Block, *, search_text: str | None = None) -> Block:
+        """存储一个块（含领域块），可选更新其检索文本。"""
+        self.bucket.put(block)
+        self._set_search(block.id, search_text)
+        return block
 
     def delete(self, oid: Oid | str) -> None:
-        self._require_unlocked()
-        target = Oid.parse(str(oid))
-        existed = self.pool.object_path(target).is_file()
-        self.pool.delete_object(target)
-        if self._index is not None:
-            self._index.remove(target)
-            self._index.commit()
-        if existed:
-            self._events.emit(ObjectDeleted(oid=target))
+        target = str(oid)
+        if self.bucket.delete(target):
+            self._search.delete(oid=target)
+            self.bucket.commit()
+            self._events.emit(ObjectDeleted(oid=Oid.parse(target)))
+
+    # ---- 读 ----
+    def open(self, oid: Oid | str) -> io.BytesIO:
+        return io.BytesIO(self._read_body(oid))
+
+    def read(self, oid: Oid | str) -> bytes:
+        return self._read_body(oid)
+
+    def info(self, oid: Oid | str) -> ObjectInfo:
+        return self._info(self.bucket.get(Block, str(oid)))
+
+    def meta(self, oid: Oid | str) -> dict[str, Any]:
+        return dict(self.bucket.get(Block, str(oid)).attrs)
 
     def iter(
         self,
         *,
-        space: str | SpaceId | None = None,
+        space: _SpaceName | SpaceId | None = None,
         type: str | None = None,
-        tags: Iterable[str] | None = None,
-    ) -> Any:
-        self._require_unlocked()
-        wanted_space = self._resolve_keys(space).space.space_id if space is not None else None
-        wanted_tags = set(tags or ())
-        for oid in self.pool.iter_object_ids():
-            _, manifest = self._load_manifest(oid)
-            if wanted_space is not None and manifest.space_id != wanted_space:
+        tags: Iterable[str] | Mapping[str, Any] | None = None,
+    ) -> Iterator[ObjectInfo]:
+        del space
+        wanted = _wanted_tags(tags)
+        for block_id in self.bucket.iter_block_ids():
+            block = self.bucket.get(Block, block_id)
+            if type is not None and block.type != type:
                 continue
-            if type is not None and manifest.type != type:
-                continue
-            info = _manifest_info(manifest)
-            if wanted_tags and not wanted_tags <= set(info.tags):
+            info = self._info(block)
+            if wanted and not _matches_tags(info.tags, wanted):
                 continue
             yield info
 
-    def iter_manifests(self) -> Iterator[Manifest]:
-        self._require_unlocked()
-        for oid in self.pool.iter_object_ids():
-            _, manifest = self._load_manifest(oid)
-            yield manifest
+    def iter_object_ids(self) -> Iterator[Oid]:
+        for block_id in self.bucket.iter_block_ids():
+            yield Oid.parse(block_id)
 
-    # ---- 版本历史 ----
-    def _version_chain(self, oid: Oid) -> list[Manifest]:
-        """当前版本在前，沿 prev 归档链回溯（缺档即止）。"""
-        _, manifest = self._load_manifest(oid)
-        chain = [manifest]
-        guard = 0
-        while manifest.prev:
-            try:
-                blob = self.pool.read_manifest(manifest.prev)
-            except FileNotFoundError:
-                break
-            manifest = self._manifest_from_envelope(manifest.oid, blob)
-            chain.append(manifest)
-            guard += 1
-            if guard > 100_000:
-                break
-        return chain
-
+    # ---- 版本（占位：块不管版本，具体策略留给领域层）----
     def versions(self, oid: Oid | str) -> list[VersionInfo]:
-        self._require_unlocked()
-        target = Oid.parse(str(oid))
-        chain = self._version_chain(target)
+        block = self.bucket.get(Block, str(oid))
+        body = block.body
+        size = len(body) if isinstance(body, (bytes, bytearray)) else block.size
         return [
             VersionInfo(
-                seq=m.seq,
-                updated=m.updated,
-                size=m.size,
-                is_current=(index == 0),
-                author=m.author.hex(),
+                seq=1,
+                updated=block.updated,
+                size=size,
+                is_current=True,
+                author=str(block.attrs.get("author") or ""),
             )
-            for index, m in enumerate(chain)
         ]
 
     def read_version(self, oid: Oid | str, seq: int) -> bytes:
-        self._require_unlocked()
-        target = Oid.parse(str(oid))
-        keys, _ = self._load_manifest(target)
-        manifest = next((m for m in self._version_chain(target) if m.seq == seq), None)
-        if manifest is None:
-            raise ObjectNotFoundError(f"版本不存在: {target}@{seq}")
-        return b"".join(self._fetch(keys, ref) for ref in manifest.chunks)
+        if seq != 1:
+            raise ObjectNotFoundError(f"版本不存在: {oid}@{seq}")
+        return self._read_body(oid)
 
     def restore_version(self, oid: Oid | str, seq: int) -> Oid:
-        """把某个历史版本的内容作为新版本写回（线性历史继续向前）。"""
-        self._require_unlocked()
-        target = Oid.parse(str(oid))
-        current = self._load_manifest(target)[1]
-        if current.seq == seq:
-            return target
-        blob = self.read_version(target, seq)
-        return self.put(
-            blob,
-            space=current.space_id,
-            type=current.type,
-            mime=current.mime,
-            meta=dict(current.meta or {}),
-            oid=target,
-        )
+        if seq != 1:
+            raise ObjectNotFoundError(f"版本不存在: {oid}@{seq}")
+        return Oid.parse(str(oid))
 
     # ---- 检索 ----
     def search(self, query: str) -> list[Oid]:
-        self._require_unlocked()
-        if self._index is None:
+        query = query.strip()
+        if not query:
             return []
-        return [Oid.parse(oid) for oid in self._index.search(query)]
+        rows = self.bucket.query("SELECT oid FROM search WHERE body LIKE ?", (f"%{query}%",))
+        return [Oid.parse(str(row["oid"])) for row in rows]
 
     def index_is_empty(self) -> bool:
-        self._require_unlocked()
-        return self._index is None or self._index.count("objects") == 0
+        return self._search.count() == 0
 
     def rebuild_index(self, *, text_of: Any = None) -> int:
-        self._require_unlocked()
-        from .storage.index import Index
+        rows = self.bucket.query("SELECT oid FROM search")
+        for row in rows:
+            self._search.delete(oid=str(row["oid"]))
+        count = 0
+        for block_id in self.bucket.iter_block_ids():
+            block = self.bucket.get(Block, block_id)
+            info = self._info(block)
+            text = text_of(info) if text_of is not None else None
+            if text:
+                self._search.insert({"oid": block_id, "body": text})
+            count += 1
+        self.bucket.commit()
+        return count
 
-        if self._index is None:
-            self._index = Index(self.root / ".cairn" / "index.sqlite")
-        return self._index.rebuild(self, text_of=text_of)
-
+    # ---- 维护 ----
     def gc(self, *, retention_ms: int | None = None) -> int:
-        """标记清除：保留 head 及其时间窗内的历史，回收其余块与归档。"""
-        self._require_unlocked()
-        window = _VERSION_WINDOW_MS if retention_ms is None else retention_ms
-        cutoff = now_ms() - window
-        live_cids: set[str] = set()
-        live_archives: set[str] = set()
-
-        for oid in self.pool.iter_object_ids():
-            try:
-                blob = self.pool.read_object(oid)
-            except FileNotFoundError:
-                continue
-            self._collect_chain(
-                self._manifest_from_envelope(oid, blob), live_cids, live_archives, cutoff
-            )
-
-        for digest in list(self.pool.iter_manifest_digests()):
-            if digest not in live_archives:
-                self.pool.delete_manifest(digest)
-
-        removed = 0
-        for cid in list(self.pool.iter_chunk_cids()):
-            if str(cid) not in live_cids:
-                self.pool.delete_chunk(cid)
-                removed += 1
-        prune_empty_dirs(self.pool.chunks_dir)
-        prune_empty_dirs(self.pool.manifests_dir)
-        return removed
+        del retention_ms
+        return 0
 
     def verify(self, *, deep: bool = False) -> VerifyReport:
-        """巡检：验签 manifest、查缺失块；``deep`` 时解密并重算每块 CID。"""
-        self._require_unlocked()
-        objects = 0
-        chunks = 0
+        del deep
         problems: list[str] = []
-        for oid in self.pool.iter_object_ids():
+        ids = list(self.bucket.iter_block_ids())
+        for block_id in ids:
             try:
-                keys, manifest = self._load_manifest(oid)
-            except Exception as exc:
-                problems.append(f"{oid}: {exc}")
-                continue
-            objects += 1
-            for ref in manifest.chunks:
-                if not self.pool.has_chunk(ref.cid):
-                    problems.append(f"{oid}: 缺块 {ref.cid}")
-                    continue
-                if deep:
-                    try:
-                        self._fetch(keys, ref)
-                        chunks += 1
-                    except Exception as exc:
-                        problems.append(f"{oid}: 块校验失败 {ref.cid}: {exc}")
-        return VerifyReport(objects=objects, chunks=chunks, problems=tuple(problems))
+                self.bucket.get(Block, block_id)
+            except Exception as exc:  # 巡检要收集所有问题
+                problems.append(f"{block_id}: {exc}")
+        return VerifyReport(objects=len(ids), chunks=0, problems=tuple(problems))
 
-    def _collect_chain(
-        self,
-        manifest: Manifest,
-        live_cids: set[str],
-        live_archives: set[str],
-        cutoff: int,
-    ) -> None:
-        while True:
-            live_cids.update(str(ref.cid) for ref in manifest.chunks)
-            prev = manifest.prev
-            if not prev:
-                return
-            try:
-                blob = self.pool.read_manifest(prev)
-            except FileNotFoundError:
-                return
-            parent = self._manifest_from_envelope(manifest.oid, blob)
-            if parent.updated < cutoff:
-                return
-            live_archives.add(prev)
-            manifest = parent
+    # ---- 内部 ----
+    def _read_body(self, oid: Oid | str) -> bytes:
+        body = self.bucket.get(Block, str(oid)).body
+        return bytes(body) if not isinstance(body, bytes) else body
 
-    def _index_add(
-        self,
-        manifest: Manifest,
-        previous: Manifest | None,
-        search_text: str | None = None,
-    ) -> None:
-        if self._index is None:
-            return
-        try:
-            mtime = int(self.pool.object_path(manifest.oid).stat().st_mtime * 1000)
-        except OSError:
-            mtime = None
-        self._index.add(manifest, mtime_ms=mtime, previous=previous, search_text=search_text)
-        self._index.commit()
-
-    def _create_space(self, name: str, visibility: Visibility) -> _SpaceKeys:
-        assert self._vault_key is not None
-        space_id = SpaceId.new()
-        secret = secrets.token_bytes(KEY_LEN)
-        created = now_ms()
-        record = {
-            "v": FORMAT_VERSION,
-            "space_id": str(space_id),
-            "name": name,
-            "visibility": visibility.value,
-            "created": created,
-            "key_epoch": 1,
-            "secret": secret,
-        }
-        blob = pack_record(seal(self._vault_key, encode_cbor(record)))
-        atomic_write(self.pool.spaces_dir / str(space_id), blob)
-        keys = _SpaceKeys.from_secret(
-            Space(space_id=space_id, name=name, visibility=visibility, created=created),
-            secret,
+    def _info(self, block: Block) -> ObjectInfo:
+        attrs = block.attrs
+        body = block.body
+        size = len(body) if isinstance(body, (bytes, bytearray)) else block.size
+        return ObjectInfo(
+            oid=Oid.parse(block.id),
+            space_id=self._space.space_id,
+            type=block.type,
+            mime=attrs.get("mime"),
+            size=size,
+            created=block.created,
+            updated=block.updated,
+            title=attrs.get("title"),
+            tags=block.tags,
+            seq=1,
+            author=str(attrs.get("author") or ""),
         )
-        self._spaces[name] = keys
-        self._by_id[space_id] = keys
-        if self._index is not None:
-            self._index.add_space(keys.space)
-            self._index.commit()
-        self._events.emit(SpaceCreated(space=keys.space))
-        return keys
 
-    def _load_spaces(self) -> None:
-        assert self._vault_key is not None
-        self._spaces.clear()
-        self._by_id.clear()
-        if not self.pool.spaces_dir.exists():
-            return
-        for entry in self.pool.spaces_dir.iterdir():
-            if not entry.is_file() or entry.name.startswith(".tmp-"):
-                continue
-            record = decode_cbor(unseal(self._vault_key, unpack_record(entry.read_bytes())))
-            space = Space(
-                space_id=SpaceId.parse(record["space_id"]),
-                name=record["name"],
-                visibility=Visibility(record["visibility"]),
-                created=record["created"],
-            )
-            keys = _SpaceKeys.from_secret(space, record["secret"])
-            self._spaces[space.name] = keys
-            self._by_id[space.space_id] = keys
+    def _set_search(self, block_id: str, search_text: str | None) -> None:
+        self._search.delete(oid=block_id)
+        if search_text:
+            self._search.insert({"oid": block_id, "body": search_text})
+        self.bucket.commit()
 
-    def _keys(self, name: str) -> _SpaceKeys:
-        self._require_unlocked()
-        try:
-            return self._spaces[name]
-        except KeyError as exc:
-            raise SpaceNotFoundError(name) from exc
-
-    def _keys_by_id(self, space_id: SpaceId) -> _SpaceKeys:
-        try:
-            return self._by_id[space_id]
-        except KeyError as exc:
-            raise SpaceNotFoundError(str(space_id)) from exc
-
-    def _resolve_keys(self, space: str | SpaceId) -> _SpaceKeys:
-        if isinstance(space, SpaceId):
-            return self._keys_by_id(space)
-        return self._keys(space)
-
-    def _load_manifest(self, oid: Oid) -> tuple[_SpaceKeys, Manifest]:
-        try:
-            blob = self.pool.read_object(oid)
-        except FileNotFoundError as exc:
-            raise ObjectNotFoundError(str(oid)) from exc
-        manifest = self._manifest_from_envelope(oid, blob)
-        return self._keys_by_id(manifest.space_id), manifest
-
-    def _try_load_manifest(self, oid: Oid) -> Manifest | None:
-        try:
-            return self._load_manifest(oid)[1]
-        except ObjectNotFoundError:
-            return None
-
-    def _manifest_from_envelope(self, oid: Oid, blob: bytes) -> Manifest:
-        space_id, sealed = _open_envelope(blob)
-        keys = self._keys_by_id(space_id)
-        manifest = Manifest.from_cbor(unseal(keys.meta_key, sealed, manifest_aad(oid)))
-        if not verify_manifest(manifest):
-            raise CorruptObjectError(f"manifest 签名无效: {oid}")
-        return manifest
-
-    def _fetch(self, keys: _SpaceKeys, ref: ChunkRef) -> bytes:
-        try:
-            blob = self.pool.read_chunk(ref.cid)
-        except FileNotFoundError as exc:
-            raise CorruptObjectError(f"块缺失: {ref.cid}") from exc
-        data = unseal(keys.data_key, unpack_record(blob), chunk_aad())
-        if Cid.from_digest(keyed_hash(keys.addr_key, data)) != ref.cid:
-            raise CorruptObjectError(f"块校验失败: {ref.cid}")
-        return data
-
-    def _require_unlocked(self) -> None:
-        if self._master_key is None:
-            raise VaultLockedError("库已锁定")
+    def _load_space(self) -> Space:
+        meta = self.bucket.catalog.get_meta("space_id")
+        created = int(self.bucket.catalog.get_meta("space_created") or 0)
+        if meta is None:
+            meta = str(SpaceId.new())
+            self.bucket.catalog.set_meta("space_id", meta)
+            self.bucket.commit()
+        return Space(
+            space_id=SpaceId.parse(meta),
+            name=DEFAULT_SPACE,
+            visibility=Visibility.PRIVATE,
+            created=created,
+        )
 
 
-def _manifest_info(manifest: Manifest) -> ObjectInfo:
-    meta = manifest.meta or {}
-    tags = meta.get("tags") or ()
-    return ObjectInfo(
-        oid=manifest.oid,
-        space_id=manifest.space_id,
-        type=manifest.type,
-        mime=manifest.mime,
-        size=manifest.size,
-        created=manifest.created,
-        updated=manifest.updated,
-        title=meta.get("title"),
-        tags=tuple(tags),
-        seq=manifest.seq,
-        author=manifest.author.hex(),
-    )
+def _wanted_tags(
+    tags: Iterable[str] | Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if tags is None:
+        return {}
+    if isinstance(tags, Mapping):
+        return {str(key): value for key, value in tags.items()}
+    return {str(tag): None for tag in tags}
 
 
-__all__ = ["AuthError", "Vault", "VaultError", "Visibility"]
+def _matches_tags(have: dict[str, Any], wanted: dict[str, Any]) -> bool:
+    for key, value in wanted.items():
+        if key not in have:
+            return False
+        if value is not None and have.get(key) != value:
+            return False
+    return True
+
+
+def _read_source(src: Source) -> bytes:
+    if isinstance(src, bytes):
+        return src
+    if isinstance(src, (bytearray, memoryview)):
+        return bytes(src)
+    if isinstance(src, (str, Path)):
+        return Path(src).read_bytes()
+    return src.read()

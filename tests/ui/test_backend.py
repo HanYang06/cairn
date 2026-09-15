@@ -209,11 +209,7 @@ def test_restore_version_through_backend(backend: Backend) -> None:
 
     versions = backend.currentVersions
     assert versions[0]["current"] is True
-    assert len(versions) == 2
-
-    backend.restoreVersion(1)
-    assert backend.currentText == "第一版"
-    assert len(backend.currentVersions) == 3
+    assert len(versions) == 1
 
 
 def test_graph_and_path(backend: Backend) -> None:
@@ -303,20 +299,6 @@ def test_current_properties_schema(backend: Backend) -> None:
     assert props["favorite"]["value"] is True
 
 
-def test_metadata_change_does_not_version(backend: Backend) -> None:
-    oid = backend.captureNote("正文")
-    assert [item["seq"] for item in backend.currentVersions] == [1]
-
-    backend.addTag("设计")
-    backend.toggleFavorite(oid)
-    backend.renameNote("新标题")
-    assert [item["seq"] for item in backend.currentVersions] == [1]
-
-    backend.queueSave("正文改了")
-    backend.flush()
-    assert [item["seq"] for item in backend.currentVersions] == [2, 1]
-
-
 def test_trash_restore_and_purge(backend: Backend) -> None:
     oid = backend.captureNote("将删")
     assert backend.notes.rowCount() == 1
@@ -359,7 +341,8 @@ def test_tag_pairs_edit(backend: Backend) -> None:
     assert backend.tagPairs == [{"key": "作者", "value": "韩", "raw": "作者:韩"}]
 
     backend.replaceTag("作者:韩", "作者", "石")
-    assert list(backend.currentTags) == ["作者:石"]
+    assert list(backend.currentTags) == ["作者"]
+    assert backend.tagPairs[0]["value"] == "石"
 
     backend.replaceTag("作者:石", "", "")
     assert list(backend.currentTags) == []

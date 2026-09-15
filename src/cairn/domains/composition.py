@@ -1,41 +1,25 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""组装领域：文档 / 博客 = 对其它节点的排布（transclusion）。"""
+"""组装领域：继承 ``Block`` 的文档 / 博客 = 对其它对象的排布（transclusion）。"""
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from typing import Any, ClassVar, Self
+from collections.abc import Iterable, Mapping
+from typing import Any, Self
 
-from ..core.types import Oid, SpaceId
-from .base import DomainObject, get_handler, register
+from ..core.store import Attr, Block, Body
+from ..types import Oid
 
 COMPOSITION_KIND = "cairn.composition"
 COMPOSITION_SCHEMA = 1
 
 
-class CompositionHandler:
-    kind: str = COMPOSITION_KIND
-    schema_version: int = COMPOSITION_SCHEMA
+class Composition(Block):
+    type = COMPOSITION_KIND
+    body = Body(factory=list)
 
-    def normalize_meta(self, **fields: Any) -> dict[str, Any]:
-        props = dict(fields.get("props") or {})
-        props["items"] = [str(item) for item in (fields.get("items") or ())]
-        title = fields.get("title")
-        return {
-            "title": None if title is None else str(title),
-            "tags": [str(tag) for tag in (fields.get("tags") or ())],
-            "schema": COMPOSITION_SCHEMA,
-            "props": props,
-        }
-
-
-register(CompositionHandler())
-
-
-class Composition(DomainObject):
-    kind: ClassVar[str] = COMPOSITION_KIND
+    schema = Attr(default=COMPOSITION_SCHEMA)
 
     @classmethod
     def create(
@@ -44,16 +28,26 @@ class Composition(DomainObject):
         items: Iterable[Oid | str] = (),
         *,
         title: str | None = None,
-        tags: list[str] | None = None,
+        tags: Iterable[str] | Mapping[str, Any] | None = None,
         props: dict[str, Any] | None = None,
-        space: str | SpaceId = "default",
+        space: Any = None,
     ) -> Self:
-        meta = get_handler(cls.kind).normalize_meta(
-            items=items, title=title, tags=tags, props=props
-        )
-        oid = vault.put(b"", space=space, type=cls.kind, meta=meta)
-        return cls.load(vault, oid)
+        del space
+        document = cls()
+        document._vault = vault
+        document.title = title
+        merged = dict(props or {})
+        merged["items"] = [str(item) for item in items]
+        document.attrs["props"] = merged
+        document.tags = tags or {}
+        document.save()
+        return document
 
     @property
     def items(self) -> tuple[Oid, ...]:
-        return tuple(Oid.parse(str(item)) for item in (self.props().get("items") or ()))
+        return tuple(
+            Oid.parse(str(item)) for item in (self.props().get("items") or ())
+        )
+
+
+__all__ = ["COMPOSITION_KIND", "COMPOSITION_SCHEMA", "Composition"]
