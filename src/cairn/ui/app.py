@@ -23,7 +23,7 @@ from PySide6.QtCore import (
     QUrl,
     Signal,
 )
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QFont, QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 
 from .backend import Backend, env_passphrase, env_vault_root, open_vault
@@ -127,6 +127,11 @@ def main(argv: list[str] | None = None) -> int:
     app = QGuiApplication(args)
     app.setApplicationName("Cairn")
     app.setOrganizationName("Cairn")
+    _font = QFont()
+    _font.setFamilies(
+        ["Sarasa Mono SC", "Cascadia Mono", "Consolas", "Noto Sans Mono CJK SC", "monospace"]
+    )
+    app.setFont(_font)
 
     try:
         vault = open_vault(env_vault_root(), env_passphrase())
