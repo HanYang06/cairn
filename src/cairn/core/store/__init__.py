@@ -13,7 +13,16 @@
 
 from __future__ import annotations
 
-from .block import BLOCK_VERSION, INDEX_TYPE, PART_TYPE, Attr, Block, Body, canonical
+from .block import (
+    BLOCK_VERSION,
+    INDEX_TYPE,
+    PART_TYPE,
+    Attr,
+    Block,
+    Body,
+    canonical,
+    decode_canonical,
+)
 from .bucket import CATALOG_NAME, Bucket, BucketConfig
 from .catalog import BlockLocation, Catalog
 from .table import Table
@@ -32,4 +41,5 @@ __all__ = [
     "Catalog",
     "Table",
     "canonical",
+    "decode_canonical",
 ]

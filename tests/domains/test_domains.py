@@ -24,7 +24,7 @@ def _vault(tmp_path: Path) -> Vault:
 
 
 def test_registry_has_builtin_kinds() -> None:
-    assert {"cairn.note", "cairn.relation", "cairn.composition"} <= set(known_kinds())
+    assert {"cairn.note", "cairn.composition"} <= set(known_kinds())
 
 
 def test_note_roundtrip(tmp_path: Path) -> None:

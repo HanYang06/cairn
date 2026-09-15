@@ -29,7 +29,6 @@ def test_registry_includes_three_piece_kinds() -> None:
         "cairn.note",
         "cairn.asset",
         "cairn.project",
-        "cairn.relation",
         "cairn.composition",
     } <= set(known_kinds())
 

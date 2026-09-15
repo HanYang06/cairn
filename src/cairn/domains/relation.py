@@ -1,86 +1,166 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""关系领域：继承 ``Block`` 的边（可署名、可加属性）。"""
+"""关系领域：**一等 DB 行**（不是块），承载笔记之间的各种关联。
+
+关系类型（``kind``）不是只有"派生"一种：
+    derived-from   派生 / 再创作（谁基于谁）
+    references     引用（论文式引用，用于拓扑）
+    contains       项目成员 / 归属
+    …              可继续加
+
+关系落 ``relations`` 表，便于按上下游查询、绘制引用拓扑。
+"""
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping
-from typing import Any, Self
+from typing import Any, ClassVar
 
-from ..core.store import Attr, Block, Body
-from ..types import Oid
+from ..core.store import canonical, decode_canonical
+from ..types import KindMismatchError, Oid, now_ms
 
 RELATION_KIND = "cairn.relation"
 RELATION_SCHEMA = 1
 
+DERIVED_FROM = "derived-from"
+REFERENCES = "references"
+CONTAINS = "contains"
 
-class Relation(Block):
-    type = RELATION_KIND
-    body = Body(factory=list)
+_TABLE = "relations"
+_COLUMNS = {
+    "id": "TEXT PRIMARY KEY",
+    "src": "TEXT NOT NULL",
+    "dst": "TEXT NOT NULL",
+    "kind": "TEXT NOT NULL",
+    "at": "TEXT",
+    "attrs": "BLOB",
+    "created": "INTEGER NOT NULL",
+}
 
-    schema = Attr(default=RELATION_SCHEMA)
 
+def _table(vault: Any) -> Any:
+    return vault.bucket.table(_TABLE, **_COLUMNS)
+
+
+class Relation:
+    """一条关系行：``src --kind--> dst``。"""
+
+    kind: ClassVar[str] = RELATION_KIND
+
+    def __init__(
+        self,
+        vault: Any,
+        id: str,
+        src: str,
+        dst: str,
+        kind: str,
+        at: str | None = None,
+        attrs: dict[str, Any] | None = None,
+        created: int = 0,
+    ) -> None:
+        self._vault = vault
+        self.id = id
+        self._src = src
+        self._dst = dst
+        self._kind = kind
+        self._at = at
+        self._attrs = dict(attrs or {})
+        self.created = created
+
+    # ---- 视图 ----
+    @property
+    def oid(self) -> Oid:
+        return Oid.parse(self.id)
+
+    @property
+    def source(self) -> Oid:
+        return Oid.parse(self._src)
+
+    @property
+    def target(self) -> Oid:
+        return Oid.parse(self._dst)
+
+    @property
+    def relation(self) -> str:
+        return self._kind
+
+    @property
+    def at(self) -> str | None:
+        """该边所钉的被派生版本；无则 None。"""
+        return self._at
+
+    def props(self) -> dict[str, Any]:
+        return dict(self._attrs)
+
+    def tags(self) -> dict[str, Any]:
+        return dict(self._attrs.get("tags") or {})
+
+    # ---- 写 ----
     @classmethod
     def create(
         cls,
         vault: Any,
         source: Oid | str,
         target: Oid | str,
-        relation: str = "references",
+        relation: str = REFERENCES,
         *,
         tags: Iterable[str] | Mapping[str, Any] | None = None,
         props: dict[str, Any] | None = None,
         space: Any = None,
-    ) -> Self:
+    ) -> Relation:
         del space
-        edge = cls()
-        edge._vault = vault
-        merged = dict(props or {})
-        merged.update(
+        rid = str(Oid.new())
+        attrs = dict(props or {})
+        at = attrs.pop("at", None)
+        if tags:
+            attrs["tags"] = (
+                {str(key): value for key, value in tags.items()}
+                if isinstance(tags, Mapping)
+                else {str(item): None for item in tags}
+            )
+        _table(vault).insert(
             {
-                "source": str(source),
-                "target": str(target),
-                "relation": str(relation),
+                "id": rid,
+                "src": str(source),
+                "dst": str(target),
+                "kind": str(relation),
+                "at": None if at is None else str(at),
+                "attrs": canonical(attrs),
+                "created": now_ms(),
             }
         )
-        edge.attrs["props"] = merged
-        edge.tags = tags or {}
-        edge.save()
-        return edge
+        vault.bucket.commit()
+        return cls.load(vault, rid)
 
-    @property
-    def source(self) -> Oid:
-        return Oid.parse(str(self.props()["source"]))
-
-    @property
-    def target(self) -> Oid:
-        return Oid.parse(str(self.props()["target"]))
-
-    @property
-    def relation(self) -> str:
-        return str(self.props().get("relation", "references"))
-
-    @property
-    def at(self) -> str | None:
-        """该边所钉的被派生版本；无则 None。"""
-        value = self.props().get("at")
-        return None if value is None else str(value)
+    # ---- 读 ----
+    @classmethod
+    def load(cls, vault: Any, oid: Oid | str) -> Relation:
+        rows = _table(vault).select(id=str(oid))
+        if not rows:
+            raise KindMismatchError(f"{oid} 不是关系")
+        return cls._from_row(vault, rows[0])
 
     @classmethod
-    def backlinks(
-        cls,
-        vault: Any,
-        target: Oid | str,
-        *,
-        relation: str | None = None,
-        space: Any = None,
-    ) -> Iterator[Self]:
+    def _from_row(cls, vault: Any, row: Any) -> Relation:
+        raw = row["attrs"]
+        attrs = decode_canonical(bytes(raw)) if raw else {}
+        return cls(
+            vault,
+            str(row["id"]),
+            str(row["src"]),
+            str(row["dst"]),
+            str(row["kind"]),
+            row["at"],
+            attrs,
+            int(row["created"]),
+        )
+
+    @classmethod
+    def list(cls, vault: Any, *, space: Any = None) -> Iterator[Relation]:
         del space
-        wanted = str(target)
-        for item in cls.list(vault):
-            if str(item.target) == wanted and (relation is None or item.relation == relation):
-                yield item
+        for row in _table(vault).all():
+            yield cls._from_row(vault, row)
 
     @classmethod
     def outbound(
@@ -90,12 +170,34 @@ class Relation(Block):
         *,
         relation: str | None = None,
         space: Any = None,
-    ) -> Iterator[Self]:
+    ) -> Iterator[Relation]:
         del space
-        wanted = str(source)
-        for item in cls.list(vault):
-            if str(item.source) == wanted and (relation is None or item.relation == relation):
+        for row in _table(vault).select(src=str(source)):
+            item = cls._from_row(vault, row)
+            if relation is None or item.relation == relation:
+                yield item
+
+    @classmethod
+    def backlinks(
+        cls,
+        vault: Any,
+        target: Oid | str,
+        *,
+        relation: str | None = None,
+        space: Any = None,
+    ) -> Iterator[Relation]:
+        del space
+        for row in _table(vault).select(dst=str(target)):
+            item = cls._from_row(vault, row)
+            if relation is None or item.relation == relation:
                 yield item
 
 
-__all__ = ["RELATION_KIND", "RELATION_SCHEMA", "Relation"]
+__all__ = [
+    "CONTAINS",
+    "DERIVED_FROM",
+    "REFERENCES",
+    "RELATION_KIND",
+    "RELATION_SCHEMA",
+    "Relation",
+]
