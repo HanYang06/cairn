@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""标识符类型：Oid / SpaceId / Cid。"""
+"""标识符类型：Oid / Cid。"""
 
 from __future__ import annotations
 
@@ -44,20 +44,6 @@ class Oid(str):
             if ch not in _CROCKFORD:
                 raise InvalidIdError(f"非法 OID: {value!r}")
         return cls(normalized)
-
-
-class SpaceId(str):
-    """空间身份，同样采用 ULID。"""
-
-    __slots__ = ()
-
-    @classmethod
-    def new(cls) -> SpaceId:
-        return cls(Oid.new())
-
-    @classmethod
-    def parse(cls, value: str) -> SpaceId:
-        return cls(Oid.parse(value))
 
 
 class Cid(str):

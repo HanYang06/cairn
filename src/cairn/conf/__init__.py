@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 FORMAT_VERSION = 1
-DEFAULT_SPACE = "default"
 TOML_NAME = "cairn.toml"
 VAULT_META_CONTEXT = "cairn/v1/vault/meta"
 VERSION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000

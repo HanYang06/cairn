@@ -17,32 +17,22 @@ from ...types import (
     InvalidIdError,
     ObjectNotFoundError,
     Oid,
-    SpaceId,
-    SpaceNotFoundError,
     VaultError,
-    VaultLockedError,
-    Visibility,
     now_ms,
 )
-from .objects import ChunkRef, ObjectInfo, Space, VerifyReport, VersionInfo
+from .objects import ObjectInfo, VerifyReport, VersionInfo
 
 __all__ = [
     "AuthError",
     "CairnError",
-    "ChunkRef",
     "Cid",
     "CorruptObjectError",
     "InvalidIdError",
     "ObjectInfo",
     "ObjectNotFoundError",
     "Oid",
-    "Space",
-    "SpaceId",
-    "SpaceNotFoundError",
     "VaultError",
-    "VaultLockedError",
     "VerifyReport",
     "VersionInfo",
-    "Visibility",
     "now_ms",
 ]

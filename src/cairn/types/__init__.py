@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from .common import now_ms
-from .enums import Visibility
 from .errors import (
     AuthError,
     CairnError,
@@ -14,11 +13,9 @@ from .errors import (
     InvalidIdError,
     KindMismatchError,
     ObjectNotFoundError,
-    SpaceNotFoundError,
     VaultError,
-    VaultLockedError,
 )
-from .ids import Cid, Oid, SpaceId
+from .ids import Cid, Oid
 
 __all__ = [
     "AuthError",
@@ -29,10 +26,6 @@ __all__ = [
     "KindMismatchError",
     "ObjectNotFoundError",
     "Oid",
-    "SpaceId",
-    "SpaceNotFoundError",
     "VaultError",
-    "VaultLockedError",
-    "Visibility",
     "now_ms",
 ]

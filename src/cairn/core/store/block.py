@@ -481,12 +481,6 @@ class Block:
             raise CairnError("块未绑定库：请用 create / load")
         return self._info
 
-    @property
-    def space_id(self) -> Any:
-        if self._vault is None:
-            raise CairnError("块未绑定库")
-        return self._vault.space().space_id
-
     # title / tags / authors 等业务字段**不属于块**：由各领域用 ``Attr`` 自行声明
     # （见 ``domains/base.py`` 的 ``normalize_tags`` 与各领域类）。
 

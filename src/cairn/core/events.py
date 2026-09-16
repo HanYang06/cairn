@@ -16,7 +16,7 @@ from threading import Lock
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
-    from .types import Oid, Space, SpaceId
+    from .types import Oid
 
 _logger = logging.getLogger(__name__)
 
@@ -27,32 +27,10 @@ class Event:
 
 
 @dataclass(frozen=True, slots=True)
-class VaultUnlocked(Event):
-    """库已解锁。"""
-
-    vault_id: str
-
-
-@dataclass(frozen=True, slots=True)
-class VaultLocked(Event):
-    """库已锁定。"""
-
-    vault_id: str
-
-
-@dataclass(frozen=True, slots=True)
-class SpaceCreated(Event):
-    """新空间已创建。"""
-
-    space: Space
-
-
-@dataclass(frozen=True, slots=True)
 class ObjectPut(Event):
     """对象已写入。"""
 
     oid: Oid
-    space_id: SpaceId
     type: str
     seq: int
     created: bool
@@ -132,8 +110,5 @@ __all__ = [
     "Handler",
     "ObjectDeleted",
     "ObjectPut",
-    "SpaceCreated",
     "Subscription",
-    "VaultLocked",
-    "VaultUnlocked",
 ]

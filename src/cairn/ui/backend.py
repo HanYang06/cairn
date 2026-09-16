@@ -33,7 +33,7 @@ from ..domains import Note, Relation, ancestors, descendants
 from ..domains.provenance import DERIVED_FROM
 
 DEV_PASSPHRASE = "cairn-dev"  # noqa: S105 — 开发期固定口令，非生产密钥
-_SPACE_LABELS = {"default": "个人空间"}
+VAULT_LABEL = "个人空间"
 RELATIONS_KEY = "relations"
 
 
@@ -388,7 +388,7 @@ class Backend(QObject):
 
     def _ensure_search_index(self) -> None:
         try:
-            if self._vault.index_is_empty() and any(self._vault.pool.iter_object_ids()):
+            if self._vault.index_is_empty() and any(self._vault.iter_object_ids()):
                 self._vault.rebuild_index(text_of=self._note_text)
         except Exception:
             pass
@@ -424,9 +424,8 @@ class Backend(QObject):
         return self._current.blocks()
 
     @Property(str, notify=currentChanged)
-    def currentSpace(self) -> str:
-        name = self._vault.space().name
-        return _SPACE_LABELS.get(name, name)
+    def currentVaultLabel(self) -> str:
+        return VAULT_LABEL
 
     @Property(str, notify=currentChanged)
     def currentCreated(self) -> str:
@@ -473,9 +472,9 @@ class Backend(QObject):
         return [
             {"id": "kind", "key": "类型", "value": "笔记", "type": "text", "editable": False},
             {
-                "id": "space",
-                "key": "空间",
-                "value": self.currentSpace,
+                "id": "vault",
+                "key": "库",
+                "value": self.currentVaultLabel,
                 "type": "text",
                 "editable": False,
             },

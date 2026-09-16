@@ -288,7 +288,7 @@ def test_current_properties_schema(backend: Backend) -> None:
     props = {item["id"]: item for item in backend.currentProperties}
     assert set(props) == {
         "kind",
-        "space",
+        "vault",
         "author",
         "tags",
         "favorite",

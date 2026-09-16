@@ -15,7 +15,7 @@ from .relation import Relation
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from ..core.types import Oid, SpaceId
+    from ..core.types import Oid
 
 DERIVED_FROM = "derived-from"
 
@@ -25,10 +25,9 @@ def derivatives(
     oid: Oid | str,
     *,
     relation: str = DERIVED_FROM,
-    space: str | SpaceId | None = None,
 ) -> Iterator[Relation]:
     """直接派生自 ``oid`` 的关系（谁基于它改的）。"""
-    return Relation.backlinks(vault, oid, relation=relation, space=space)
+    return Relation.backlinks(vault, oid, relation=relation)
 
 
 def lineage(
@@ -36,10 +35,9 @@ def lineage(
     oid: Oid | str,
     *,
     relation: str = DERIVED_FROM,
-    space: str | SpaceId | None = None,
 ) -> Iterator[Relation]:
     """``oid`` 直接派生自谁。"""
-    return Relation.outbound(vault, oid, relation=relation, space=space)
+    return Relation.outbound(vault, oid, relation=relation)
 
 
 def descendants(
@@ -47,7 +45,6 @@ def descendants(
     oid: Oid | str,
     *,
     relation: str = DERIVED_FROM,
-    space: str | SpaceId | None = None,
 ) -> tuple[Oid, ...]:
     """所有（递归）派生自 ``oid`` 的对象。"""
     seen: set[str] = set()
@@ -55,7 +52,7 @@ def descendants(
     frontier = [str(oid)]
     while frontier:
         current = frontier.pop(0)
-        for edge in Relation.backlinks(vault, current, relation=relation, space=space):
+        for edge in Relation.backlinks(vault, current, relation=relation):
             child = str(edge.source)
             if child not in seen:
                 seen.add(child)
@@ -69,7 +66,6 @@ def ancestors(
     oid: Oid | str,
     *,
     relation: str = DERIVED_FROM,
-    space: str | SpaceId | None = None,
 ) -> tuple[Oid, ...]:
     """``oid`` 的（递归）来源对象。"""
     seen: set[str] = set()
@@ -77,7 +73,7 @@ def ancestors(
     frontier = [str(oid)]
     while frontier:
         current = frontier.pop(0)
-        for edge in Relation.outbound(vault, current, relation=relation, space=space):
+        for edge in Relation.outbound(vault, current, relation=relation):
             parent = str(edge.target)
             if parent not in seen:
                 seen.add(parent)

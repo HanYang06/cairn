@@ -22,16 +22,8 @@ class VaultError(CairnError):
     """库级错误。"""
 
 
-class VaultLockedError(VaultError):
-    """库处于锁定状态。"""
-
-
 class ObjectNotFoundError(CairnError):
     """对象不存在。"""
-
-
-class SpaceNotFoundError(CairnError):
-    """空间不存在。"""
 
 
 class KindMismatchError(CairnError):

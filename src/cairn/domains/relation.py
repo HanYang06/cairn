@@ -107,9 +107,7 @@ class Relation:
         *,
         tags: Iterable[str] | Mapping[str, Any] | None = None,
         props: dict[str, Any] | None = None,
-        space: Any = None,
     ) -> Relation:
-        del space
         rid = str(Oid.new())
         attrs = dict(props or {})
         at = attrs.pop("at", None)
@@ -157,8 +155,7 @@ class Relation:
         )
 
     @classmethod
-    def list(cls, vault: Any, *, space: Any = None) -> Iterator[Relation]:
-        del space
+    def list(cls, vault: Any) -> Iterator[Relation]:
         for row in _table(vault).all():
             yield cls._from_row(vault, row)
 
@@ -169,9 +166,7 @@ class Relation:
         source: Oid | str,
         *,
         relation: str | None = None,
-        space: Any = None,
     ) -> Iterator[Relation]:
-        del space
         for row in _table(vault).select(src=str(source)):
             item = cls._from_row(vault, row)
             if relation is None or item.relation == relation:
@@ -184,9 +179,7 @@ class Relation:
         target: Oid | str,
         *,
         relation: str | None = None,
-        space: Any = None,
     ) -> Iterator[Relation]:
-        del space
         for row in _table(vault).select(dst=str(target)):
             item = cls._from_row(vault, row)
             if relation is None or item.relation == relation:

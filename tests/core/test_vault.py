@@ -127,10 +127,3 @@ def test_verify_reports_healthy(tmp_path: Path) -> None:
     report = vault.verify()
     assert report.ok
     assert report.objects == 1
-
-
-def test_space_default(tmp_path: Path) -> None:
-    vault = _create(tmp_path)
-    assert vault.space().name == "default"
-    oid = vault.put(b"x")
-    assert vault.info(oid).space_id == vault.space().space_id

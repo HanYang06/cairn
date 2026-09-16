@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""核心层：本地加密对象池（L0）。
+"""核心层：本地内容寻址的桶 / 块存储（L0）。
 
-对外只有一套极简门面与动词：Vault 与 ObjectInfo。所有内容都是对象。
+对外只有一套极简门面与动词：Vault 与 ObjectInfo。所有内容都是块。
 """
 
 from __future__ import annotations
@@ -12,10 +12,7 @@ from .events import (
     Event,
     ObjectDeleted,
     ObjectPut,
-    SpaceCreated,
     Subscription,
-    VaultLocked,
-    VaultUnlocked,
 )
 from .policy import Audience, ShareKind, is_private, target_audience, visible_to
 from .types import (
@@ -24,13 +21,8 @@ from .types import (
     ObjectInfo,
     ObjectNotFoundError,
     Oid,
-    Space,
-    SpaceId,
-    SpaceNotFoundError,
     VaultError,
-    VaultLockedError,
     VersionInfo,
-    Visibility,
 )
 from .vault import Vault
 
@@ -45,18 +37,10 @@ __all__ = [
     "ObjectPut",
     "Oid",
     "ShareKind",
-    "Space",
-    "SpaceCreated",
-    "SpaceId",
-    "SpaceNotFoundError",
     "Subscription",
     "Vault",
     "VaultError",
-    "VaultLocked",
-    "VaultLockedError",
-    "VaultUnlocked",
     "VersionInfo",
-    "Visibility",
     "is_private",
     "target_audience",
     "visible_to",

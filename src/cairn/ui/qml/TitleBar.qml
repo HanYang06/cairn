@@ -70,7 +70,7 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
         }
         Text {
-            text: backend.currentSpace
+            text: backend.currentVaultLabel
             color: CairnTheme.muted
             font.family: CairnTheme.fontFamily
             font.pixelSize: CairnTheme.fsSmall

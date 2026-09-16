@@ -12,9 +12,6 @@ from cairn.core.types import (
     InvalidIdError,
     ObjectInfo,
     Oid,
-    Space,
-    SpaceId,
-    Visibility,
 )
 
 _CROCKFORD = set("0123456789ABCDEFGHJKMNPQRSTVWXYZ")
@@ -49,11 +46,6 @@ def test_oid_parse_rejects(bad: str) -> None:
         Oid.parse(bad)
 
 
-def test_space_id_is_valid_oid() -> None:
-    sid = SpaceId.new()
-    assert Oid.parse(str(sid)) == sid
-
-
 def test_cid_from_digest_and_parse() -> None:
     digest = bytes(range(32))
     cid = Cid.from_digest(digest)
@@ -68,14 +60,9 @@ def test_cid_parse_rejects() -> None:
         Cid.parse("g" * 64)
 
 
-def test_visibility_values() -> None:
-    assert {v.value for v in Visibility} == {"private", "communal", "public", "direct"}
-
-
 def test_value_types_are_frozen() -> None:
     info = ObjectInfo(
         oid=Oid.new(),
-        space_id=SpaceId.new(),
         type="note",
         mime=None,
         size=0,
@@ -84,12 +71,3 @@ def test_value_types_are_frozen() -> None:
     )
     with pytest.raises(FrozenInstanceError):
         info.size = 1  # type: ignore[misc]
-
-    space = Space(
-        space_id=SpaceId.new(),
-        name="default",
-        visibility=Visibility.PRIVATE,
-        created=0,
-    )
-    with pytest.raises(FrozenInstanceError):
-        space.name = "x"  # type: ignore[misc]

@@ -31,29 +31,12 @@ from .types import (
     ObjectInfo,
     ObjectNotFoundError,
     Oid,
-    Space,
-    SpaceId,
-    SpaceNotFoundError,
     VerifyReport,
     VersionInfo,
-    Visibility,
     now_ms,
 )
 
-DEFAULT_SPACE = "default"
-_SpaceName = str
-
 Source = bytes | bytearray | memoryview | str | Path | BinaryIO
-
-
-class _PoolShim:
-    """兼容旧调用点：``vault.pool.iter_object_ids()``。"""
-
-    def __init__(self, vault: Vault) -> None:
-        self._vault = vault
-
-    def iter_object_ids(self) -> Iterator[Oid]:
-        return self._vault.iter_object_ids()
 
 
 class Vault:
@@ -62,10 +45,8 @@ class Vault:
     def __init__(self, root: Path | str, bucket: Bucket) -> None:
         self.root = Path(root)
         self.bucket = bucket
-        self.pool = _PoolShim(self)
         self._events = EventBus()
         self._search = bucket.table("search", oid="TEXT PRIMARY KEY", body="TEXT")
-        self._space = self._load_space()
 
     # ---- 生命周期 ----
     @classmethod
@@ -73,8 +54,7 @@ class Vault:
         del passphrase
         root = Path(path)
         bucket = Bucket.create(root)
-        bucket.catalog.set_meta("space_id", str(SpaceId.new()))
-        bucket.catalog.set_meta("space_created", str(now_ms()))
+        bucket.catalog.set_meta("created", str(now_ms()))
         bucket.commit()
         return cls(root, bucket)
 
@@ -96,15 +76,6 @@ class Vault:
     def close(self) -> None:
         self.bucket.close()
 
-    # ---- 空间（已收敛为单一默认空间，保留签名）----
-    def spaces(self) -> list[Space]:
-        return [self._space]
-
-    def space(self, name: _SpaceName = DEFAULT_SPACE) -> Space:
-        if name != DEFAULT_SPACE:
-            raise SpaceNotFoundError(name)
-        return self._space
-
     # ---- 事件 ----
     def subscribe(self, handler: Handler, event_type: type[Event] = Event) -> Subscription:
         return self._events.subscribe(handler, event_type)
@@ -114,14 +85,12 @@ class Vault:
         self,
         src: Source,
         *,
-        space: _SpaceName | SpaceId = DEFAULT_SPACE,
         type: str = "blob",
         mime: str | None = None,
         meta: dict[str, Any] | None = None,
         oid: Oid | str | None = None,
         search_text: str | None = None,
     ) -> Oid:
-        del space
         payload = _read_source(src)
         attrs: dict[str, Any] = dict(meta or {})
         if mime is not None:
@@ -145,7 +114,6 @@ class Vault:
         self._events.emit(
             ObjectPut(
                 oid=result,
-                space_id=self._space.space_id,
                 type=type,
                 seq=1,
                 created=created,
@@ -199,11 +167,9 @@ class Vault:
     def iter(
         self,
         *,
-        space: _SpaceName | SpaceId | None = None,
         type: str | None = None,
         tags: Iterable[str] | Mapping[str, Any] | None = None,
     ) -> Iterator[ObjectInfo]:
-        del space
         wanted = _wanted_tags(tags)
         for block_id in self.bucket.iter_block_ids():
             block = self.bucket.get(Block, block_id)
@@ -283,7 +249,7 @@ class Vault:
                 self.bucket.get(Block, block_id)
             except Exception as exc:  # noqa: BLE001 — 巡检要收集所有问题，不能中断
                 problems.append(f"{block_id}: {exc}")
-        return VerifyReport(objects=len(ids), chunks=0, problems=tuple(problems))
+        return VerifyReport(objects=len(ids), problems=tuple(problems))
 
     # ---- 内部 ----
     def _read_body(self, oid: Oid | str) -> bytes:
@@ -296,7 +262,6 @@ class Vault:
         size = len(body) if isinstance(body, (bytes, bytearray)) else block.size
         return ObjectInfo(
             oid=Oid.parse(block.id),
-            space_id=self._space.space_id,
             type=block.type,
             mime=attrs.get("mime"),
             size=size,
@@ -313,20 +278,6 @@ class Vault:
         if search_text:
             self._search.insert({"oid": block_id, "body": search_text})
         self.bucket.commit()
-
-    def _load_space(self) -> Space:
-        meta = self.bucket.catalog.get_meta("space_id")
-        created = int(self.bucket.catalog.get_meta("space_created") or 0)
-        if meta is None:
-            meta = str(SpaceId.new())
-            self.bucket.catalog.set_meta("space_id", meta)
-            self.bucket.commit()
-        return Space(
-            space_id=SpaceId.parse(meta),
-            name=DEFAULT_SPACE,
-            visibility=Visibility.PRIVATE,
-            created=created,
-        )
 
 
 def _tags_of(attrs: Mapping[str, Any]) -> dict[str, Any]:

@@ -23,15 +23,6 @@ from .project import Project
 from .provenance import ancestors, derivatives, descendants, lineage
 from .relation import Relation
 from .signature import Signature
-from .types import (
-    decode_substrate,
-    embed_fragment,
-    encode_substrate,
-    plain_text,
-    ref_fragment,
-    referenced_oids,
-    text_fragment,
-)
 
 __all__ = [
     "Asset",
@@ -50,16 +41,9 @@ __all__ = [
     "Signature",
     "UnknownKindError",
     "ancestors",
-    "decode_substrate",
     "derivatives",
     "descendants",
-    "embed_fragment",
-    "encode_substrate",
     "known_kinds",
     "lineage",
     "normalize_tags",
-    "plain_text",
-    "ref_fragment",
-    "referenced_oids",
-    "text_fragment",
 ]
