@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from ...types import Cid, Oid, SpaceId, Visibility
+if TYPE_CHECKING:
+    from ...types import Cid, Oid, SpaceId, Visibility
 
 
 @dataclass(frozen=True, slots=True)

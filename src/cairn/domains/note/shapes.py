@@ -107,6 +107,7 @@ def repo_root() -> Path:
 
 
 def shape_set_path() -> Path:
+    """形状集文件路径：``SHAPE_SET_ENV`` 覆盖，否则用仓库内默认位置。"""
     override = os.environ.get(SHAPE_SET_ENV)
     if override:
         return Path(override)
@@ -148,6 +149,7 @@ def load_shape_set(path: Path | str | None = None) -> ShapeSet:
 
 
 # ---- 生成器：把参数变成归一化顶点（中心在 0,0）----
+
 
 def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
@@ -247,7 +249,7 @@ def build_vertices(
     return generator(w, h, values)
 
 
-def graphic_from(
+def graphic_from(  # noqa: PLR0913 — 生成入口：几何参数均有默认值
     spec: ShapeSpec,
     *,
     cx: float = 0.0,
@@ -257,7 +259,7 @@ def graphic_from(
     params: dict[str, Any] | None = None,
 ) -> Any:
     """由预制图形生成一个 ``Graphic``：点已算好，``form`` / ``params`` 只留作来源记录。"""
-    from .types import Graphic
+    from .types import Graphic  # noqa: PLC0415 — 延迟导入，避免与 types 的加载期环
 
     values = spec.defaults()
     if params:

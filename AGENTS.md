@@ -22,16 +22,19 @@ uv run cairn                              # 启动桌面应用
 uv run cairn --watch                      # 开发：QML 热重载
 uv run cairn --smoke                      # 冒烟：0.8s 后自动退出
 
-uv run pytest                             # 全部测试
-uv run pytest tests/core/test_vault.py::test_load_unlock   # 单个测试
+uv run pytest                             # 全部测试（含覆盖率；CI 用 --cov-fail-under=80）
+uv run pytest tests/core/test_vault.py::test_put_open_roundtrip   # 单个测试
 uv run ruff check .                       # lint（--fix 自动修）
-uv run mypy src/cairn                     # 类型检查
+uv run ruff format .                      # 格式化（提交前用 --check）
+uv run mypy src tools                     # 类型检查（strict）
+uv run pre-commit run --all-files         # 提交前全量门禁（ruff -> mypy）
 
 # 离屏渲染 QML 为 PNG（设计评审用），默认写 build/ui_preview.png
 uv run python tools/preview_qml.py Shell.qml build/x.png 1440 900 navMode=projects
 ```
 
-提交前顺序：`ruff -> mypy -> pytest`。**只有用户明确要求才 commit。**
+提交前顺序：`ruff -> mypy -> pytest`。质量口径见 `.agents/skills/rules/references/quality.md`
+（企业级-ε：mypy strict、ruff ALL、warning 零容忍、覆盖率 ≥80%）。**只有用户明确要求才 commit。**
 
 ## 硬性约定
 

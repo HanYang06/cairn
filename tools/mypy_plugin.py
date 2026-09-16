@@ -17,9 +17,14 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from mypy.nodes import AssignmentStmt, CallExpr, NameExpr, RefExpr
 from mypy.plugin import ClassDefContext, Plugin
 from mypy.types import Instance
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 BLOCK_FULLNAME = "cairn.core.store.block.Block"
 ATTR_FULLNAME = "cairn.core.store.block.Attr"
@@ -60,7 +65,7 @@ def _rewrite_attr_fields(ctx: ClassDefContext) -> None:
 
 
 class CairnPlugin(Plugin):
-    def get_base_class_hook(self, fullname: str):
+    def get_base_class_hook(self, fullname: str) -> Callable[[ClassDefContext], None] | None:
         if fullname != BLOCK_FULLNAME:
             return None
         return _rewrite_attr_fields

@@ -5,13 +5,16 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from cairn.core import ObjectNotFoundError, Vault
 from cairn.domains import Asset, Note, Relation
 from cairn.domains.note.types import Canvas, Form, Graphic
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _vault(tmp_path: Path) -> Vault:

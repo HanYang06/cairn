@@ -10,12 +10,14 @@
 from __future__ import annotations
 
 import mimetypes
-from collections.abc import Iterable, Mapping
 from pathlib import Path
-from typing import Any, BinaryIO, ClassVar, Self
+from typing import TYPE_CHECKING, Any, BinaryIO, ClassVar, Self
 
 from ..core.store import Attr, Block, BodyField
 from .base import normalize_tags
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
 
 ASSET_KIND = "cairn.asset"
 ASSET_SCHEMA = 1
@@ -25,9 +27,9 @@ Source = bytes | bytearray | memoryview | str | Path | BinaryIO
 # 统一编码（**草案**）：所有多媒体转码到这套编码后再落盘。
 # 只留决策位；真正实现要选定编解码库，且必须过许可关（禁止 GPL/AGPL）。
 UNIFIED_CODECS: dict[str, str] = {
-    "image": "image/png",      # 候选：PNG / WebP（无损）
-    "audio": "audio/flac",     # 候选：FLAC
-    "video": "video/ffv1",     # 候选：FFV1（无专利，待核实工具许可）
+    "image": "image/png",  # 候选：PNG / WebP（无损）
+    "audio": "audio/flac",  # 候选：FLAC
+    "video": "video/ffv1",  # 候选：FFV1（无专利，待核实工具许可）
 }
 
 
@@ -62,6 +64,8 @@ def _read_source(source: Source) -> bytes:
 
 
 class Asset(Block):
+    """资产块：非文本内容（图/音/视等），入库前统一转码。"""
+
     type = ASSET_KIND
     body = BodyField()
     mime: ClassVar[str | None] = None
@@ -70,10 +74,10 @@ class Asset(Block):
     title: Attr[str | None] = None
     tags: Attr = Attr(factory=dict, coerce=normalize_tags)
     name: Attr[str | None] = None
-    origin_mime: Attr[str | None] = None    # 转码前的原始编码，留作来源记录
+    origin_mime: Attr[str | None] = None  # 转码前的原始编码，留作来源记录
 
     @classmethod
-    def create(
+    def create(  # noqa: PLR0913 — 入库入口：描述字段均有默认值
         cls,
         vault: Any,
         source: Source,
@@ -87,7 +91,7 @@ class Asset(Block):
         asset._vault = vault
         raw = _read_source(source)
         original = mime or (mimetypes.guess_type(name)[0] if name else None)
-        encoded, unified = transcode(raw, original)      # ← 入库先转码
+        encoded, unified = transcode(raw, original)  # ← 入库先转码
         asset.body = encoded
         asset.attrs["name"] = None if name is None else str(name)
         asset.attrs["mime"] = unified

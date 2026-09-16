@@ -3,19 +3,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from PySide6.QtCore import QCoreApplication
 
 from cairn.ui.backend import Backend, NotesModel, TabsModel, open_vault
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+    from pathlib import Path
+
 
 @pytest.fixture(scope="session")
 def qt_app() -> Iterator[QCoreApplication]:
-    app = QCoreApplication.instance() or QCoreApplication([])
-    yield app
+    return QCoreApplication.instance() or QCoreApplication([])
 
 
 @pytest.fixture
@@ -223,7 +225,8 @@ def test_graph_and_path(backend: Backend) -> None:
 
     graph = backend.currentGraph
     oids = {node["oid"] for node in graph["nodes"]}
-    assert source in oids and child in oids
+    assert source in oids
+    assert child in oids
     assert any(edge["from"] == child and edge["to"] == source for edge in graph["edges"])
 
     path = backend.currentPath

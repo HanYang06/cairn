@@ -13,8 +13,10 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from threading import Lock
+from typing import TYPE_CHECKING, Self
 
-from .types import Oid, Space, SpaceId
+if TYPE_CHECKING:
+    from .types import Oid, Space, SpaceId
 
 _logger = logging.getLogger(__name__)
 
@@ -26,21 +28,29 @@ class Event:
 
 @dataclass(frozen=True, slots=True)
 class VaultUnlocked(Event):
+    """库已解锁。"""
+
     vault_id: str
 
 
 @dataclass(frozen=True, slots=True)
 class VaultLocked(Event):
+    """库已锁定。"""
+
     vault_id: str
 
 
 @dataclass(frozen=True, slots=True)
 class SpaceCreated(Event):
+    """新空间已创建。"""
+
     space: Space
 
 
 @dataclass(frozen=True, slots=True)
 class ObjectPut(Event):
+    """对象已写入。"""
+
     oid: Oid
     space_id: SpaceId
     type: str
@@ -50,6 +60,8 @@ class ObjectPut(Event):
 
 @dataclass(frozen=True, slots=True)
 class ObjectDeleted(Event):
+    """对象已删除。"""
+
     oid: Oid
 
 
@@ -72,10 +84,10 @@ class Subscription:
 
     def cancel(self) -> None:
         if self._active:
-            self._bus._remove(self._inner)
+            self._bus._remove(self._inner)  # noqa: SLF001 — 订阅句柄与总线同模块强耦合
             self._active = False
 
-    def __enter__(self) -> Subscription:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc: object) -> None:

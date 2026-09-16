@@ -54,8 +54,16 @@ def test_graphic_serializes_to_numbers_and_back() -> None:
 
 
 def test_paint_serializes_to_numbers_and_back() -> None:
-    paint = Paint(stroke=0x12345678, width=1.5, line=Line.DASHED, fill=0xABCDEF00,
-                  fill2=0x00ABCDEF, grad=90.0, alpha=0.5, closed=True)
+    paint = Paint(
+        stroke=0x12345678,
+        width=1.5,
+        line=Line.DASHED,
+        fill=0xABCDEF00,
+        fill2=0x00ABCDEF,
+        grad=90.0,
+        alpha=0.5,
+        closed=True,
+    )
     seq = paint.to_seq()
     assert all(isinstance(value, float) for value in seq)
     assert Paint.from_seq(seq) == paint
@@ -80,7 +88,8 @@ def test_body_is_lines_with_stable_ids() -> None:
     note.body = ["第一行\n第二行"]
     assert _texts(note) == ["第一行", "第二行"]
     ids = [line["id"] for line in note.body]
-    assert all(ids) and len(set(ids)) == 2
+    assert all(ids)
+    assert len(set(ids)) == 2
     assert note.text == "第一行\n第二行"
 
 
@@ -184,14 +193,14 @@ def test_body_hash_is_content_only() -> None:
     left = Note()
     left.body = ["hello", "world"]
     right = Note()
-    right.body = ["hello", "world"]        # 行 id 不同
+    right.body = ["hello", "world"]  # 行 id 不同
 
     assert left.body.hash == right.body.hash
 
     left.title = "A"
     right.title = "B"
     right.author = "韩"
-    assert left.body.hash == right.body.hash   # 属性 / 作者不进哈希
+    assert left.body.hash == right.body.hash  # 属性 / 作者不进哈希
 
     right.body = ["hello", "cairn"]
     assert left.body.hash != right.body.hash

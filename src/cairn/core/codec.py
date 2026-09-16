@@ -14,10 +14,12 @@ import cbor2
 
 
 def encode_cbor(obj: Any) -> bytes:
+    """把对象编码为确定性 CBOR 字节串（canonical，键序稳定）。"""
     return cbor2.dumps(obj, canonical=True)
 
 
 def decode_cbor(data: bytes) -> Any:
+    """把 CBOR 字节串解码为 Python 对象。"""
     return cbor2.loads(data)
 
 

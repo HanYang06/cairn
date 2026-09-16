@@ -110,7 +110,7 @@ class Vault:
         return self._events.subscribe(handler, event_type)
 
     # ---- 写 ----
-    def put(
+    def put(  # noqa: PLR0913 — 写接口的显式参数面，均有默认值
         self,
         src: Source,
         *,
@@ -281,7 +281,7 @@ class Vault:
         for block_id in ids:
             try:
                 self.bucket.get(Block, block_id)
-            except Exception as exc:  # 巡检要收集所有问题
+            except Exception as exc:  # noqa: BLE001 — 巡检要收集所有问题，不能中断
                 problems.append(f"{block_id}: {exc}")
         return VerifyReport(objects=len(ids), chunks=0, problems=tuple(problems))
 

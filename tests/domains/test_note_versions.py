@@ -3,11 +3,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cairn.core import Vault
 from cairn.core.store import VersionStore, decode_canonical
 from cairn.domains import Note
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _vault(tmp_path: Path) -> Vault:
@@ -20,7 +23,7 @@ def test_version_chain_reconstructs_history(tmp_path: Path) -> None:
     note.update(text="v2")
     note.update(text="v3")
 
-    history = note.history()          # 最新在前：[v3, v2, root(v1)]
+    history = note.history()  # 最新在前：[v3, v2, root(v1)]
     assert len(history) == 3
     root = history[-1]["id"]
     middle = history[-2]["id"]

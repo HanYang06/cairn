@@ -8,13 +8,15 @@ P0：盲服密文块——无需密钥即可提供，机密性由内容加密保
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
-from typing import Any, Protocol
-
-from cairn.core.types import Cid, Oid
+from typing import TYPE_CHECKING, Any, Protocol
 
 from . import protocol as proto
 from .framing import recv_message, send_message
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
+
+    from cairn.core.types import Cid, Oid
 
 
 class BlobSource(Protocol):
@@ -90,5 +92,6 @@ class PeerClient:
         if reply is None:
             raise ConnectionError("连接在对端应答前关闭")
         if reply.get("op") == proto.OP_HEADS:
-            return reply["envelope"]
+            envelope: bytes = reply["envelope"]
+            return envelope
         return None

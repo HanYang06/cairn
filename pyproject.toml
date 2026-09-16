@@ -35,6 +35,8 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
     "pyinstaller>=6.11",
+    "pytest-cov>=7.1.0",
+    "pre-commit>=4.6.2",
 ]
 
 [build-system]
@@ -55,20 +57,75 @@ line-length = 100
 extend-exclude = [".agents"]
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "ARG", "RUF"]
-ignore = ["RUF001", "RUF002", "RUF003"]
+# 企业级-ε：启用全部规则族，再按“有理由”的清单逐条豁免。
+select = ["ALL"]
+ignore = [
+    # —— 与 ruff format 冲突（官方建议关闭，由格式化器负责）——
+    "D203",   # 类定义前空行，与 D211 冲突
+    "D213",   # 多行摘要从第二行开始，与 D212 冲突
+    "COM812", # 缺尾随逗号
+    "ISC001", # 单行隐式字符串拼接
+    # —— 中文：文档/注释使用全角标点，规则误报 ——
+    "RUF001", # 字符串中的易混淆 Unicode
+    "RUF002", # docstring 中的易混淆 Unicode
+    "RUF003", # 注释中的易混淆 Unicode
+    # —— 注释：中文 docstring 以「。」结尾，该规则不认全角句号 ——
+    "D415", # 首行以 . / ? / ! 结尾（中文句号误报）
+    # —— docstring 只强制公共模块/类/函数，不强制每个方法 / dunder ——
+    "D102", # 公共方法缺 docstring
+    "D105", # 魔法方法缺 docstring
+    "D107", # __init__ 缺 docstring
+    # —— 边界处允许显式 Any；未注解 / 隐式 Any 由 mypy strict 把关 ——
+    "ANN401",
+    # —— 项目内部允许相对导入 ——
+    "TID252",
+    # —— 异常消息允许字面量 / f-string ——
+    "EM101", "EM102", "TRY003",
+    # —— 可读性阈值判断不算魔法数 ——
+    "PLR2004",
+    # —— 领域词汇：id / type / hash 是对外字段/方法名，改名会波及数据模型与 QML ——
+    "A002", "A003",
+]
+
+[tool.ruff.lint.flake8-copyright]
+# 本项目用 SPDX 头代替传统 Copyright 声明。
+notice-rgx = "SPDX-FileCopyrightText: 2026 HanYang06"
+
+[tool.ruff.lint.isort]
+known-first-party = ["cairn"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-# Qt 的命名约定（QML 需要驼峰角色/属性/信号）与默认参数
-"src/cairn/ui/backend.py" = ["N802", "N815", "B008"]
+# Qt 的命名约定（QML 需要驼峰角色/属性/信号）与默认参数；
+# BLE001/S110/S112/SLF001：Qt 边界适配层统一兜底任意内核异常并转成界面状态。
+"src/cairn/ui/backend.py" = ["N802", "N815", "B008", "BLE001", "S110", "S112", "SLF001"]
 "src/cairn/ui/app.py" = ["N815"]
+# 表名/列名来自内部领域自描述并经 _quote 转义，值全部参数化（无注入面）。
+"src/cairn/core/store/table.py" = ["S608"]
+# 测试与工具脚本：断言、注解、docstring、魔法数、打印等不按产品代码要求
+"tests/**" = ["ANN", "D", "S101", "S105", "S603", "PLR2004", "SLF001", "INP001"]
+"tools/**" = ["ANN", "D", "S101", "S603", "C901", "PLR2004", "T201", "INP001", "ERA001"]
+"src/comm/**" = ["ANN", "D", "S101", "T201", "INP001"]
+"src/server/**" = ["ANN", "D", "S101", "T201", "INP001"]
 
 [tool.mypy]
 python_version = "3.13"
-strict = false
-ignore_missing_imports = true
+# 企业级-ε：类型按静态语言口径，未注解 / 隐式 Any / Any 泄漏一律报错。
+strict = true
 plugins = ["tools/mypy_plugin.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=cairn",
+    "--cov-branch",
+    "--cov-report=term-missing:skip-covered",
+]
+# 企业级-ε：任何 warning 都视为错误（不得靠 suppress 蒙混）。
+filterwarnings = ["error"]

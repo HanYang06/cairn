@@ -34,7 +34,7 @@ class UnknownKindError(DomainError):
 
 def known_kinds() -> list[str]:
     """已登记的领域类型（块注册表）。"""
-    return sorted(Block._REGISTRY)
+    return sorted(Block._REGISTRY)  # noqa: SLF001 — 本模块即登记表公共访问入口
 
 
 __all__ = [

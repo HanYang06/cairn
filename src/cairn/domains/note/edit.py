@@ -48,7 +48,7 @@ def is_marker(value: Any) -> bool:
 
 # ---- 正文（行序列）----
 def normalize_body(raw: Any) -> list[Line]:
-    """把任意输入规范成带 id 的行序列；字符串按 ``\\n`` 拆行。"""
+    r"""把任意输入规范成带 id 的行序列；字符串按 ``\\n`` 拆行。"""
     lines: list[Line] = []
     for item in raw or ():
         if is_marker(item):
@@ -63,8 +63,7 @@ def normalize_body(raw: Any) -> list[Line]:
             else:
                 lines.append({"id": lid, "v": value})
             continue
-        for part in str(item).split("\n"):
-            lines.append({"id": new_id(), "v": part})
+        lines.extend({"id": new_id(), "v": part} for part in str(item).split("\n"))
     return lines or [{"id": new_id(), "v": ""}]
 
 
@@ -95,7 +94,9 @@ def apply_text(lines: Sequence[Line], text: str) -> list[Line]:
 
 
 # ---- 行内区间样式 ----
-def _overlay(segments: list[tuple[int, int, Style]], start: int, end: int, style: Style):
+def _overlay(
+    segments: list[tuple[int, int, Style]], start: int, end: int, style: Style
+) -> list[tuple[int, int, Style]]:
     """把 ``[start, end)`` 的样式叠加到已解析的区间上（后者覆盖前者）。"""
     if end <= start:
         return segments
@@ -120,9 +121,7 @@ def _resolve(layers: Sequence[Mapping[tuple[int, int], Style]]) -> list[tuple[in
             start, end = int(key[0]), int(key[1])
             segments = _overlay(segments, start, end, style)
     result = [
-        (start, end, style)
-        for start, end, style in segments
-        if end > start and style != Style()
+        (start, end, style) for start, end, style in segments if end > start and style != Style()
     ]
     merged: list[tuple[int, int, Style]] = []
     for start, end, style in result:
@@ -146,7 +145,7 @@ def canonicalize_style(smap: Mapping[str, Any], lines: Sequence[Line]) -> StyleM
     return result
 
 
-def decode_style(raw: Any, lines: Sequence[Line]) -> StyleMap:
+def decode_style(raw: Any, lines: Sequence[Line]) -> StyleMap:  # noqa: C901 — 兼容旧格式的分支解析
     """把落盘 / 旧格式的样式解码成类型化样式表。
 
     兼容两种旧形态：与行等长的 ``list[Style]``（旧平行表）、以及
@@ -210,9 +209,9 @@ def line_styles(smap: StyleMap, line: Line) -> list[tuple[int, int, Style]]:
     length = len(text) if isinstance(text, str) else 0
     resolved = _resolve(smap.get(line["id"], []))
     out: list[tuple[int, int, Style]] = []
-    for start, end, style in resolved:
-        start = max(0, min(start, length))
-        end = max(0, min(end, length))
+    for seg_start, seg_end, style in resolved:
+        start = max(0, min(seg_start, length))
+        end = max(0, min(seg_end, length))
         if end > start:
             out.append((start, end, style))
     return out
@@ -233,7 +232,7 @@ def signature_style(lines: Sequence[Line], smap: StyleMap) -> list[list[Any]]:
 
 def content_signature(kind: str, lines: Sequence[Line], smap: StyleMap) -> str:
     """版本用的内容签名（不含行 id）：同文同样式即同签名。"""
-    from ...core.store import canonical
+    from ...core.store import canonical  # noqa: PLC0415 — 延迟导入，避免加载期潜在环
 
     payload = {
         "type": kind,

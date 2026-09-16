@@ -3,9 +3,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cairn.core import Event, ObjectDeleted, ObjectPut, Vault
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _create(tmp_path: Path) -> Vault:

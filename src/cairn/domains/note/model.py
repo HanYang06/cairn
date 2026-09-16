@@ -10,11 +10,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..canvas import Canvas, CanvasBody, Form, Graphic, Line, Link, Paint
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 NOTE_KIND = "cairn.note"
 NOTE_MIME = "application/x-cairn-note"

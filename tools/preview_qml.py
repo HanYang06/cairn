@@ -66,9 +66,9 @@ def main(argv: list[str]) -> int:
     view.engine().rootContext().setContextProperty("backend", backend)
     view.engine().rootContext().setContextProperty("notesModel", backend.notes)
     view.engine().rootContext().setContextProperty("tabsModel", backend.tabs)
-    view.setResizeMode(QQuickView.SizeRootObjectToView)
+    view.setResizeMode(QQuickView.ResizeMode.SizeRootObjectToView)
     view.setSource(QUrl.fromLocalFile(str(QML_ROOT / page)))
-    if view.status() == QQuickView.Error:
+    if view.status() == QQuickView.Status.Error:
         for error in view.errors():
             print(error.toString(), file=sys.stderr)
         return 1

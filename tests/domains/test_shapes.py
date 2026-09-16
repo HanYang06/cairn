@@ -53,6 +53,6 @@ def test_graphic_from_generates_points_and_keeps_provenance() -> None:
     graphic = graphic_from(spec, cx=3.0, cy=-1.0, w=8.0, h=8.0, params={"sides": 3})
     assert graphic.form == int(Form.POLYGON)
     assert graphic.cx == 3.0
-    assert len(graphic.points) == 6          # 三角形三个点
-    assert graphic.params == [3.0]           # 来源参数（边数）
-    assert graphic.to_seq()                  # 可落盘
+    assert len(graphic.points) == 6  # 三角形三个点
+    assert graphic.params == [3.0]  # 来源参数（边数）
+    assert graphic.to_seq()  # 可落盘

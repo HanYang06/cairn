@@ -12,12 +12,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..core.store import Block, Body
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 CANVAS_KIND = "cairn.canvas"
 CANVAS_MODE = ("diagram", "sketch")

@@ -41,7 +41,7 @@
 ### 1.3 订阅 API
 
 ```python
-with vault.subscribe(handler) as sub:        # 全部事件
+with vault.subscribe(handler) as sub:  # 全部事件
     ...
 sub = vault.subscribe(handler, event_type=ObjectPut)
 sub.cancel()

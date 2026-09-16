@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 from cairn.core import Vault
 from cairn.domains import (
@@ -16,6 +16,9 @@ from cairn.domains import (
     known_kinds,
 )
 from cairn.domains.asset import transcode, unified_target
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 PASSPHRASE = "correct horse battery staple"
 
@@ -110,4 +113,3 @@ def test_provenance_lineage(tmp_path: Path) -> None:
 
     assert descendants(vault, original.oid) == (remix.oid, again.oid)
     assert ancestors(vault, again.oid) == (remix.oid, original.oid)
-

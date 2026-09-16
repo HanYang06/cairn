@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -15,6 +15,9 @@ from cairn.domains import (
     Signature,
     known_kinds,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 PASSPHRASE = "correct horse battery staple"
 
@@ -97,8 +100,8 @@ def test_body_pool_dedupes_across_attrs(tmp_path: Path) -> None:
     second = Note.create(vault, "same body", title="B")
 
     assert first.body.hash == second.body.hash
-    assert vault.bucket.catalog.count_contents() == 1   # body 内容池里只有一份
-    assert vault.bucket.catalog.count_blocks() == 2      # 属性各自独立
+    assert vault.bucket.catalog.count_contents() == 1  # body 内容池里只有一份
+    assert vault.bucket.catalog.count_blocks() == 2  # 属性各自独立
 
 
 def test_note_creation_signature_is_composite(tmp_path: Path) -> None:

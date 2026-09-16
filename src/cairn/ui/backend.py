@@ -32,7 +32,7 @@ from ..core.store import CATALOG_NAME as _CATALOG_NAME
 from ..domains import Note, Relation, ancestors, descendants
 from ..domains.provenance import DERIVED_FROM
 
-DEV_PASSPHRASE = "cairn-dev"
+DEV_PASSPHRASE = "cairn-dev"  # noqa: S105 — 开发期固定口令，非生产密钥
 _SPACE_LABELS = {"default": "个人空间"}
 RELATIONS_KEY = "relations"
 
@@ -59,8 +59,8 @@ def open_vault(root: Path | str, passphrase: str = DEV_PASSPHRASE) -> Vault:
 
 
 def _fmt_time(ms: int) -> str:
-    moment = datetime.datetime.fromtimestamp(ms / 1000)
-    now = datetime.datetime.now()
+    moment = datetime.datetime.fromtimestamp(ms / 1000, tz=datetime.UTC).astimezone()
+    now = datetime.datetime.now(tz=datetime.UTC).astimezone()
     if moment.date() == now.date():
         return moment.strftime("%H:%M")
     if moment.year == now.year:
@@ -179,7 +179,7 @@ class NotesModel(QAbstractListModel):
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:  # type: ignore[override]
         return 0 if parent.isValid() else len(self._rows)
 
-    def data(  # type: ignore[override]
+    def data(  # type: ignore[override]  # noqa: PLR0911 — 角色分派：多分支返回是本职
         self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole
     ) -> Any:
         if not index.isValid() or not 0 <= index.row() < len(self._rows):
@@ -208,11 +208,11 @@ class NotesModel(QAbstractListModel):
         self._tag = tag or None
         self.reload()
 
-    def set_show_archived(self, show: bool) -> None:
+    def set_show_archived(self, *, show: bool) -> None:
         self._show_archived = show
         self.reload()
 
-    def set_show_trash(self, show: bool) -> None:
+    def set_show_trash(self, *, show: bool) -> None:
         self._show_trash = show
         self.reload()
 
@@ -230,7 +230,7 @@ class NotesModel(QAbstractListModel):
         except Exception:
             return None
 
-    def reload(self) -> None:
+    def reload(self) -> None:  # noqa: C901 — Qt 模型重载：排序/过滤/检索编排集中于此
         self.beginResetModel()
         infos = sorted(
             self._vault.iter(type=Note.kind),
@@ -396,9 +396,9 @@ class Backend(QObject):
     def _note_text(self, manifest: Any) -> str:
         try:
             note = Note.load(self._vault, manifest.oid)
-            return f"{note.title or ''}\n{note.text}"
         except Exception:
             return ""
+        return f"{note.title or ''}\n{note.text}"
 
     # ---- 当前笔记 ----
     def _oid(self) -> str:
@@ -857,10 +857,10 @@ class Backend(QObject):
     @Slot()
     def toggleShowArchived(self) -> None:
         self._show_archived = not self._show_archived
-        self.notes.set_show_archived(self._show_archived)
+        self.notes.set_show_archived(show=self._show_archived)
         self.archivedViewChanged.emit()
 
-    def _apply_flag(self, oid: str, key: str, value: bool) -> None:
+    def _apply_flag(self, oid: str, key: str, *, value: bool) -> None:
         note = Note.load(self._vault, oid)
         props = note.props()
         props[key] = value
@@ -878,7 +878,7 @@ class Backend(QObject):
             note = Note.load(self._vault, oid)
         except Exception:
             return
-        self._apply_flag(oid, "favorite", not bool(note.props().get("favorite")))
+        self._apply_flag(oid, "favorite", value=not bool(note.props().get("favorite")))
 
     @Slot(str)
     def toggleArchive(self, oid: str) -> None:
@@ -888,7 +888,7 @@ class Backend(QObject):
             note = Note.load(self._vault, oid)
         except Exception:
             return
-        self._apply_flag(oid, "archived", not bool(note.props().get("archived")))
+        self._apply_flag(oid, "archived", value=not bool(note.props().get("archived")))
 
     @Slot(str)
     def toggleHomepageOf(self, oid: str) -> None:
@@ -975,7 +975,7 @@ class Backend(QObject):
     @Slot()
     def toggleShowTrash(self) -> None:
         self._show_trash = not self._show_trash
-        self.notes.set_show_trash(self._show_trash)
+        self.notes.set_show_trash(show=self._show_trash)
         self.propsChanged.emit()
 
     @Property(int, notify=propsChanged)
@@ -989,7 +989,7 @@ class Backend(QObject):
                 continue
         return count
 
-    def _flag_trashed(self, oid: str, value: bool) -> None:
+    def _flag_trashed(self, oid: str, *, value: bool) -> None:
         if not oid:
             return
         try:
@@ -1006,11 +1006,11 @@ class Backend(QObject):
 
     @Slot(str)
     def trashNote(self, oid: str) -> None:
-        self._flag_trashed(oid, True)
+        self._flag_trashed(oid, value=True)
 
     @Slot(str)
     def restoreNote(self, oid: str) -> None:
-        self._flag_trashed(oid, False)
+        self._flag_trashed(oid, value=False)
 
     @Slot(str)
     def purgeNote(self, oid: str) -> None:
@@ -1186,19 +1186,19 @@ class Backend(QObject):
 
     # ---- 批量 ----
     @Slot(list)
-    def trashMany(self, oids: list) -> None:
+    def trashMany(self, oids: list[Any]) -> None:
         self._set_many(oids, lambda props: props.update({"trashed": True}))
 
     @Slot(list)
-    def restoreMany(self, oids: list) -> None:
+    def restoreMany(self, oids: list[Any]) -> None:
         self._set_many(oids, lambda props: props.update({"trashed": False}))
 
     @Slot(list)
-    def favoriteMany(self, oids: list) -> None:
+    def favoriteMany(self, oids: list[Any]) -> None:
         self._set_many(oids, lambda props: props.update({"favorite": True}))
 
     @Slot(list, str)
-    def addTagToMany(self, oids: list, tag: str) -> None:
+    def addTagToMany(self, oids: list[Any], tag: str) -> None:
         tag = tag.strip()
         if not tag:
             return
@@ -1221,7 +1221,7 @@ class Backend(QObject):
         self.tagsListChanged.emit()
         self.propsChanged.emit()
 
-    def _set_many(self, oids: list, mutate: Any) -> None:
+    def _set_many(self, oids: list[Any], mutate: Any) -> None:
         self.flush()
         for raw in oids:
             oid = str(raw)
@@ -1351,8 +1351,10 @@ def seed_demo(backend: Backend) -> None:
 
 
 def env_vault_root() -> Path:
+    """开发库根目录：``CAIRN_VAULT`` 覆盖，否则用项目内 ``vault/``。"""
     return Path(os.environ.get("CAIRN_VAULT", str(DEV_VAULT)))
 
 
 def env_passphrase() -> str:
+    """开发口令：``CAIRN_DEV_PASSPHRASE`` 覆盖，否则用内置默认值。"""
     return os.environ.get("CAIRN_DEV_PASSPHRASE", DEV_PASSPHRASE)

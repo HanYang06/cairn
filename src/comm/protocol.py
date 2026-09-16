@@ -8,10 +8,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from cairn.core.types import Cid, Oid
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from cairn.core.types import Cid, Oid
 
 OP_WANT = "want"
 OP_CHUNK = "chunk"

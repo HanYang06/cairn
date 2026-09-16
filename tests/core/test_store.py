@@ -3,12 +3,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from cairn.core.store import INDEX_TYPE, Attr, Block, BodyField, Bucket, BucketConfig
 from cairn.types import CairnError, CorruptObjectError, ObjectNotFoundError
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class Note(Block):
@@ -202,7 +205,7 @@ def test_decode_rebuilds_subclass(tmp_path: Path) -> None:
 
 def test_validation_runs_on_put(tmp_path: Path) -> None:
     bucket = _bucket(tmp_path)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="缺少 ok"):
         bucket.put(Strict())
     good = Strict(attrs={"ok": True})
     bucket.put(good)
@@ -245,9 +248,14 @@ def test_fields_and_config_persist(tmp_path: Path) -> None:
 def test_transaction_rolls_back(tmp_path: Path) -> None:
     bucket = _bucket(tmp_path)
     note = bucket.new(Note)
-    with pytest.raises(RuntimeError), bucket.transaction():
-        bucket.put(note)
-        raise RuntimeError("boom")
+
+    def boom() -> None:
+        with bucket.transaction():
+            bucket.put(note)
+            raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        boom()
     assert bucket.has(note.id) is False
 
 
@@ -291,8 +299,7 @@ def test_put_auto_mounts_domain_tables(tmp_path: Path) -> None:
     bucket = _bucket(tmp_path)
     bucket.put(bucket.new(Note))  # 首次写入即触发 Note.bind
     names = {
-        row["name"]
-        for row in bucket.query("SELECT name FROM sqlite_master WHERE type = 'table'")
+        row["name"] for row in bucket.query("SELECT name FROM sqlite_master WHERE type = 'table'")
     }
     assert {"notes", "note_relations"} <= names
 
@@ -308,4 +315,3 @@ def test_isolated_config_gets_own_pack(tmp_path: Path) -> None:
     other.body.append("x")
     bucket.put(other)
     assert bucket.catalog.count_packs() == 2
-

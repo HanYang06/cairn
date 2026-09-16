@@ -44,7 +44,7 @@ def digest(state: State) -> str:
     return blake3(canonical(payload)).hexdigest()
 
 
-def diff(new_state: State, old_state: State) -> bytes:
+def diff(new_state: State, old_state: State) -> bytes:  # noqa: C901 — 三趟 diff 逻辑集中
     """算出把 ``new`` 回退成 ``old`` 的补丁。"""
     new_by = {line["id"]: line for line in new_state.get("body") or ()}
     old_by = {line["id"]: line for line in old_state.get("body") or ()}
@@ -89,8 +89,7 @@ def apply(state: State, patch: Any) -> State:
     """把反向补丁作用到状态上，得到旧状态。"""
     body = [dict(line) for line in state.get("body") or ()]
     style = {
-        lid: [list(item) for item in triples]
-        for lid, triples in (state.get("style") or {}).items()
+        lid: [list(item) for item in triples] for lid, triples in (state.get("style") or {}).items()
     }
 
     for lid, entry in patch.items():

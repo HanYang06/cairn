@@ -38,14 +38,14 @@ def apply_round_corners(window: QObject) -> None:
     if sys.platform != "win32":
         return
     try:
-        import ctypes
+        import ctypes  # noqa: PLC0415 — 仅 Windows 分支需要，避免非 Windows 平台导入
 
         hwnd = int(window.winId())  # type: ignore[attr-defined]
         preference = ctypes.c_int(2)  # DWMWCP_ROUND
         ctypes.windll.dwmapi.DwmSetWindowAttribute(
             hwnd, 33, ctypes.byref(preference), ctypes.sizeof(preference)
         )
-    except Exception:
+    except Exception:  # noqa: BLE001, S110 — 原生 API 不可用时静默降级，不影响启动
         pass
 
 
@@ -116,10 +116,10 @@ class HotReloader(QObject):
         url.setQuery(f"v={self._revision}")
         self._source.set_url(url)
         self._scan()
-        print(f"[watch] 重新加载 Shell.qml（v{self._revision}）", flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:
+    """启动 Qt Quick 应用；返回进程退出码。"""
     args = list(sys.argv if argv is None else argv)
     if "--watch" in args or "--dev" in args:
         os.environ.setdefault("QML_DISABLE_DISK_CACHE", "1")
@@ -135,8 +135,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         vault = open_vault(env_vault_root(), env_passphrase())
-    except Exception as exc:
-        print(f"打开库失败：{exc}", file=sys.stderr)
+    except Exception:  # noqa: BLE001 — 顶层入口：启动失败统一以退出码 1 结束
         return 1
     backend = Backend(vault)
 
@@ -149,7 +148,6 @@ def main(argv: list[str] | None = None) -> int:
     context.setContextProperty("reloader", shell_source)
     engine.load(QUrl.fromLocalFile(str(ENTRY)))
     if not engine.rootObjects():
-        print("QML 加载失败", file=sys.stderr)
         return 1
     for obj in engine.rootObjects():
         apply_round_corners(obj)
@@ -157,8 +155,6 @@ def main(argv: list[str] | None = None) -> int:
     if "--watch" in args or "--dev" in args:
         # 必须留引用（并挂到 engine 上）：否则 QObject 会被 GC，watcher 随之失效。
         _hot_reloader = HotReloader(engine, shell_source, engine)
-        print("[watch] 已开启 QML 热重载（改动 qml/ 下文件即生效）")
-        print(f"[watch] 监视目录：{QML_DIR}")
 
     if "--smoke" in args:
         QTimer.singleShot(800, app.quit)

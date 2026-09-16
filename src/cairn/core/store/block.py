@@ -44,15 +44,17 @@
 
 from __future__ import annotations
 
-import builtins
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from enum import Enum
-from typing import Any, ClassVar, Self, get_origin
+from typing import TYPE_CHECKING, Any, ClassVar, Self, get_origin
 
 import cbor2
 from blake3 import blake3
 
 from ...types import CairnError, CorruptObjectError, Oid
+
+if TYPE_CHECKING:
+    import builtins
 
 BLOCK_VERSION = 1
 
@@ -278,8 +280,8 @@ def _data_from_value(value: Any) -> Data[Any]:
 def _body_type(cls: builtins.type[Block]) -> builtins.type[Body] | None:
     """类声明的 body 类型（结构化 body）；裸 body 返回 ``None``。"""
     field = cls.__dict__.get("body")
-    if isinstance(field, BodyField) and field._prototype is not None:
-        return type(field._prototype)
+    if isinstance(field, BodyField) and field._prototype is not None:  # noqa: SLF001 — 同模块内省
+        return type(field._prototype)  # noqa: SLF001
     return None
 
 
@@ -350,7 +352,7 @@ class Block:
         for name, columns in cls.tables().items():
             bucket.table(name, **columns)
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — 块记录的扁平字段构造器，拆包反而更绕
         self,
         *,
         id: str | None = None,
@@ -381,12 +383,13 @@ class Block:
 
     def validate(self) -> None:
         """写入前的校验；子类重写，非法即抛异常。默认放行。"""
-        return None
+        return
 
     # id 锁死：创建后不可改
     @property
     def id(self) -> str:
-        assert self._id is not None
+        if self._id is None:
+            raise CairnError("块 id 未初始化")
         return self._id
 
     @id.setter
@@ -447,7 +450,6 @@ class Block:
             body = _body_from_data(target, raw)
             block = target(id=id, body=body, attrs=dict(attrs or {}), type=kind)
             block.checksum = block.compute_checksum()
-            return block
         except (
             cbor2.CBORDecodeError,
             cbor2.CBOREncodeError,
@@ -456,6 +458,7 @@ class Block:
             ValueError,
         ) as exc:
             raise CorruptObjectError("块解析失败") from exc
+        return block
 
     def verify(self) -> bool:
         """重算 checksum，校验内容未被篡改。"""
@@ -516,7 +519,7 @@ class Block:
 
     @classmethod
     def load(cls, vault: Any, oid: Oid | str) -> Self:
-        block: Any = vault.bucket.get(cls, str(oid))
+        block: Self = vault.bucket.get(cls, str(oid))
         block._vault = vault
         block._info = vault.info(block.id)
         return block

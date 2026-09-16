@@ -10,9 +10,11 @@
 
 from __future__ import annotations
 
-import sqlite3
-from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Mapping
 
 
 def _quote(name: str) -> str:

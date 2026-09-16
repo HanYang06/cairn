@@ -9,8 +9,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
 
 
 class Audience(Enum):
@@ -44,6 +47,7 @@ _TARGET: dict[ShareKind, Audience] = {
 
 
 def parse_kind(value: object) -> ShareKind | None:
+    """把任意值解析为 ``ShareKind``；无法识别时返回 ``None``。"""
     try:
         return ShareKind(str(value))
     except ValueError:
@@ -51,6 +55,7 @@ def parse_kind(value: object) -> ShareKind | None:
 
 
 def target_audience(kind: ShareKind) -> Audience:
+    """分享目标所对应的受众类别。"""
     return _TARGET[kind]
 
 

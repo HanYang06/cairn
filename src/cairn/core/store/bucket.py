@@ -29,15 +29,12 @@
 
 from __future__ import annotations
 
-import builtins
 import json
 import os
-import sqlite3
-from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Self
 
 from ...types import (
     CairnError,
@@ -49,6 +46,11 @@ from ...types import (
 from .block import INDEX_TYPE, PART_TYPE, Block, canonical, decode_canonical
 from .catalog import BlockLocation, Catalog
 from .table import Table
+
+if TYPE_CHECKING:
+    import builtins
+    import sqlite3
+    from collections.abc import Iterator
 
 CATALOG_NAME = "catalog.db"
 _CONFIG_KEY = "config"
@@ -103,7 +105,7 @@ class Bucket:
     def close(self) -> None:
         self.catalog.close()
 
-    def __enter__(self) -> Bucket:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -210,7 +212,9 @@ class Bucket:
         return list(self.catalog.conn.execute(sql, list(params)).fetchall())
 
     # ---- 大内容：分片 + 索引块 ----
-    def put_content(self, data: bytes, *, kind: str = "asset", attrs: dict | None = None) -> str:
+    def put_content(
+        self, data: bytes, *, kind: str = "asset", attrs: dict[str, Any] | None = None
+    ) -> str:
         """写入一段内容：小则一块；大则分片，由索引块聚合成一个可引用的 id。"""
         if len(data) <= self.config.block_max_bytes:
             return self.put(Block(body=data, attrs=attrs, type=kind)).id

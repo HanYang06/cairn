@@ -8,11 +8,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from ..core.types import Oid, SpaceId
 from .relation import Relation
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from ..core.types import Oid, SpaceId
 
 DERIVED_FROM = "derived-from"
 

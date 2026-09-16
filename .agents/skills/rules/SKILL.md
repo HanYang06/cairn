@@ -24,5 +24,6 @@ license: Apache-2.0
 | 提交 / commit message | [`references/commit.md`](references/commit.md)（并加载 `git-commit` 技能） |
 | 新增依赖、引入第三方主题 / 画布 / 库 | [`references/licensing.md`](references/licensing.md) |
 | 新建或修改任何源文件 / 文档 | [`references/spdx.md`](references/spdx.md) |
+| 质量门禁 / ruff / mypy / pytest 配置 | [`references/quality.md`](references/quality.md) |
 
 > 新规则出现时：在这里加一行路由 + 一个 `references/` 文件。**不要把长文写回 `AGENTS.md`。**

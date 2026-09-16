@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -76,6 +77,11 @@ class Catalog:
     def close(self) -> None:
         self.conn.close()
 
+    def __del__(self) -> None:
+        # 调用方忘记 close 时兜底释放 sqlite 句柄，避免 GC 期 ResourceWarning。
+        with suppress(Exception):
+            self.conn.close()
+
     def commit(self) -> None:
         self.conn.commit()
 
@@ -88,9 +94,10 @@ class Catalog:
         return int(cursor.lastrowid or 0)
 
     def active_pack(self) -> sqlite3.Row | None:
-        return self.conn.execute(
+        row: sqlite3.Row | None = self.conn.execute(
             "SELECT * FROM packs WHERE sealed = 0 ORDER BY id DESC LIMIT 1"
         ).fetchone()
+        return row
 
     def seal_pack(self, pack_id: int) -> None:
         self.conn.execute("UPDATE packs SET sealed = 1 WHERE id = ?", (pack_id,))
@@ -121,8 +128,7 @@ class Catalog:
 
     def add_content(self, checksum: str, location: BlockLocation) -> None:
         self.conn.execute(
-            "INSERT OR IGNORE INTO contents(checksum, pack_id, offset, length) "
-            "VALUES(?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO contents(checksum, pack_id, offset, length) VALUES(?, ?, ?, ?)",
             (checksum, location.pack_id, location.offset, location.length),
         )
 
@@ -131,7 +137,7 @@ class Catalog:
         return int(row["n"])
 
     # ---- 逻辑块 ----
-    def save_block(
+    def save_block(  # noqa: PLR0913 — 块行字段直接对应表列
         self,
         block_id: str,
         *,
@@ -152,12 +158,13 @@ class Catalog:
         )
 
     def block_row(self, block_id: str) -> sqlite3.Row | None:
-        return self.conn.execute("SELECT * FROM blocks WHERE id = ?", (block_id,)).fetchone()
+        row: sqlite3.Row | None = self.conn.execute(
+            "SELECT * FROM blocks WHERE id = ?", (block_id,)
+        ).fetchone()
+        return row
 
     def block_checksum(self, block_id: str) -> str | None:
-        row = self.conn.execute(
-            "SELECT checksum FROM blocks WHERE id = ?", (block_id,)
-        ).fetchone()
+        row = self.conn.execute("SELECT checksum FROM blocks WHERE id = ?", (block_id,)).fetchone()
         return None if row is None else str(row["checksum"])
 
     def has_block(self, block_id: str) -> bool:

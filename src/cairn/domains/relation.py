@@ -48,7 +48,7 @@ class Relation:
 
     kind: ClassVar[str] = RELATION_KIND
 
-    def __init__(
+    def __init__(  # noqa: PLR0913, PLR0917 — 关系行的扁平字段构造器
         self,
         vault: Any,
         id: str,
@@ -98,7 +98,7 @@ class Relation:
 
     # ---- 写 ----
     @classmethod
-    def create(
+    def create(  # noqa: PLR0913 — 建边入口：描述字段均有默认值
         cls,
         vault: Any,
         source: Oid | str,

@@ -134,7 +134,7 @@ class Note(Block):
     schema: Attr[int] = NOTE_SCHEMA
     title: Attr[str | None] = None
     tags: Attr = Attr(factory=dict, coerce=normalize_tags)  # coerce → 显式
-    authors: Attr[list] = []  # noqa: RUF012
+    authors: Attr[list[Any]] = []  # noqa: RUF012
     signature: Attr[Signature] = Signature()
     privacy: Attr[str] = ""
     favorite: Attr[bool] = False
@@ -154,7 +154,7 @@ class Note(Block):
     @classmethod
     def load(cls, vault: Any, oid: Oid | str) -> Self:
         note = super().load(vault, oid)
-        note._saved_state = note._state()
+        note._saved_state = note._state()  # noqa: SLF001 — 同类 classmethod 初始化实例状态
         return note
 
     def save(self, *, search_text: str | None = None) -> Self:
@@ -231,8 +231,7 @@ class Note(Block):
                 )
                 continue
             styles = [
-                [start, end, style.to_data()]
-                for start, end, style in line_styles(self.style, line)
+                [start, end, style.to_data()] for start, end, style in line_styles(self.style, line)
             ]
             blocks.append(
                 {"id": line["id"], "kind": "text", "text": value, "styles": styles, "index": -1}
@@ -305,16 +304,14 @@ class Note(Block):
         return self
 
     def link(self, target: Oid | str, relation: str = "references") -> Any:
-        from ..relation import Relation
+        from ..relation import Relation  # noqa: PLC0415 — 延迟导入，避免领域间加载期环
 
         return Relation.create(self._require_vault(), self.oid, target, relation=relation)
 
     # ---- 版本（走通用引擎）----
     def _state(self) -> dict[str, Any]:
         return {
-            "body": [
-                {"id": line["id"], "v": copy.deepcopy(line["v"])} for line in self.body.text
-            ],
+            "body": [{"id": line["id"], "v": copy.deepcopy(line["v"])} for line in self.body.text],
             "style": encode_style(self.body.style),
         }
 
@@ -329,7 +326,8 @@ class Note(Block):
         state = VersionStore(self._vault.bucket).state_at(
             self.id, NOTE_CODEC, self._state(), str(version)
         )
-        return state["body"]
+        body: list[LineDict] = state["body"]
+        return body
 
     def restore(self, version: str) -> Self:
         """把指定版本的正文/样式作为新版本写回（历史继续向前）。"""

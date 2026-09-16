@@ -8,10 +8,14 @@ Qt 相关逻辑隔离在此，``cairn.ui.theme`` 本体保持无 Qt 依赖。
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import QApplication
+from typing import TYPE_CHECKING
 
 from .qss import build_qss
-from .tokens import Theme
+
+if TYPE_CHECKING:
+    from PySide6.QtWidgets import QApplication
+
+    from .tokens import Theme
 
 
 class ThemeManager:

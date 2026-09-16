@@ -5,13 +5,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Self
 
 from ...core.store import Attr, Block, BodyField
-from ...types import Oid
 from ..base import UNSET, normalize_tags
 from ..relation import Relation
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator, Mapping
+
+    from ...types import Oid
 
 PROJECT_KIND = "cairn.project"
 PROJECT_SCHEMA = 1
@@ -19,6 +22,8 @@ CONTAINS = "contains"
 
 
 class Project(Block):
+    """项目块：承载一组条目（contains 关系）。"""
+
     type = PROJECT_KIND
     body = BodyField(factory=list)
 

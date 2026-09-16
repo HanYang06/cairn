@@ -6,8 +6,10 @@
 from __future__ import annotations
 
 from string import Template
+from typing import TYPE_CHECKING
 
-from .tokens import Theme
+if TYPE_CHECKING:
+    from .tokens import Theme
 
 _QSS = Template(
     """
