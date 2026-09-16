@@ -3,8 +3,7 @@
 
 # AGENTS.md
 
-Cairn（巨石堆）：本地优先的加密对象池 / 笔记·资产·项目工作台。
-Python 3.13 + PySide6 **Qt Quick / QML**；用 `uv` 管理；Apache-2.0。
+Cairn（巨石堆）：本地优先的内容寻址对象池 / 笔记·资产·项目工作台。Python 3.13 + PySide6 **Qt Quick / QML**；用 `uv` 管理；Apache-2.0。
 
 ## 开工前 SOP（每个任务都先做）
 
@@ -47,18 +46,19 @@ uv run python tools/preview_qml.py Shell.qml build/x.png 1440 900 navMode=projec
 
 ## 架构分层（别越界）
 
-- `src/cairn/core/`（L0 加密对象池）是公共底座：**必须 Qt-free、传输无关**。
-- `src/cairn/domains/`（L3 note/asset/project/relation/composition）只依赖 core 公共 API；
-  领域之间互不依赖；**不得给 Manifest 加字段**，扩展只走 `meta.props`；
+- `src/cairn/core/`（L0 桶 / 块存储）是公共底座：**必须 Qt-free、传输无关**。
+- `src/cairn/domains/`（L3 note/canvas/asset/project/relation）只依赖 core 公共 API；
+  领域之间互不依赖；领域结构**直接继承 `Block`**，不得改 `Block` 顶层字段，
+  扩展只走子类字段（`Attr` / `Data` / `Body`）、新 `type` 或新关系 `kind`；
   `type` 命名空间为 `cairn.<domain>.<kind>`。
 - `src/cairn/ui/`：`backend.py` 只做「内核 ↔ Qt」翻译，不放业务规则/界面；
-  `qml/` 是界面，`theme/` 是令牌 + QSS。
+  `qml/` 是界面，`qml/theme/` 是令牌（`CairnTheme`）；旧的 `ui/theme/`（Widgets+QSS 时代）待删。
 - `src/comm/`、`src/server/` 是 P2P / 服务端**实验顶层包**，不在 hatch wheel 中
   （仅靠 pytest 的 `pythonpath=["src"]` 可导入）。新内核代码放 `src/cairn`。
 - `docs/architecture/*.md` 是设计事实来源（`storage.md` 为 L0 唯一事实来源，
   `data-model.md` 为数据结构总纲），状态均为「草案」，部分未实现。
   **有冲突以代码为准，改实现后回写文档。**
-- 内部时间统一 unix 毫秒 int；ID 用 ULID（Oid）/ keyed BLAKE3 hex（Cid）。
+- 内部时间统一 unix 毫秒 int；ID 用 ULID（Oid），内容哈希用 BLAKE3 十六进制（`checksum`）。
 
 ## 测试与 Qt 冒烟
 

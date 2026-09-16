@@ -20,17 +20,17 @@
 | 手绘画布 | **Excalidraw** | TS | MIT | ✅ Web 面 |
 | 笔迹平滑 | **perfect-freehand** | JS | MIT | ✅ |
 | 形状识别 | **$P 模板识别**（自实现）/ 端侧小模型 | Py/JS | 自造 | ✅ 先模板后模型 |
-| 全文检索 | **SQLite FTS5** | C/Py | 公有领域 | ✅ 已用 |
+| 全文检索 | **SQLite FTS5** | C/Py | 公有领域 | ✅ 已用（LIKE 回落） |
 | 协作 CRDT | **Yjs** | JS | MIT | ⏸ 后置 |
 | 画布 SDK（备选） | tldraw | TS | **需核实（疑商用授权）** | ⚠️ 谨慎 |
 | 矢量几何 | shapely | Py | BSD | ✅ 备用 |
-| 加密/哈希/分块 | cryptography/blake3/fastcdc | Py | 见依赖 | ✅ 已用 |
+| 哈希 / 序列化 | blake3 / cbor2 | Py | Apache-2.0 / MIT | ✅ 已用 |
 
-**自造（差异化，不可替代）**：加密对象池（已完成）、基板格式、关系/衍生、索引、Qt 外壳、AI 工具暴露方式。
+**自造（差异化，不可替代）**：桶 / 块存储、笔记行模型（行身份 + 区间样式）、关系 / 衍生、索引、Qt 外壳、AI 工具暴露方式。
 
 ---
 
-## 1. 编辑 / 基板
+## 1. 编辑 / 正文格式
 
 | 项目 | 语言 | 许可 | 说明 |
 |---|---|---|---|
@@ -44,11 +44,10 @@
 | rough.js | JS | MIT | 手绘风格图形 |
 | Qt 原生 | Py/C++ | LGPL/商业 | `QTextEdit`/`QGraphicsView`；富编辑能力有限 |
 
-**建议**：数据格式用我们自己的 **substrate 块列表（CBOR）**，编辑器的文档 JSON 只作**投影/输入**。
-- 富文本/块：`ProseMirror`（或 Tiptap）
-- **逻辑图（diagram）：自造**——只存节点 + 边、布局与连线自算（`data-model.md` §5.3）；`Excalidraw` 是**自由画布**，不适合语义图。
-- 自由手绘（sketch）：`Excalidraw`（MIT，避开 tldraw 的许可风险）+ `perfect-freehand`
-- Qt 侧用 `QtWebEngine` 承载 Web 编辑器；**捕捉面保持原生**（及时性）。
+**建议**：数据格式用我们自己的**行序列 + 区间样式**（CBOR，见 [`note-model.md`](./note-model.md) §6），编辑器的文档 JSON 只作**投影 / 输入**。
+- **当前界面是原生 Qt Quick/QML**，编辑器走 QML 分块渲染（`Backend.currentBlocks`）；Web 富编辑 / 画布是**备选路线**（QtWebEngine），未引入。
+- 若日后启用 Web 编辑面：块编辑用 `ProseMirror`（或 Tiptap）；自由手绘用 `Excalidraw`（MIT，避开 tldraw 的许可风险）+ `perfect-freehand`。
+- **逻辑图（diagram）：自造**——只存数值序列（图形 + 连线），布局与连线派生（`data-model.md` §5.2）；`Excalidraw` 是**自由画布**，不适合语义图。
 
 ---
 
@@ -87,7 +86,7 @@
 | Hypercore / Dat / Willow | JS/Rust | MIT（多数） | 另一类本地优先复制，绑定参差 |
 | IPFS | Go/Rust | MIT | 理念相近，偏重 |
 
-**建议**：**py-libp2p 作为 P2P 底座首选**。我们的存储层已是内容寻址，P2P 层只需"want-list = 一组 CID" + libp2p 传输，天然对接。性能不够时再考虑 Rust 实现。
+**建议**：**py-libp2p 作为 P2P 底座首选**。我们的存储层已是内容寻址，P2P 层只需"want-list = 一组 `checksum`" + libp2p 传输，天然对接。性能不够时再考虑 Rust 实现。
 
 ---
 
@@ -124,14 +123,14 @@
 | Logseq | outliner、文件本体 | 双链、daily note UX |
 | Obsidian | 闭源，插件生态 | UX 范式 |
 
-**结论**：**读它们的数据模型与 UX，不 fork**（地基不同：明文文件 vs 加密对象池，见 `note-model.md`）。
+**结论**：**读它们的数据模型与 UX，不 fork**（地基不同：明文文件 vs 桶 / 块内容寻址，见 `note-model.md`）。
 
 ---
 
 ## 8. 分工总账
 
-- **自造**：加密对象池 ✅、substrate 格式、关系/衍生、索引/反链、Qt 外壳、AI 工具暴露。
-- **借轮子**：py-libp2p（P2P）、MCP（AI）、ProseMirror/Excalidraw/perfect-freehand（Web 编辑/画布）、SQLite FTS5、shapely、Yjs（后置）。
+- **自造**：桶 / 块存储 ✅、笔记行模型（行身份 + 区间样式）、关系 / 衍生、索引 / 反链、Qt 外壳、AI 工具暴露。
+- **借轮子**：py-libp2p（P2P）、MCP（AI）、ProseMirror/Excalidraw/perfect-freehand（Web 编辑/画布，备选）、SQLite FTS5、shapely、Yjs（后置）。
 
 ---
 

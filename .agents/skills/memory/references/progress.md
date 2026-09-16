@@ -13,10 +13,7 @@
 
 ## 待做（近期）
 
-- [ ] **Block 边界瘦身**：`title/tags/authors` 从 `Block` 挪回域（现仍在 Block）。
-- [ ] **nid / pid 表**：域 ID 分开（`notes(nid,oid)` / `projects(pid,oid)`），现仍只有 `oid`。
 - [ ] **大正文透明分片**：`Note.body` 过大时走 `Bucket.put_content`（分片 + 索引块）。
-- [ ] **文档回写**：`data-model.md`、`note-model.md` 仍是旧模型（manifest / runs / 平行 style），需按桶块 + 行序列重写。
 - [ ] **关系拓扑 UI**：`relations` 表已能查上下游，界面画引用拓扑图未接。
 - [ ] **图片 / 音频转码实装**：走不传染库（图片 Pillow；音频 FLAC/Opus），视频按 (a) 暂不转码。
 - [ ] 属性 KV 化推广到**项目 / 社区**（现只有笔记是 KV）。

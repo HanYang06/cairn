@@ -9,14 +9,14 @@
 
 ## 定位
 
-- **本地优先**：文件是本体，应用只是消费者。数据以普通文件落盘，SQLite 只是可重建的索引。
+- **本地优先**：内容寻址的桶 / 块是本体，应用只是消费者。数据落普通文件（`packs/*.pack`）+ 一个目录库 `catalog.db`（唯一真源）。
 - **三件套**：笔记、存储、项目管理。
 - **桌面优先**：以 Windows 为主要平台，内核与打包保持跨平台能力。
-- **加密对象池**：内容寻址 + 加密存储，是与其他笔记软件的根本分野。
+- **内容寻址对象池**：块按 `body` 哈希去重、OID 稳定寻址；加密只用于传输 / 服务端（本地落盘明文）。这是与其他笔记软件的根本分野。
 
 ## 现状
 
-早期开发阶段，**尚未发布**。加密对象池（L0）与 QML 界面外壳已可运行，领域功能在逐步接入。
+早期开发阶段，**尚未发布**。桶 / 块存储（L0）与 QML 界面外壳已可运行，笔记内核（行身份 + 区间样式 + 版本）已落地，领域功能在逐步接入。
 详细进度、决策与待办见 `.agents/skills/memory/references/`。
 
 ## 快速开始
@@ -31,7 +31,7 @@ uv run cairn --smoke       # 冒烟：0.8s 后自动退出
 ```
 
 - 开发库默认放在 `<repo>/vault/`（已 gitignore），可用环境变量 `CAIRN_VAULT` 覆盖。
-- 开发口令为环境变量 `CAIRN_DEV_PASSPHRASE`（默认 `cairn-dev`）；**正式解锁流程尚未实现**。
+- **本地不加密**，落盘明文；`CAIRN_DEV_PASSPHRASE`（默认 `cairn-dev`）与解锁流程是 P2P / 服务端到来前的占位。
 
 ## 技术栈
 
@@ -45,8 +45,8 @@ uv run cairn --smoke       # 冒烟：0.8s 后自动退出
 
 | 目录 | 职责 |
 |---|---|
-| `src/cairn/core/` | L0 加密对象池，公共底座；**Qt-free、传输无关** |
-| `src/cairn/domains/` | 领域对象（note / asset / project / relation / composition） |
+| `src/cairn/core/` | L0 桶 / 块存储，公共底座；**Qt-free、传输无关** |
+| `src/cairn/domains/` | 领域对象（note / canvas / asset / project / relation） |
 | `src/cairn/ui/` | `backend.py` 做「内核 ↔ Qt」翻译；`qml/` 界面与主题令牌 |
 | `src/comm/`、`src/server/` | P2P / 服务端**实验顶层包**，不在 wheel 中 |
 
@@ -57,7 +57,7 @@ uv run cairn --smoke       # 冒烟：0.8s 后自动退出
 ```powershell
 uv run pytest                 # 全部测试（无需外部服务，全部用临时本地库）
 uv run ruff check .           # lint（--fix 自动修）
-uv run mypy src/cairn         # 类型检查
+uv run mypy src tools         # 类型检查（strict）
 
 # 离屏渲染 QML 为 PNG（设计评审用）
 uv run python tools/preview_qml.py Shell.qml build/x.png 1440 900

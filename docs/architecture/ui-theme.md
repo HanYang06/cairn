@@ -82,30 +82,32 @@ QML 侧走 **Qt Quick Controls 自定义 Style + 令牌单例**，不引入第�
 
 ```
                             深色        浅色
-  bg         背景          #1C1A18     #F4EFE7
-  chrome     外框/标题栏   #171512     #EDE6DB
-  surface    面板          #242120     #FFFFFF
-  elevated   浮层          #2E2A26     #FFFFFF
-  border     边界          #3A3F44     #E4DCCF
-  text       正文          #E8E4DC     #2E2A26
-  muted      次要文字      #9A938A     #7C746A
-  accent     强调（赭）    #D08A45     #D08A45
-  accentAlt  次强调（苔绿）#7B9166     #6B7F5A
-  selection  选中底        #3A332B     #F3E6D3
+  bg         背景          #0D1117     #FFFFFF
+  chrome     外框/标题栏   #010409     #F6F8FA
+  surface    面板          #0D1117     #FFFFFF
+  elevated   浮层          #161B22     #FFFFFF
+  border     边界          #30363D     #D0D7DE
+  text       正文          #E6EDF3     #1F2328
+  muted      次要文字      #8B949E     #656D76
+  accent     强调（蓝）    #2F81F7     #0969DA
+  accentAlt  次强调（绿）  #3FB950     #1A7F37
+  selection  选中底        #1F6FEB44   #DDF4FF
+  danger     危险          #F85149     #CF222E
 ```
 
+- 色盘参照 **GitHub Primer**；另用 `borderFaint` / `faint` / `hover` / `accentText`，以及 `highContrast` 高对比覆盖（见 §7.7）。
 - **一套令牌，两套值**（深/浅），组件只引用令牌，切换即换值。
-- 另有 `borderFaint` / `faint` / `hover` / `danger`，以及 `highContrast` 高对比覆盖（见 §7.7）。
 - 强调色**克制**：只用于选中、链接、主按钮。
 - 除色板外，圆角 / 间距 / 字体 / 字号 / 动效时长同样定义在 `CairnTheme`。
 
 ### 5.2 其余规范
 
-- **字体**：当前用系统字体 `Segoe UI`（`CairnTheme.fontFamily`），**未内置**；是否内置无衬线字体待定。
-- **圆角**：统一 6–8px；卡片 10–12px。
-- **间距**：4 的倍数；留白宁可多。
-- **图标**：单色线性 SVG，随文字色染色。
-- **动效**：只做 120–200ms 的功能动效（淡入/位移），提供"减少动效"开关。
+- **字体**：中英统一**等宽字体链** `["Sarasa Mono SC", "Cascadia Mono", "Consolas", "Noto Sans Mono CJK SC", "monospace"]`；
+  **未内置**，缺字体时按链回退（待定是否随包附带更纱黑体）。图标用字体 `Segoe MDL2 Assets`。
+- **圆角**：`radiusSm 6` / `radius 8` / `radiusLg 10` / `radiusXl 12`；阴影为苹果式（低透明、大模糊、小偏移）。
+- **间距**：`spaceXs 4` / `spaceSm 8` / `spaceMd 12` / `spaceLg 16` / `spaceXl 24`；留白宁可多。
+- **图标**：单色线性，随文字色染色。
+- **动效**：只做功能性动效（`durFast 120` / `durBase 180` / `durSlow 260`ms，淡入/位移），提供"减少动效"开关。
 
 ---
 
@@ -146,7 +148,7 @@ QML 侧走 **Qt Quick Controls 自定义 Style + 令牌单例**，不引入第�
 
 ### 7.2 右键菜单
 
-笔记列表项右键弹出 `NoteMenu`：打开 / 复刻 / 收藏 / 归档 / 分享… / 历史版本 / 关系图 / 移到回收站（回收站内显示 恢复 / 彻底删除）。收藏、归档、回收站状态存于 `meta.props`（`favorite` / `archived` / `trashed`）。
+笔记列表项右键弹出 `NoteMenu`：打开 / 复刻 / 收藏 / 归档 / 分享… / 历史版本 / 关系图 / 移到回收站（回收站内显示 恢复 / 彻底删除）。收藏、归档、回收站状态存于块的 `attrs`（`props` 下的 `favorite` / `archived` / `trashed`）。
 
 ### 7.3 分享（`SharePopover`）
 

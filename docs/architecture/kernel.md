@@ -32,11 +32,11 @@
 
 | 事件 | 字段 |
 |---|---|
-| `VaultUnlocked` | `vault_id` |
-| `VaultLocked` | `vault_id` |
-| `SpaceCreated` | `space` |
-| `ObjectPut` | `oid`, `space_id`, `type`, `seq`, `created`(新建/更新) |
+| `ObjectPut` | `oid`, `type`, `seq`, `created`(新建/更新) |
 | `ObjectDeleted` | `oid` |
+
+> 事件目录当前精简为这两个。旧的 `VaultUnlocked` / `VaultLocked` / `SpaceCreated` 已随
+> 「本地不加密 + 无空间」删除（见 [`storage.md`](./storage.md) §7）。
 
 ### 1.3 订阅 API
 
@@ -74,7 +74,7 @@ Task:
   kind: str                # "gc" | "index.rebuild" | "import" | "sync" ...
   total: int | None        # 未知总量时 None（不确定进度）
   done: int
-  unit: str                # "chunks" | "objects" | "bytes"
+  unit: str                # "blocks" | "objects" | "bytes"
   state: pending|running|succeeded|failed|cancelled
   cancel() -> None         # 协作式取消
 ```
@@ -112,9 +112,11 @@ AppContext:
 | 层 | 位置 | 内容 |
 |---|---|---|
 | 应用级 | 各端自定（如 `%APPDATA%/cairn`） | 最近打开、主题、日志级别、监听地址 |
-| 库级 | `<vault>/cairn.toml` | 格式版本、KDF 参数、封装密钥 |
+| 库级 | `<bucket>/catalog.db` 的 `meta` 表 | 格式版本、桶配置 |
 
-- 库级配置已实现；应用级配置待 UI/服务端出现时再定。
+- 库级配置现已落在 `catalog.db` 的 `meta` 表（`BucketConfig`）；早先设想的 `<vault>/cairn.toml`
+  **未实现**（本地不加密后，KDF / 封装密钥等字段随之作废）。
+- 应用级配置待 UI / 服务端出现时再定。
 - **内核不读应用级配置**，只读库级。
 
 ### 3.3 多租户映射
