@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 from cairn.domains.note.types import (
-    Access,
     Canvas,
+    CanvasBody,
     Form,
     Graphic,
     Line,
@@ -61,15 +61,18 @@ def test_paint_serializes_to_numbers_and_back() -> None:
     assert Paint.from_seq(seq) == paint
 
 
-def test_canvas_roundtrips_graphics_and_links() -> None:
-    canvas = Canvas(
+def test_canvas_body_roundtrips_graphics_and_links() -> None:
+    body = CanvasBody(
         graphics=[_graphic(), _graphic(form=Form.POLYGON, cx=5.0)],
         links=[Link(src=0, dst=1, kind=Line.CURVE)],
     )
-    data = canvas.to_data()
+    data = body.to_data()
     assert all(isinstance(seq, list) for seq in data["g"])
     assert data["l"] == [[0.0, 1.0, float(Line.CURVE)]]
-    assert Canvas.from_data(data) == canvas
+    restored = CanvasBody.from_data(data)
+    assert restored.graphics == body.graphics
+    assert restored.links == body.links
+    assert restored.mode == body.mode
 
 
 def test_body_is_lines_with_stable_ids() -> None:
@@ -119,26 +122,26 @@ def test_style_overlay_later_wins() -> None:
 
 
 def test_note_typed_canvas_and_marker() -> None:
+    canvas = Canvas(graphics=[_graphic()])
     note = Note()
     note.body = ["床前明月光，", canvas_ref(0), "低头思故乡"]
-    note.canvas = [Canvas(graphics=[_graphic()])]
+    note.canvas = [str(canvas.oid)]
 
     assert note.body[1]["v"] == {"canvas": 0}
     assert note.text == "床前明月光，\n低头思故乡"
-    assert isinstance(note.canvas[0], Canvas)
-    assert note.canvas[0].graphics == [_graphic()]
+    assert note.canvas == [str(canvas.oid)]
+    assert canvas.graphics == [_graphic()]
 
 
 def test_note_typed_access_and_marker() -> None:
     oid = str(Oid.new())
     note = Note()
     note.body = ["图：", access_ref(0)]
-    note.access = [Access(oid=oid, mime="image/png", name="a.png", size=3.0)]
+    note.access = [oid]
 
     assert note.body[1]["v"] == {"access": 0}
-    assert isinstance(note.access[0], Access)
-    assert note.access[0].mime == "image/png"
-    assert note.references == (note.access[0].oid,)
+    assert note.access == [oid]
+    assert note.references == (oid,)
 
 
 def test_add_access_embeds_into_body() -> None:
@@ -146,7 +149,7 @@ def test_add_access_embeds_into_body() -> None:
     note.body = ["看图"]
     note.access = []
     entry = note.add_access(str(Oid.new()), mime="video/mp4", name="clip.mp4")
-    assert entry.mime == "video/mp4"
+    assert entry
     assert note.body[-1]["v"] == {"access": 0}
     assert note.access[0] == entry
 
@@ -167,7 +170,7 @@ def test_reorder_keeps_style_by_line_id() -> None:
 def test_set_text_preserves_line_ids_and_markers() -> None:
     note = Note()
     note.body = ["前面", {"access": 0}, "后面"]
-    note.access = [Access(oid=str(Oid.new()), mime="image/png")]
+    note.access = [str(Oid.new())]
     marker_id = note.body[1]["id"]
 
     note.set_text("前面后面改")

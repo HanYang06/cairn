@@ -19,8 +19,8 @@ from .model import (
     NOTE_KIND,
     NOTE_MIME,
     NOTE_SCHEMA,
-    Access,
     Canvas,
+    CanvasBody,
     Form,
     Graphic,
     Link,
@@ -33,7 +33,7 @@ from .model import (
     Line as LineKind,
 )
 from .shapes import ShapeSet, ShapeSpec, build_vertices, graphic_from, load_shape_set
-from .types import Note, access_ref, canvas_ref
+from .types import Note, NoteBody, access_ref, canvas_ref
 from .versions import NOTE_CODEC
 
 __all__ = [
@@ -41,8 +41,8 @@ __all__ = [
     "NOTE_KIND",
     "NOTE_MIME",
     "NOTE_SCHEMA",
-    "Access",
     "Canvas",
+    "CanvasBody",
     "Form",
     "Graphic",
     "Line",
@@ -50,6 +50,7 @@ __all__ = [
     "Link",
     "Marker",
     "Note",
+    "NoteBody",
     "Paint",
     "Segment",
     "ShapeSet",

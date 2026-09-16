@@ -14,7 +14,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any, BinaryIO, ClassVar, Self
 
-from ..core.store import Attr, Block, Body
+from ..core.store import Attr, Block, BodyField
 from .base import normalize_tags
 
 ASSET_KIND = "cairn.asset"
@@ -63,7 +63,7 @@ def _read_source(source: Source) -> bytes:
 
 class Asset(Block):
     type = ASSET_KIND
-    body = Body()
+    body = BodyField()
     mime: ClassVar[str | None] = None
 
     schema: Attr[int] = ASSET_SCHEMA

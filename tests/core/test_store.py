@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from cairn.core.store import INDEX_TYPE, Attr, Block, Body, Bucket, BucketConfig
+from cairn.core.store import INDEX_TYPE, Attr, Block, BodyField, Bucket, BucketConfig
 from cairn.types import CairnError, CorruptObjectError, ObjectNotFoundError
 
 
@@ -15,7 +15,7 @@ class Note(Block):
     """示例领域结构：继承块，重新描述 body，声明原生属性与关联业务表。"""
 
     type = "cairn.test.note"
-    body = Body(factory=list)
+    body = BodyField(factory=list)
     title = Attr()
     tags = Attr(factory=list)
 
@@ -308,3 +308,4 @@ def test_isolated_config_gets_own_pack(tmp_path: Path) -> None:
     other.body.append("x")
     bucket.put(other)
     assert bucket.catalog.count_packs() == 2
+

@@ -28,20 +28,20 @@ from .edit import (
     StyleMap,
     apply_text,
     coerce_style,
-    content_signature,
     encode_style,
     flatten_text,
     is_marker,
     line_styles,
     new_id,
     normalize_body,
+    signature_style,
 )
 from .model import (
     NOTE_KIND,
     NOTE_MIME,
     NOTE_SCHEMA,
-    Access,
     Canvas,
+    CanvasBody,
     Form,
     Graphic,
     Line,
@@ -63,71 +63,72 @@ def access_ref(index: int) -> dict[str, int]:
     return {"access": index}
 
 
-class NoteBody(list):
-    """正文的结构对象：行序列视图，行为像 list，另带 ``hash`` 与 ``text``。
+class NoteBody(Body):
+    """正文容器：``text``（行序列）+ ``style``（行内样式）；自带状态 ``hash``。
 
-    ``hash`` 是**内容签名**：规范化（行值 + 行内样式 + 占位）后 digest，**剥离行 id**，
-    不含 attrs / 签名 / 时间戳。两篇笔记只要 ``body.hash`` 相同，就是同正文 → 可判重 / 引用。
+    - 行为像 list（迭代 / 下标 / 长度代理到 ``text`` 的行），方便 ``note.body[0]["v"]``。
+    - ``hash`` = 对 ``content()``（行值 + 行内样式，**剥离行 id**）求摘要；
+      不含 attrs / 签名 / 时间戳。内容一变就 ``refresh()`` 重算并存起来。
     """
 
-    def __init__(self, lines: Any, owner: Any = None) -> None:
-        super().__init__(lines or ())
-        self._owner = owner
+    def __init__(self, text: Any = None, style: Any = None, hash: str = "") -> None:
+        self.text: list[LineDict] = normalize_body(text)
+        self.style: StyleMap = coerce_style(style, self.text)
+        self.hash = str(hash or "")
+        if not self.hash:
+            self.refresh()
+
+    def content(self) -> dict[str, Any]:
+        return {
+            "text": [line["v"] for line in self.text],
+            "style": signature_style(self.text, self.style),
+        }
+
+    def to_data(self) -> dict[str, Any]:
+        return {"text": self.text, "style": encode_style(self.style), "hash": self.hash}
+
+    @classmethod
+    def from_data(cls, data: Any) -> NoteBody:
+        if not data:
+            return cls()
+        if isinstance(data, Mapping) and "text" in data:
+            return cls(
+                text=data.get("text"),
+                style=data.get("style"),
+                hash=str(data.get("hash") or ""),
+            )
+        return cls(text=data)  # 兼容：旧 body 就是裸行序列
 
     @property
-    def text(self) -> str:
-        return flatten_text(self)
+    def plain(self) -> str:
+        return flatten_text(self.text)
 
-    @property
-    def hash(self) -> str:
-        style = self._owner.style if self._owner is not None else {}
-        return content_signature(NOTE_KIND, self, style)
+    def refresh(self) -> NoteBody:
+        super().refresh()
+        return self
 
+    def __iter__(self) -> Any:
+        return iter(self.text)
 
-class NoteBodyField(Body[NoteBody]):
-    """``body`` 的字段声明：语义是 ``Body[NoteBody]``（块里的 body 承载 NoteBody）。
+    def __getitem__(self, index: Any) -> Any:
+        return self.text[index]
 
-    读取返回带 ``hash`` 的 ``NoteBody``；写入自动规范成带稳定行 id 的行序列。
-    """
-
-    def __get__(self, obj: Block | None, _owner: type | None = None) -> Any:
-        if obj is None:
-            return self
-        if "_body" not in obj.__dict__:
-            obj.__dict__["_body"] = normalize_body([])
-        return NoteBody(obj.__dict__["_body"], obj)
-
-    def __set__(self, obj: Block, value: Any) -> None:
-        obj.__dict__["_body"] = normalize_body(value)
-
-
-class NoteStyle:
-    """``style`` 的声明：类型化样式表，落盘在 ``attrs['style']``。"""
-
-    def __get__(self, obj: Block | None, _owner: type | None = None) -> Any:
-        if obj is None:
-            return self
-        return coerce_style(obj.attrs.get("style"), obj.__dict__.get("_body") or [])
-
-    def __set__(self, obj: Block, value: Any) -> None:
-        lines = obj.__dict__.get("_body") or normalize_body([])
-        encoded = encode_style(coerce_style(value, lines))
-        if encoded:
-            obj.attrs["style"] = encoded
-        else:
-            obj.attrs.pop("style", None)
+    def __len__(self) -> int:
+        return len(self.text)
 
 
 class Note(Block):
-    """笔记块：行序列正文 + 行内样式 + 画板 + 多媒体 + 属性。"""
+    """笔记块：正文容器（``NoteBody``）+ 画板 + 多媒体 + 属性。
+
+    ``body`` 无标记即自证类型（``NoteBody`` 继承 ``Body``）；``style`` 是 ``body.style`` 的代理。
+    """
 
     type = NOTE_KIND
     mime: ClassVar[str | None] = NOTE_MIME
 
-    body: Body[NoteBody] = NoteBodyField()
-    style: NoteStyle = NoteStyle()
-    canvas: Attr = Attr(factory=list, item=Canvas)    # item → 显式（插件不动）
-    access: Attr = Attr(factory=list, item=Access)
+    body: NoteBody = NoteBody()
+    canvas: list[str] = []  # noqa: RUF012  # 画板：存 Canvas 的 oid（全局去重）
+    access: list[str] = []  # noqa: RUF012  # 外联资源：存 Asset 的 oid（全局去重）
 
     # 属性（正文之外，全在这里）：注解即类型，右边即默认值
     schema: Attr[int] = NOTE_SCHEMA
@@ -147,7 +148,7 @@ class Note(Block):
 
     # ---- 去重键（剥离行 id；只算正文 + 行内样式）----
     def body_hash(self) -> str:
-        return content_signature(NOTE_KIND, self.body, self.style)
+        return self.body.refresh().hash
 
     # ---- 读写 ----
     @classmethod
@@ -196,16 +197,26 @@ class Note(Block):
     # ---- 正文 ----
     @property
     def text(self) -> str:
-        return flatten_text(self.body)
+        return self.body.plain
+
+    @property
+    def style(self) -> StyleMap:
+        return self.body.style
+
+    @style.setter
+    def style(self, value: Any) -> None:
+        self.body.style = coerce_style(value, self.body.text)
+        self.body.refresh()
 
     def set_text(self, text: str) -> None:
         """整段替换文字；行 id 与嵌入占位尽量保留。"""
-        self.body = apply_text(self.body, text)
+        self.body.text = apply_text(self.body.text, text)
+        self.body.refresh()
 
     def blocks(self) -> list[dict[str, Any]]:
         """给界面用的块视图：行 + 行内样式段；占位行给出 kind/index。"""
         blocks: list[dict[str, Any]] = []
-        for line in self.body:
+        for line in self.body.text:
             value = line["v"]
             if is_marker(value):
                 kind = "canvas" if "canvas" in value else "access"
@@ -230,20 +241,22 @@ class Note(Block):
 
     def reorder(self, order: Sequence[int]) -> None:
         """按旧下标顺序重排行；样式按行 id 自动跟随。"""
-        lines = list(self.body)
-        self.body = [lines[index] for index in order]
+        lines = list(self.body.text)
+        self.body.text = [lines[index] for index in order]
+        self.body.refresh()
 
-    # ---- 画板 / 多媒体嵌入 ----
+    # ---- 画板 / 外联资源嵌入 ----
     @property
     def references(self) -> tuple[Oid, ...]:
-        """正文里引用到的多媒体对象（``access`` 里的 oid）。"""
-        return tuple(Oid.parse(item.oid) for item in self.access if item.oid)
+        """正文里引用到的外联资源（``access`` 里的 asset oid）。"""
+        return tuple(Oid.parse(str(oid)) for oid in self.access if oid)
 
-    def add_canvas(self, canvas: Canvas) -> Canvas:
-        """把一块画板嵌进正文：追加到 ``canvas``，并在 body 末尾放占位。"""
-        self.canvas = [*self.canvas, canvas]
+    def add_canvas(self, canvas: Canvas) -> str:
+        """把一块画板嵌进正文：``canvas`` 追加其 oid，并在 body 末尾放占位。"""
+        entry = str(canvas.oid)
+        self.canvas = [*self.canvas, entry]
         self._append_marker(canvas_ref(len(self.canvas) - 1))
-        return canvas
+        return entry
 
     def add_access(
         self,
@@ -252,15 +265,20 @@ class Note(Block):
         mime: str = "",
         name: str = "",
         size: float = 0.0,
-    ) -> Access:
-        """把一段多媒体嵌进正文：追加到 ``access``，并在 body 末尾放占位。"""
-        entry = Access(oid=str(oid), mime=mime, name=name, size=size)
+    ) -> str:
+        """把一段外联资源嵌进正文：``access`` 追加 asset 的 oid，body 末尾放占位。
+
+        资源本体与其元数据都在 ``Asset`` 块里，这里只存引用。
+        """
+        del mime, name, size
+        entry = str(oid)
         self.access = [*self.access, entry]
         self._append_marker(access_ref(len(self.access) - 1))
         return entry
 
     def _append_marker(self, marker: dict[str, int]) -> None:
-        self.body = [*self.body, {"id": new_id(), "v": marker}]
+        self.body.text = [*self.body.text, {"id": new_id(), "v": marker}]
+        self.body.refresh()
         if self._vault is not None:
             self.save()
 
@@ -294,8 +312,10 @@ class Note(Block):
     # ---- 版本（走通用引擎）----
     def _state(self) -> dict[str, Any]:
         return {
-            "body": [{"id": line["id"], "v": copy.deepcopy(line["v"])} for line in self.body],
-            "style": encode_style(self.style),
+            "body": [
+                {"id": line["id"], "v": copy.deepcopy(line["v"])} for line in self.body.text
+            ],
+            "style": encode_style(self.body.style),
         }
 
     def history(self) -> list[dict[str, Any]]:
@@ -305,7 +325,7 @@ class Note(Block):
 
     def body_at(self, version: str) -> list[LineDict]:
         if self._vault is None:
-            return list(self.body)
+            return list(self.body.text)
         state = VersionStore(self._vault.bucket).state_at(
             self.id, NOTE_CODEC, self._state(), str(version)
         )
@@ -318,8 +338,9 @@ class Note(Block):
         state = VersionStore(self._vault.bucket).state_at(
             self.id, NOTE_CODEC, self._state(), str(version)
         )
-        self.body = state["body"]
-        self.style = state["style"]
+        self.body.text = normalize_body(state["body"])
+        self.body.style = coerce_style(state["style"], self.body.text)
+        self.body.refresh()
         self.save()
         return self
 
@@ -332,8 +353,8 @@ __all__ = [
     "NOTE_KIND",
     "NOTE_MIME",
     "NOTE_SCHEMA",
-    "Access",
     "Canvas",
+    "CanvasBody",
     "Form",
     "Graphic",
     "Line",
@@ -341,8 +362,6 @@ __all__ = [
     "Link",
     "Note",
     "NoteBody",
-    "NoteBodyField",
-    "NoteStyle",
     "Paint",
     "Segment",
     "Style",

@@ -157,12 +157,50 @@ class Attr[T = Any]:
         obj.attrs[self.key] = value
 
 
-class Body[T = Any]:
-    """主体字段的声明：子类用它重新描述 body 的形式与默认值。
+class Data[T = Any](Attr[T]):
+    """**数据字段**的声明：与 ``Attr`` 同机制、同存储，但语义是"数据"而非"属性"。
 
-    默认实现是「惰性初始化」：首次读取时按 ``factory`` / ``default`` 建值，之后存在
-    ``obj.__dict__['_body']`` 里。领域若要更复杂的 body（如笔记的行序列 + 稳定行 id），
-    写自己的描述符替换即可——``Block`` 只要求 ``body`` 可读可写、可被 ``canonical`` 编码。
+    ``Attr`` 描述的是**属性**（title / tags / 签名等描述性元数据）；
+    画板 / 多媒体这类**承载数据**的字段用 ``Data`` 声明，避免"属性"用词错位。
+    用法一致：``canvas: Data = Data(factory=list, item=Canvas)``。
+    """
+
+
+class Body:
+    """body 容器基类：**无 ID**、依存于块；自带状态字段 ``hash``。
+
+    子类声明自己的内容字段，并实现 ``content()``（参与哈希的内容视图）与
+    ``to_data()`` / ``from_data()``（落盘）。``hash`` **只覆盖内容字段**，
+    排除自身状态（hash 自己、时间戳等）——否则自我指涉、且时间戳会让去重永远失败。
+
+    约定：内容一变更就调 ``refresh()`` 重算一次并存下来，之后直接用，不重复算。
+    """
+
+    hash: str = ""
+
+    def content(self) -> Any:
+        """参与哈希的内容字段（子类实现）。"""
+        raise NotImplementedError
+
+    def refresh(self) -> Body:
+        """内容变更后重算一次 ``hash``。"""
+        self.hash = _digest(canonical(self.content()))
+        return self
+
+    def to_data(self) -> Any:
+        raise NotImplementedError
+
+    @classmethod
+    def from_data(cls, data: Any) -> Body:
+        raise NotImplementedError
+
+
+class BodyField[T = Any]:
+    """``body`` 字段的声明：惰性建值、每实例一份、结构化时校验是 ``Body``。
+
+    - ``BodyField()``：裸 body（bytes / list / 标量），原样存取。
+    - ``BodyField(prototype=NoteBody())``：结构化 body；读取按 prototype 类型**每实例新建**
+      （用 ``from_data(to_data())``），写入时非 ``Body`` 则 ``from_data`` 转换。
     """
 
     def __init__(
@@ -170,11 +208,19 @@ class Body[T = Any]:
         default: Any = _MISSING,
         *,
         factory: Callable[[], Any] | None = None,
+        prototype: Body | None = None,
     ) -> None:
         self._default = default
         self._factory = factory
+        self._prototype = prototype
+        self.key = ""
 
-    def _initial(self) -> Any:
+    def __set_name__(self, _owner: type, name: str) -> None:
+        self.key = name
+
+    def _fresh(self) -> Any:
+        if self._prototype is not None:
+            return type(self._prototype).from_data(self._prototype.to_data())
         if self._factory is not None:
             return self._factory()
         return None if self._default is _MISSING else self._default
@@ -183,18 +229,28 @@ class Body[T = Any]:
         if obj is None:
             return self
         if "_body" not in obj.__dict__:
-            obj.__dict__["_body"] = self._initial()
+            obj.__dict__["_body"] = self._fresh()
         return obj.__dict__["_body"]
 
     def __set__(self, obj: Block, value: Any) -> None:
+        if self._prototype is not None and not isinstance(value, Body):
+            value = type(self._prototype).from_data(value)
         obj.__dict__["_body"] = value
 
 
 def _is_attr_annotation(annotation: Any) -> bool:
-    """注解是否是 ``Attr`` / ``Attr[T]``（用于把类体裸值包成字段）。"""
+    """注解是否是 ``Attr`` / ``Data`` 及其下标（属性 / 数据字段）。"""
     if isinstance(annotation, str):
-        return annotation == "Attr" or annotation.startswith("Attr[")
-    return get_origin(annotation) is Attr
+        name = annotation.split("[", 1)[0].strip()
+        return name in ("Attr", "Data")
+    return get_origin(annotation) in (Attr, Data)
+
+
+def _is_container_annotation(annotation: Any) -> bool:
+    """注解是否是裸容器（``list[...]`` / ``dict[...]``）——数据字段可自证类型、免标记。"""
+    if isinstance(annotation, str):
+        return annotation.startswith(("list[", "dict[", "tuple[", "set["))
+    return get_origin(annotation) in (list, dict, tuple, set)
 
 
 def _attr_from_value(value: Any) -> Attr[Any]:
@@ -208,6 +264,30 @@ def _attr_from_value(value: Any) -> Attr[Any]:
     if hasattr(value, "to_data"):
         return Attr(item=type(value), default=value)
     return Attr(default=value)
+
+
+def _data_from_value(value: Any) -> Data[Any]:
+    """把容器注解的裸默认值包成 ``Data``（数据字段）。"""
+    if isinstance(value, list):
+        items = list(value)
+        return Data(factory=lambda: list(items))
+    mapping = dict(value)
+    return Data(factory=lambda: dict(mapping))
+
+
+def _body_type(cls: builtins.type[Block]) -> builtins.type[Body] | None:
+    """类声明的 body 类型（结构化 body）；裸 body 返回 ``None``。"""
+    field = cls.__dict__.get("body")
+    if isinstance(field, BodyField) and field._prototype is not None:
+        return type(field._prototype)
+    return None
+
+
+def _body_from_data(target: builtins.type[Block], raw: Any) -> Any:
+    kind = _body_type(target)
+    if kind is not None and not isinstance(raw, Body):
+        return kind.from_data(raw)
+    return raw
 
 
 class Block:
@@ -230,7 +310,7 @@ class Block:
 
     type: str = "cairn.block"
     kind: str = "cairn.block"
-    body: Body[Any] = Body()
+    body: Any = BodyField()
     _REGISTRY: ClassVar[dict[str, builtins.type[Block]]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -240,14 +320,21 @@ class Block:
             Block._REGISTRY[_type_name(declared)] = cls
         if "kind" not in cls.__dict__:
             cls.kind = cls.type
-        # 注解即类型、右边即值：把 ``name: Attr[T] = 默认值`` 自动包成字段描述符。
+        # 注解即类型、右边即值：把类体裸值自动包成字段描述符。
         for name, annotation in cls.__dict__.get("__annotations__", {}).items():  # noqa: RUF063
             value = cls.__dict__.get(name, _MISSING)
-            if value is _MISSING or isinstance(value, Attr):
+            if value is _MISSING:
                 continue
-            if not _is_attr_annotation(annotation):
+            if isinstance(value, Body):  # 结构化 body：每实例一份 + 校验
+                descriptor: Any = BodyField(prototype=value)
+            elif isinstance(value, Attr):
                 continue
-            descriptor = _attr_from_value(value)
+            elif _is_attr_annotation(annotation):
+                descriptor = _attr_from_value(value)
+            elif _is_container_annotation(annotation) and isinstance(value, (list, dict)):
+                descriptor = _data_from_value(value)
+            else:
+                continue
             descriptor.__set_name__(cls, name)
             setattr(cls, name, descriptor)
 
@@ -311,10 +398,13 @@ class Block:
     def body_hash(self) -> str:
         """**去重键**：只算 ``body``（不含 id / attrs / 签名 / 时间戳）。
 
-        这是桶里内容池的键——同 body 即复用同一份内容。子类可覆写口径
-        （如笔记剥离行 id、把行内样式一并算入）。
+        - 结构化 body（``Body`` 子类）用它自己的 ``hash``（内容字段口径，变更时已重算）。
+        - 裸 body 直接按内容算。子类可覆写口径。
         """
-        return _digest(canonical(self.body))
+        body = self.body
+        if isinstance(body, Body):
+            return body.hash or body.refresh().hash
+        return _digest(canonical(body))
 
     def compute_checksum(self) -> str:
         """块签名 = ``body_hash``；桶按它去重，``verify`` 也按它。"""
@@ -322,13 +412,19 @@ class Block:
 
     def content_size(self) -> int:
         """主体字节数：bytes 取长度，其余取确定性编码长度。"""
-        if isinstance(self.body, (bytes, bytearray)):
-            return len(self.body)
-        return len(canonical(self.body))
+        body = self.body
+        if isinstance(body, (bytes, bytearray)):
+            return len(body)
+        if isinstance(body, Body):
+            body = body.to_data()
+        return len(canonical(body))
 
     def encode_body(self) -> bytes:
         """编码 body 为落盘字节（进桶的内容池，按 ``body_hash`` 去重）。"""
-        return canonical(self.body)
+        body = self.body
+        if isinstance(body, Body):
+            body = body.to_data()
+        return canonical(body)
 
     @classmethod
     def decode(
@@ -345,9 +441,10 @@ class Block:
         ``checksum``，保证读回与写入一致。
         """
         try:
-            body = cbor2.loads(data) if data else None
+            raw = cbor2.loads(data) if data else None
             kind = str(type) if type is not None else cls.type
             target = Block._REGISTRY.get(kind, Block)
+            body = _body_from_data(target, raw)
             block = target(id=id, body=body, attrs=dict(attrs or {}), type=kind)
             block.checksum = block.compute_checksum()
             return block

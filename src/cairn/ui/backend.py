@@ -916,8 +916,9 @@ class Backend(QObject):
         """逐字节克隆正文/样式/嵌入（保留行 id），只换标题。"""
         note = Note()
         note._vault = self._vault
-        note.body = [copy.deepcopy(line) for line in source.body]
-        note.style = copy.deepcopy(source.style)
+        note.body.text = [copy.deepcopy(line) for line in source.body.text]
+        note.body.style = copy.deepcopy(source.body.style)
+        note.body.refresh()
         note.canvas = copy.deepcopy(source.canvas)
         note.access = copy.deepcopy(source.access)
         note.tags = dict(source.tags)

@@ -78,7 +78,7 @@ def test_note_embed_and_link(tmp_path: Path) -> None:
     note.link(other.oid, relation="references")
 
     assert note.references == (image.oid,)
-    assert note.access[0].mime == "image/png"
+    assert note.access[0] == str(image.oid)
     assert note.body[-1]["v"] == {"access": 0}
 
     backlinks = [edge.oid for edge in Relation.backlinks(vault, other.oid)]
@@ -110,3 +110,4 @@ def test_provenance_lineage(tmp_path: Path) -> None:
 
     assert descendants(vault, original.oid) == (remix.oid, again.oid)
     assert ancestors(vault, again.oid) == (remix.oid, original.oid)
+

@@ -17,6 +17,7 @@ from .base import (
     known_kinds,
     normalize_tags,
 )
+from .canvas import Canvas, CanvasBody, Form, Graphic, Line, Link, Paint
 from .note import Note
 from .project import Project
 from .provenance import ancestors, derivatives, descendants, lineage
@@ -34,9 +35,16 @@ from .types import (
 
 __all__ = [
     "Asset",
+    "Canvas",
+    "CanvasBody",
     "DomainError",
+    "Form",
+    "Graphic",
     "KindMismatchError",
+    "Line",
+    "Link",
     "Note",
+    "Paint",
     "Project",
     "Relation",
     "Signature",

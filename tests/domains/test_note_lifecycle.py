@@ -33,10 +33,13 @@ def test_note_full_lifecycle(tmp_path: Path) -> None:
     note.update(text="中间版")
     note.update(text="改过")
 
-    # 3) 画板 + 多媒体嵌入（各自都会 save 并记版本）
+    # 3) 画板 + 外联资源嵌入（各自都会 save 并记版本）
     asset = Asset.create(vault, b"PNG-DATA", name="a.png")
     note.add_access(asset.oid, mime="image/png", name="a.png")
-    note.add_canvas(Canvas(graphics=[Graphic(form=Form.CIRCLE, cx=0.0, cy=0.0, w=2.0, h=2.0)]))
+    canvas = Canvas.create(
+        vault, graphics=[Graphic(form=Form.CIRCLE, cx=0.0, cy=0.0, w=2.0, h=2.0)]
+    )
+    note.add_canvas(canvas)
 
     # 4) 关系（引用）
     note.link(target.oid, relation="references")
@@ -53,9 +56,10 @@ def test_note_full_lifecycle(tmp_path: Path) -> None:
     assert loaded.signature == "sig-001"
     assert loaded.props()["color"] == "red"
 
-    assert isinstance(loaded.canvas[0], Canvas)
-    assert loaded.canvas[0].graphics[0].form == int(Form.CIRCLE)
-    assert loaded.access[0].oid == str(asset.oid)
+    assert loaded.canvas
+    loaded_canvas = Canvas.load(reopened, loaded.canvas[0])
+    assert loaded_canvas.body.graphics[0].form == int(Form.CIRCLE)
+    assert loaded.access[0] == str(asset.oid)
     assert loaded.references == (asset.oid,)
     assert loaded.body[-1]["v"] == {"canvas": 0}
 

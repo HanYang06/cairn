@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator, Mapping
 from typing import Any, Self
 
-from ...core.store import Attr, Block, Body
+from ...core.store import Attr, Block, BodyField
 from ...types import Oid
 from ..base import UNSET, normalize_tags
 from ..relation import Relation
@@ -20,7 +20,7 @@ CONTAINS = "contains"
 
 class Project(Block):
     type = PROJECT_KIND
-    body = Body(factory=list)
+    body = BodyField(factory=list)
 
     schema: Attr[int] = PROJECT_SCHEMA
     title: Attr[str | None] = None
