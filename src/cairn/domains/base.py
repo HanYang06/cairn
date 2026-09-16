@@ -8,12 +8,20 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from ..core.store import Block
 from ..types import CairnError, KindMismatchError
 
 UNSET: Any = object()
+
+
+def normalize_tags(value: Iterable[str] | Mapping[str, Any]) -> dict[str, str | None]:
+    """标签统一成 ``{键: 值}``；纯标签的值为 ``None``（兼容旧的纯列表写法）。"""
+    if isinstance(value, Mapping):
+        return {str(key): (None if item is None else str(item)) for key, item in value.items()}
+    return {str(tag): None for tag in value}
 
 
 class DomainError(CairnError):

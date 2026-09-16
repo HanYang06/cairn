@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS blocks(
   size INTEGER NOT NULL DEFAULT 0,
   author TEXT NOT NULL DEFAULT '',
   config BLOB,
+  meta BLOB,
   created INTEGER NOT NULL,
   updated INTEGER NOT NULL
 );
@@ -139,14 +140,15 @@ class Catalog:
         size: int,
         author: str,
         config: bytes,
+        meta: bytes,
         created: int,
         updated: int,
     ) -> None:
         self.conn.execute(
             "INSERT OR REPLACE INTO blocks"
-            "(id, checksum, type, size, author, config, created, updated)"
-            " VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
-            (block_id, checksum, type, size, author, config, created, updated),
+            "(id, checksum, type, size, author, config, meta, created, updated)"
+            " VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (block_id, checksum, type, size, author, config, meta, created, updated),
         )
 
     def block_row(self, block_id: str) -> sqlite3.Row | None:

@@ -19,20 +19,22 @@ import copy
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, ClassVar, Self
 
-from ...core.store import Attr, Block, VersionStore
+from ...core.store import Attr, Block, Body, VersionStore
 from ...types import Oid
-from ..base import UNSET
+from ..base import UNSET, normalize_tags
+from ..signature import Signature
 from .edit import Line as LineDict
 from .edit import (
     StyleMap,
     apply_text,
     coerce_style,
+    content_signature,
     encode_style,
     flatten_text,
     is_marker,
+    line_styles,
     new_id,
     normalize_body,
-    signature_style,
 )
 from .model import (
     NOTE_KIND,
@@ -61,15 +63,39 @@ def access_ref(index: int) -> dict[str, int]:
     return {"access": index}
 
 
-class NoteBody:
-    """``body`` 的声明：始终返回带 id 的行序列。"""
+class NoteBody(list):
+    """正文的结构对象：行序列视图，行为像 list，另带 ``hash`` 与 ``text``。
+
+    ``hash`` 是**内容签名**：规范化（行值 + 行内样式 + 占位）后 digest，**剥离行 id**，
+    不含 attrs / 签名 / 时间戳。两篇笔记只要 ``body.hash`` 相同，就是同正文 → 可判重 / 引用。
+    """
+
+    def __init__(self, lines: Any, owner: Any = None) -> None:
+        super().__init__(lines or ())
+        self._owner = owner
+
+    @property
+    def text(self) -> str:
+        return flatten_text(self)
+
+    @property
+    def hash(self) -> str:
+        style = self._owner.style if self._owner is not None else {}
+        return content_signature(NOTE_KIND, self, style)
+
+
+class NoteBodyField(Body[NoteBody]):
+    """``body`` 的字段声明：语义是 ``Body[NoteBody]``（块里的 body 承载 NoteBody）。
+
+    读取返回带 ``hash`` 的 ``NoteBody``；写入自动规范成带稳定行 id 的行序列。
+    """
 
     def __get__(self, obj: Block | None, _owner: type | None = None) -> Any:
         if obj is None:
             return self
         if "_body" not in obj.__dict__:
             obj.__dict__["_body"] = normalize_body([])
-        return obj.__dict__["_body"]
+        return NoteBody(obj.__dict__["_body"], obj)
 
     def __set__(self, obj: Block, value: Any) -> None:
         obj.__dict__["_body"] = normalize_body(value)
@@ -98,38 +124,30 @@ class Note(Block):
     type = NOTE_KIND
     mime: ClassVar[str | None] = NOTE_MIME
 
-    body = NoteBody()
-    style = NoteStyle()
-    canvas: list[Canvas] = Attr(factory=list, item=Canvas)  # type: ignore[assignment]
-    access: list[Access] = Attr(factory=list, item=Access)  # type: ignore[assignment]
+    body: Body[NoteBody] = NoteBodyField()
+    style: NoteStyle = NoteStyle()
+    canvas: Attr = Attr(factory=list, item=Canvas)    # item → 显式（插件不动）
+    access: Attr = Attr(factory=list, item=Access)
 
-    # 属性（正文之外，全在这里）
-    schema = Attr(default=NOTE_SCHEMA)
-    signature = Attr(default="")            # 创作签名（创建即锁死）
-    privacy = Attr(default="")              # 隐私状态
-    derived = Attr(factory=list)            # 派生关系列表（旧字段，派生已走关系表）
-    authors = Attr(factory=list)            # 署名作者（有序：一作、二作…）；author 是原作者
-    favorite = Attr(default=False)
-    archived = Attr(default=False)
-    trashed = Attr(default=False)
-    share = Attr(factory=list)
+    # 属性（正文之外，全在这里）：注解即类型，右边即默认值
+    schema: Attr[int] = NOTE_SCHEMA
+    title: Attr[str | None] = None
+    tags: Attr = Attr(factory=dict, coerce=normalize_tags)  # coerce → 显式
+    authors: Attr[list] = []  # noqa: RUF012
+    signature: Attr[Signature] = Signature()
+    privacy: Attr[str] = ""
+    favorite: Attr[bool] = False
+    archived: Attr[bool] = False
+    trashed: Attr[bool] = False
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         # 上次落盘时的版本状态；``save()`` 以此为基线记版本
         self._saved_state: dict[str, Any] | None = None
 
-    # ---- 内容签名（剥离行 id）----
-    def content(self) -> dict[str, Any]:
-        attrs = {key: value for key, value in self.attrs.items() if key != "style"}
-        style_view = signature_style(self.body, self.style)
-        if any(style_view):
-            attrs["style"] = style_view
-        return {
-            "type": self.type,
-            "body": [line["v"] for line in self.body],
-            "attrs": attrs,
-        }
+    # ---- 去重键（剥离行 id；只算正文 + 行内样式）----
+    def body_hash(self) -> str:
+        return content_signature(NOTE_KIND, self.body, self.style)
 
     # ---- 读写 ----
     @classmethod
@@ -170,6 +188,8 @@ class Note(Block):
         note.tags = tags or {}
         if props:
             note.attrs["props"] = dict(props)
+        # 创作签名：锁在创建时的正文内容上（原始结构据此可找回）
+        note.signature = Signature.create(author=note.author or "", subject=note.body_hash())
         note.save(search_text=_search_text(title, text))
         return note
 
@@ -181,6 +201,32 @@ class Note(Block):
     def set_text(self, text: str) -> None:
         """整段替换文字；行 id 与嵌入占位尽量保留。"""
         self.body = apply_text(self.body, text)
+
+    def blocks(self) -> list[dict[str, Any]]:
+        """给界面用的块视图：行 + 行内样式段；占位行给出 kind/index。"""
+        blocks: list[dict[str, Any]] = []
+        for line in self.body:
+            value = line["v"]
+            if is_marker(value):
+                kind = "canvas" if "canvas" in value else "access"
+                blocks.append(
+                    {
+                        "id": line["id"],
+                        "kind": kind,
+                        "text": "",
+                        "styles": [],
+                        "index": int(value.get(kind, 0)),
+                    }
+                )
+                continue
+            styles = [
+                [start, end, style.to_data()]
+                for start, end, style in line_styles(self.style, line)
+            ]
+            blocks.append(
+                {"id": line["id"], "kind": "text", "text": value, "styles": styles, "index": -1}
+            )
+        return blocks
 
     def reorder(self, order: Sequence[int]) -> None:
         """按旧下标顺序重排行；样式按行 id 自动跟随。"""
@@ -295,6 +341,7 @@ __all__ = [
     "Link",
     "Note",
     "NoteBody",
+    "NoteBodyField",
     "NoteStyle",
     "Paint",
     "Segment",

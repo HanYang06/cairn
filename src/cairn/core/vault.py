@@ -303,7 +303,7 @@ class Vault:
             created=block.created,
             updated=block.updated,
             title=attrs.get("title"),
-            tags=block.tags,
+            tags=_tags_of(attrs),
             seq=1,
             author=str(attrs.get("author") or ""),
         )
@@ -329,9 +329,14 @@ class Vault:
         )
 
 
-def _wanted_tags(
-    tags: Iterable[str] | Mapping[str, Any] | None,
-) -> dict[str, Any]:
+def _tags_of(attrs: Mapping[str, Any]) -> dict[str, Any]:
+    raw = attrs.get("tags") or {}
+    if isinstance(raw, Mapping):
+        return {str(key): value for key, value in raw.items()}
+    return {str(tag): None for tag in raw}
+
+
+def _wanted_tags(tags: Iterable[str] | Mapping[str, Any] | None) -> dict[str, Any]:
     if tags is None:
         return {}
     if isinstance(tags, Mapping):

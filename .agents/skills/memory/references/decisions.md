@@ -49,11 +49,19 @@
   `@order`（仅顺序变化）；未变更行不入补丁。载荷必须是旧值（当前版本只在块里，回放只能倒推）。
 - 已定 · 哲学「**笔记残页**」：diff 脱离当前块上下文即失效；压实=永久遗忘；传输必须带 base；
   需要 `fold` 把链折成新版本（尚未实现）。
-- 已定 · ID 分家：`oid`（块身份，权威，用于加载）/ `nid`（笔记业务，落域表）/ `pid`（项目业务）；
-  **字段必须分开**，值可同可异；业务 ID 不进内容、不进 cID。nid/pid 表**尚未实现**。
+- 已定 · ID：`id`（块身份，str）+ `oid`（同值，Oid 对象）即可；**不再另立 nid/pid**（已回退）。
 - 已定 · 长行不设内核上限，交给 UI：超阈值关自动换行、逼硬回车产生新行。
-- 已定 · Block 只留「面向硬件」字段（id/checksum/type/body/attrs/config/size/created/updated）；
-  `title/tags/authors` 应挪回域（**尚未挪**）；`encrypt/shareable` 等硬件配置位未加。
+- 已定 · **body 内容池在桶里**：`checksum = body_hash`（只算 body：文字+样式+占位，剥离行 id），
+  `contents(body_hash → 位置)` 即去重池，查找 O(1)；**attrs 随块行存、不参与去重**
+  （标题/标签/签名/时间不同不影响同正文去重）。body 与 attrs 分家存储。
+- 已定 · **签名是复合结构（一组字段），不是一段串**：`Signature{alg, author, created, subject, prev, value}`；
+  自包含、自校验（改任一字段 value 对不上）。创作签名创建即锁死、`subject` 指向创建时 body_hash（原始结构可找回）；
+  变更签名（非原作者、prev 链）为多作者预留。当前 `alg="b3"` 哈希链，日后换 `ed25519` 不破格式。
+- 已定 · 字段类型化：写法为 **`field: Attr[T] = 默认值`**（注解即类型、右边即值；`Block.__init_subclass__`
+  自动包成描述符）。mypy 靠自研插件 `tools/mypy_plugin.py`（base class hook）把 `Attr[T]` 字段的可见类型
+  改写成 `T`，**无需 ignore**；显式描述符字段（`coerce`/`item`）写**裸 `Attr`**，插件不动。
+  `title/tags/authors` 属业务字段，已从 `Block` 挪到 Note/Project/Asset（`Block` 只留硬件字段）。
+  `encrypt/shareable` 等硬件配置位未加。
 
 ## 工程 / 产品
 

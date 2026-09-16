@@ -370,3 +370,15 @@ def test_batch_tag_and_trash(backend: Backend) -> None:
     backend.trashMany([first, second])
     assert backend.trashedCount == 2
     assert backend.notes.rowCount() == 1
+
+
+def test_current_blocks_view(backend: Backend) -> None:
+    backend.captureNote("第一行\n第二行")
+    blocks = backend.currentBlocks
+    assert [block["kind"] for block in blocks] == ["text", "text"]
+    assert [block["text"] for block in blocks] == ["第一行", "第二行"]
+    assert all(block["styles"] == [] for block in blocks)
+
+    backend.queueSave("改\n后")
+    backend.flush()
+    assert [block["text"] for block in backend.currentBlocks] == ["改", "后"]

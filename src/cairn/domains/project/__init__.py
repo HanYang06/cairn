@@ -10,7 +10,7 @@ from typing import Any, Self
 
 from ...core.store import Attr, Block, Body
 from ...types import Oid
-from ..base import UNSET
+from ..base import UNSET, normalize_tags
 from ..relation import Relation
 
 PROJECT_KIND = "cairn.project"
@@ -22,7 +22,9 @@ class Project(Block):
     type = PROJECT_KIND
     body = Body(factory=list)
 
-    schema = Attr(default=PROJECT_SCHEMA)
+    schema: Attr[int] = PROJECT_SCHEMA
+    title: Attr[str | None] = None
+    tags: Attr = Attr(factory=dict, coerce=normalize_tags)
 
     @classmethod
     def create(

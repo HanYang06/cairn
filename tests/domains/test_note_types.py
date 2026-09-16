@@ -175,3 +175,32 @@ def test_set_text_preserves_line_ids_and_markers() -> None:
     assert note.body[0]["v"] == "前面后面改"
     assert note.body[1]["id"] == marker_id
     assert note.body[1]["v"] == {"access": 0}
+
+
+def test_body_hash_is_content_only() -> None:
+    left = Note()
+    left.body = ["hello", "world"]
+    right = Note()
+    right.body = ["hello", "world"]        # 行 id 不同
+
+    assert left.body.hash == right.body.hash
+
+    left.title = "A"
+    right.title = "B"
+    right.author = "韩"
+    assert left.body.hash == right.body.hash   # 属性 / 作者不进哈希
+
+    right.body = ["hello", "cairn"]
+    assert left.body.hash != right.body.hash
+
+
+def test_body_hash_tracks_style() -> None:
+    left = Note()
+    left.body = ["hello"]
+    right = Note()
+    right.body = ["hello"]
+    lid = right.body[0]["id"]
+    right.style = {lid: [{(0, 3): Style(bold=True)}]}
+
+    assert left.body.hash != right.body.hash
+    assert right.body.hash == right.body.hash

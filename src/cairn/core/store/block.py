@@ -1,35 +1,38 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""块：只用于被继承的基类，也是存储的最小单位。
+"""块（Block）：唯一被存进桶的东西，也是所有领域结构的**基类**。
 
-``Block`` 本身不用于直接实例化——它是**模式**。领域结构继承它，并重新描述：
+``Block`` 本身不直接实例化（未登记的 ``type`` 会退回它，作为裸块）。领域结构继承它，
+用 ``Attr`` / ``Body`` 重新描述字段。它是**面向存储/硬件**的、自利自足的：
+只关心「怎么把这块内容存下去、取回来」，不关心上层业务语义。
 
-    class Note(Block):
-        type = "cairn.note"          # 承载类型（可 str / Enum）
-        body = Body(factory=list)    # 重新描述 body 的形式与默认值
-        title = Attr()               # 原生属性（config 也是属性）
-        tags = Attr(factory=list)
+字段一览（子类可重新描述 body / attrs，不可动 id 与 checksum 口径）：
 
-        @classmethod
-        def tables(cls):             # 领域自描述的业务表（含关联表）
-            return {"notes": {...}, "note_relations": {...}}
+    id        稳定身份（OID，ULID），创建时分配，**锁死不可改**
+    checksum  内容签名（BLAKE3 十六进制），由 ``content()`` 推出；子类可覆写口径
+    type      承载类型（str / Enum），如 ``cairn.note``
+    body      主体，由子类用 ``Body(...)`` 重新描述（默认是裸 Body）
+    attrs     原生属性，用 ``Attr`` 声明；**领域数据都放这里**（含 config 之外的一切）
+    config    写入配置：驱动写入行为（如 ``isolated`` 独占载体）
+    author    作者（存储写入者）
+    size      主体字节数（bytes 取长度，其余取确定性编码长度）
+    created   创建时间（unix 毫秒）
+    updated   最近写入时间（unix 毫秒）
 
-字段：
-    id        稳定身份（OID），创建时分配，**锁死**不可改
-    checksum  内容校验哈希，由 type+body+attrs 推出
-    type      承载类型（str / Enum）
-    body      主体，由子类用 ``Body(...)`` 重新描述
-    attrs     原生属性，用 ``Attr`` 声明（config 也是属性）
-    config    写入配置：保留键驱动写入行为（如 ``isolated`` 独占载体）
-    size      内容字节数
-    created   创建时间（unix ms）
-    updated   最近写入时间（unix ms）
+铁律 / 约定（谁都不许破）：
 
-版本（rev / prev / 历史）**不属于块**：块是纯粹的存储单元，版本是项目 / 笔记
-各自的事，而项目走 git 式、笔记走另一套，策略本就不同。
+1. **id 锁死**：创建即分配，之后不可改（改则抛 ``AttributeError``）。
+2. **checksum 是 body 哈希**：``body_hash()`` 只算 body（不含 id / attrs / 签名），
+   桶据此在**内容池**里按哈希去重——同 body 复用同一份内容。子类可覆写口径
+   （如笔记剥离行 id、把行内样式算入）。attrs 随块行单独存，不参与去重。
+3. **decode 用子类口径重算**：读回时由「body 字节 + attrs」拼合，再调 ``compute_checksum()``，
+   保证与 ``put`` 时一致（否则覆写了口径的领域对象会读回失败）。
+4. **块不承载版本**：版本是笔记 / 项目各自的策略（走 ``VersionStore``），块只存当前内容。
+5. **去重发生在领域层**：小内容按 checksum 共享物理内容；分片块（PART/INDEX）不去重。
+6. **读写不碰事务、不碰目录**：把整个对象交给桶即可；事务由桶统一收口。
 
-读写不碰事务，也看不到 catalog / pack：把**整个对象**交给桶即可——
+用法：
 
     note = bucket.new(Note)      # 拿到一个可编辑对象（id 已分配）
     note.title = "第一则"
@@ -44,7 +47,7 @@ from __future__ import annotations
 import builtins
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from enum import Enum
-from typing import Any, ClassVar, Self
+from typing import Any, ClassVar, Self, get_origin
 
 import cbor2
 from blake3 import blake3
@@ -79,11 +82,16 @@ def _type_name(value: str | Enum) -> str:
     return str(value)
 
 
-class Attr:
+class Attr[T = Any]:
     """原生属性的声明：读写都落在 ``Block.attrs`` 上。
 
-    ``item=`` 用于列表字段：存储里是紧凑数据（dict），取出来是类型化对象。
-    元素类型需提供 ``to_data()`` / ``from_data()``。
+    注解里写 ``signature: Attr[Signature]``，语义是「这个字段是 Attr，承载 ``Signature`` 类型」。
+    两个参数决定取值形态：
+
+    - ``default`` / ``factory``：字段缺失时的默认值（二选一）。
+    - ``item``：**类型化列表 / 类型化值**。给列表字段时，存储里是紧凑数据（dict），
+      取出来是类型化对象；元素类型需提供 ``to_data()`` / ``from_data()``。
+      单个类型化值（非列表）同样走 ``to_data()``。
     """
 
     def __init__(
@@ -91,11 +99,13 @@ class Attr:
         default: Any = _MISSING,
         *,
         factory: Callable[[], Any] | None = None,
-        item: Any = None,
+        item: type[T] | None = None,
+        coerce: Callable[[Any], Any] | None = None,
     ) -> None:
         self._default = default
         self._factory = factory
-        self._item = item
+        self._item: Any = item
+        self._coerce = coerce
         self.key = ""
 
     def __set_name__(self, _owner: type, name: str) -> None:
@@ -104,7 +114,11 @@ class Attr:
     def _initial(self) -> Any:
         if self._factory is not None:
             return self._factory()
-        return None if self._default is _MISSING else self._default
+        raw = None if self._default is _MISSING else self._default
+        # item 字段的默认值要落成数据形态（如 Signature 对象 → dict）
+        if self._item is not None and raw is not None and hasattr(raw, "to_data"):
+            return self._encode(raw)
+        return raw
 
     def _decode(self, value: Any) -> Any:
         if isinstance(value, self._item):
@@ -125,18 +139,31 @@ class Attr:
             else:
                 return None
         value = obj.attrs[self.key]
-        if self._item is not None and isinstance(value, (list, tuple)):
-            return [self._decode(entry) for entry in value]
+        if self._item is not None:
+            if isinstance(value, (list, tuple)):
+                return [self._decode(entry) for entry in value]
+            if isinstance(value, Mapping):
+                return self._decode(value)
         return value
 
     def __set__(self, obj: Block, value: Any) -> None:
-        if self._item is not None and isinstance(value, (list, tuple)):
-            value = [self._encode(entry) for entry in value]
+        if self._coerce is not None and value is not None:
+            value = self._coerce(value)
+        if self._item is not None:
+            if isinstance(value, (list, tuple)):
+                value = [self._encode(entry) for entry in value]
+            elif value is not None and hasattr(value, "to_data"):
+                value = self._encode(value)
         obj.attrs[self.key] = value
 
 
-class Body:
-    """主体字段的声明：子类用它重新描述 body 的形式与默认值。"""
+class Body[T = Any]:
+    """主体字段的声明：子类用它重新描述 body 的形式与默认值。
+
+    默认实现是「惰性初始化」：首次读取时按 ``factory`` / ``default`` 建值，之后存在
+    ``obj.__dict__['_body']`` 里。领域若要更复杂的 body（如笔记的行序列 + 稳定行 id），
+    写自己的描述符替换即可——``Block`` 只要求 ``body`` 可读可写、可被 ``canonical`` 编码。
+    """
 
     def __init__(
         self,
@@ -163,12 +190,47 @@ class Body:
         obj.__dict__["_body"] = value
 
 
+def _is_attr_annotation(annotation: Any) -> bool:
+    """注解是否是 ``Attr`` / ``Attr[T]``（用于把类体裸值包成字段）。"""
+    if isinstance(annotation, str):
+        return annotation == "Attr" or annotation.startswith("Attr[")
+    return get_origin(annotation) is Attr
+
+
+def _attr_from_value(value: Any) -> Attr[Any]:
+    """把类体里的裸默认值包成 ``Attr``：注解即类型，右边即值。"""
+    if isinstance(value, (list, tuple)):
+        items = list(value)
+        return Attr(factory=lambda: list(items))
+    if isinstance(value, Mapping):
+        mapping = dict(value)
+        return Attr(factory=lambda: dict(mapping))
+    if hasattr(value, "to_data"):
+        return Attr(item=type(value), default=value)
+    return Attr(default=value)
+
+
 class Block:
-    """所有内容类型的基类。字段架构由子类重新描述。"""
+    """所有内容类型的基类（也是未登记 ``type`` 的兜底裸块）。
+
+    子类通过**重新描述字段**来定义领域结构，而不是加新顶层字段。字段两种写法等价：
+
+        class Note(Block):
+            type = "cairn.note"
+            title: Attr[str] = ""            # 注解即类型，右边即值（自动包成字段）
+            tags = Attr(factory=dict)        # 也可显式写描述符
+
+            @classmethod
+            def tables(cls):                 # 领域自描述的业务表（含关联表）
+                return {"notes": {...}}
+
+    注册：定义 ``type`` 的子类会自动进 ``_REGISTRY``（``__init_subclass__``），
+    ``decode`` 据此还原成正确的子类。
+    """
 
     type: str = "cairn.block"
     kind: str = "cairn.block"
-    body = Body()
+    body: Body[Any] = Body()
     _REGISTRY: ClassVar[dict[str, builtins.type[Block]]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -178,6 +240,16 @@ class Block:
             Block._REGISTRY[_type_name(declared)] = cls
         if "kind" not in cls.__dict__:
             cls.kind = cls.type
+        # 注解即类型、右边即值：把 ``name: Attr[T] = 默认值`` 自动包成字段描述符。
+        for name, annotation in cls.__dict__.get("__annotations__", {}).items():  # noqa: RUF063
+            value = cls.__dict__.get(name, _MISSING)
+            if value is _MISSING or isinstance(value, Attr):
+                continue
+            if not _is_attr_annotation(annotation):
+                continue
+            descriptor = _attr_from_value(value)
+            descriptor.__set_name__(cls, name)
+            setattr(cls, name, descriptor)
 
     # ---- 领域自描述与绑定（由桶在挂载 / 写入时调用）----
     @classmethod
@@ -236,12 +308,17 @@ class Block:
             raise AttributeError("块 id 不可修改")
         self._id = value
 
-    def content(self) -> dict[str, Any]:
-        """参与 checksum 的内容（不含 id / checksum）。"""
-        return {"type": self.type, "body": self.body, "attrs": self.attrs}
+    def body_hash(self) -> str:
+        """**去重键**：只算 ``body``（不含 id / attrs / 签名 / 时间戳）。
+
+        这是桶里内容池的键——同 body 即复用同一份内容。子类可覆写口径
+        （如笔记剥离行 id、把行内样式一并算入）。
+        """
+        return _digest(canonical(self.body))
 
     def compute_checksum(self) -> str:
-        return _digest(canonical(self.content()))
+        """块签名 = ``body_hash``；桶按它去重，``verify`` 也按它。"""
+        return self.body_hash()
 
     def content_size(self) -> int:
         """主体字节数：bytes 取长度，其余取确定性编码长度。"""
@@ -249,38 +326,38 @@ class Block:
             return len(self.body)
         return len(canonical(self.body))
 
-    def encode(self) -> bytes:
-        """编码为落盘内容（不含 id：内容按 checksum 去重）。"""
-        return canonical(
-            {
-                "v": BLOCK_VERSION,
-                "type": self.type,
-                "body": self.body,
-                "attrs": self.attrs,
-            }
-        )
+    def encode_body(self) -> bytes:
+        """编码 body 为落盘字节（进桶的内容池，按 ``body_hash`` 去重）。"""
+        return canonical(self.body)
 
     @classmethod
-    def decode(cls, data: bytes, *, id: str | None = None) -> Block:
-        """解码内容为对应 ``type`` 的子类；未知类型退回基类。"""
+    def decode(
+        cls,
+        data: bytes,
+        *,
+        id: str | None = None,
+        attrs: Any = None,
+        type: str | None = None,
+    ) -> Block:
+        """由「body 字节 + attrs + type」还原为对应子类；未知类型退回基类。
+
+        body 与 attrs 分开存（body 进内容池、attrs 随块行），这里拼合后按子类口径重算
+        ``checksum``，保证读回与写入一致。
+        """
         try:
-            raw = cbor2.loads(data)
-            content = {
-                "type": str(raw["type"]),
-                "body": raw.get("body"),
-                "attrs": raw.get("attrs") or {},
-            }
-            target = Block._REGISTRY.get(content["type"], Block)
-            block = target(
-                id=id,
-                body=content["body"],
-                attrs=content["attrs"],
-                type=content["type"],
-            )
-            # 用子类的 content() 口径重算（领域可覆写，如笔记剥离行 id）。
+            body = cbor2.loads(data) if data else None
+            kind = str(type) if type is not None else cls.type
+            target = Block._REGISTRY.get(kind, Block)
+            block = target(id=id, body=body, attrs=dict(attrs or {}), type=kind)
             block.checksum = block.compute_checksum()
             return block
-        except (cbor2.CBORDecodeError, KeyError, TypeError, ValueError) as exc:
+        except (
+            cbor2.CBORDecodeError,
+            cbor2.CBOREncodeError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as exc:
             raise CorruptObjectError("块解析失败") from exc
 
     def verify(self) -> bool:
@@ -310,40 +387,8 @@ class Block:
             raise CairnError("块未绑定库")
         return self._vault.space().space_id
 
-    @property
-    def title(self) -> str | None:
-        value = self.attrs.get("title")
-        return None if value is None else str(value)
-
-    @title.setter
-    def title(self, value: str | None) -> None:
-        self.attrs["title"] = None if value is None else str(value)
-
-    @property
-    def tags(self) -> dict[str, str | None]:
-        """标签：``{键: 值}``；纯标签的值为 ``None``（也兼容旧的纯列表写法）。"""
-        raw = self.attrs.get("tags") or {}
-        if isinstance(raw, Mapping):
-            return {str(key): (None if value is None else str(value)) for key, value in raw.items()}
-        return {str(tag): None for tag in raw}
-
-    @tags.setter
-    def tags(self, value: Iterable[str] | Mapping[str, Any]) -> None:
-        if isinstance(value, Mapping):
-            self.attrs["tags"] = {
-                str(key): (None if item is None else str(item)) for key, item in value.items()
-            }
-        else:
-            self.attrs["tags"] = {str(tag): None for tag in value}
-
-    @property
-    def authors(self) -> list[Any]:
-        """署名作者（有序：一作、二作…）；``author`` 是原作者。"""
-        return list(self.attrs.get("authors") or ())
-
-    @authors.setter
-    def authors(self, value: Iterable[Any]) -> None:
-        self.attrs["authors"] = list(value)
+    # title / tags / authors 等业务字段**不属于块**：由各领域用 ``Attr`` 自行声明
+    # （见 ``domains/base.py`` 的 ``normalize_tags`` 与各领域类）。
 
     def meta(self) -> dict[str, Any]:
         return dict(self.attrs)

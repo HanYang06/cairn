@@ -12,6 +12,7 @@ from cairn.domains import (
     KindMismatchError,
     Note,
     Relation,
+    Signature,
     known_kinds,
 )
 
@@ -88,6 +89,40 @@ def test_note_authors_and_dict_tags(tmp_path: Path) -> None:
 
     assert {info.oid for info in vault.iter(tags={"作者": "韩"})} == {note.oid}
     assert {info.oid for info in vault.iter(tags={"作者": "石"})} == set()
+
+
+def test_body_pool_dedupes_across_attrs(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    first = Note.create(vault, "same body", title="A")
+    second = Note.create(vault, "same body", title="B")
+
+    assert first.body.hash == second.body.hash
+    assert vault.bucket.catalog.count_contents() == 1   # body 内容池里只有一份
+    assert vault.bucket.catalog.count_blocks() == 2      # 属性各自独立
+
+
+def test_note_creation_signature_is_composite(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    note = Note.create(vault, "正文", title="T")
+
+    signature = note.signature
+    assert isinstance(signature, Signature)
+    assert signature.verify()
+    assert signature.subject == note.body.hash
+    assert signature.encoded().startswith("cn1.")
+
+    loaded = Note.load(vault, note.oid)
+    assert isinstance(loaded.signature, Signature)
+    assert loaded.signature.verify()
+    assert loaded.signature.value == signature.value
+
+
+def test_signature_tamper_is_detected() -> None:
+    signature = Signature.create(author="韩", subject="abc")
+    assert signature.verify()
+
+    tampered = Signature.from_data({**signature.to_data(), "author": "石"})
+    assert not tampered.verify()
 
 
 def test_relation_backlinks_and_outbound(tmp_path: Path) -> None:

@@ -67,6 +67,7 @@ ignore = ["RUF001", "RUF002", "RUF003"]
 python_version = "3.13"
 strict = false
 ignore_missing_imports = true
+plugins = ["tools/mypy_plugin.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

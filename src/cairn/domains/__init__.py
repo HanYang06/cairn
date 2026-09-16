@@ -15,11 +15,13 @@ from .base import (
     KindMismatchError,
     UnknownKindError,
     known_kinds,
+    normalize_tags,
 )
 from .note import Note
 from .project import Project
 from .provenance import ancestors, derivatives, descendants, lineage
 from .relation import Relation
+from .signature import Signature
 from .types import (
     decode_substrate,
     embed_fragment,
@@ -37,6 +39,7 @@ __all__ = [
     "Note",
     "Project",
     "Relation",
+    "Signature",
     "UnknownKindError",
     "ancestors",
     "decode_substrate",
@@ -46,6 +49,7 @@ __all__ = [
     "encode_substrate",
     "known_kinds",
     "lineage",
+    "normalize_tags",
     "plain_text",
     "ref_fragment",
     "referenced_oids",

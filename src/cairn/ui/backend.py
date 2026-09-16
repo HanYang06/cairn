@@ -416,6 +416,13 @@ class Backend(QObject):
     def currentText(self) -> str:
         return self._current.text if self._current is not None else ""
 
+    @Property(list, notify=contentChanged)
+    def currentBlocks(self) -> list[dict[str, Any]]:
+        """当前笔记的块视图：行 + 行内样式段 + 占位（编辑器本体接口）。"""
+        if self._current is None:
+            return []
+        return self._current.blocks()
+
     @Property(str, notify=currentChanged)
     def currentSpace(self) -> str:
         name = self._vault.space().name
@@ -718,6 +725,7 @@ class Backend(QObject):
     def _set_current(self, note: Note | None) -> None:
         self._current = note
         self.currentChanged.emit()
+        self.contentChanged.emit()
         self.tagsChanged.emit()
         self.sharesChanged.emit()
         self.propsChanged.emit()
@@ -908,7 +916,7 @@ class Backend(QObject):
         """逐字节克隆正文/样式/嵌入（保留行 id），只换标题。"""
         note = Note()
         note._vault = self._vault
-        note.body = copy.deepcopy(source.body)
+        note.body = [copy.deepcopy(line) for line in source.body]
         note.style = copy.deepcopy(source.style)
         note.canvas = copy.deepcopy(source.canvas)
         note.access = copy.deepcopy(source.access)

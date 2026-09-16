@@ -139,13 +139,13 @@ class Bucket:
         return cls()
 
     def put(self, block: Block) -> Block:
-        """写入整个对象。返回同一个对象；领域对象按内容去重，分片不做块级去重。"""
+        """写入整个对象。返回同一个对象；body 按 ``body_hash`` 进内容池去重。"""
         block.validate()
         self.mount(type(block))
-        checksum = block.compute_checksum()
-        payload = block.encode()
+        checksum = block.body_hash()
+        payload = block.encode_body()
         dedup = block.type not in _NO_BLOCK_DEDUP
-        if not dedup or self.catalog.find_content(checksum) is None:
+        if not dedup or not self.body_exists(checksum):
             self._store_content(block, checksum, payload)
         self._save_block(block, checksum)
         self._commit()
@@ -168,6 +168,19 @@ class Bucket:
 
     def has(self, block_id: str) -> bool:
         return self.catalog.has_block(block_id)
+
+    # ---- body 去重池（O(1) 判重）----
+    def body_exists(self, body_hash: str) -> bool:
+        """该 body 是否已在池里（命中即可复用，不必再存）。"""
+        return self.catalog.find_content(str(body_hash)) is not None
+
+    @property
+    def body_index(self) -> dict[str, list[str]]:
+        """``{body_hash: [块 id, ...]}``——同 body 的块都在这；判重直接看 key。"""
+        index: dict[str, list[str]] = {}
+        for row in self.query("SELECT checksum, id FROM blocks"):
+            index.setdefault(str(row["checksum"]), []).append(str(row["id"]))
+        return index
 
     def iter_block_ids(self) -> Iterator[str]:
         yield from self.catalog.iter_block_ids()
@@ -236,6 +249,7 @@ class Bucket:
             size=block.size,
             author=block.author,
             config=canonical(block.config),
+            meta=canonical(block.attrs),
             created=block.created,
             updated=block.updated,
         )
@@ -249,7 +263,8 @@ class Bucket:
         if location is None:
             raise CorruptObjectError(f"内容缺失: {checksum}")
         payload = self._read_pack(location)
-        block = Block.decode(payload, id=block_id)
+        attrs = decode_canonical(bytes(row["meta"])) if row["meta"] else {}
+        block = Block.decode(payload, id=block_id, attrs=attrs, type=str(row["type"]))
         if not block.verify():
             raise CorruptObjectError(f"块校验失败: {block_id}")
         block.size = int(row["size"])

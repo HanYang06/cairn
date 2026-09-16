@@ -102,6 +102,22 @@ def test_wrong_class_is_rejected(tmp_path: Path) -> None:
         bucket.get(Project, note.id)
 
 
+def test_body_pool_index_and_exists(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    first = Note(body=["same"])
+    second = Note(body=["same"])
+    other = Note(body=["different"])
+    for block in (first, second, other):
+        bucket.put(block)
+
+    assert bucket.body_exists(first.body_hash())
+    assert not bucket.body_exists("deadbeef")
+
+    index = bucket.body_index
+    assert len(index[first.body_hash()]) == 2
+    assert index[other.body_hash()] == [other.id]
+
+
 def test_chunked_content_roundtrip(tmp_path: Path) -> None:
     bucket = _bucket(tmp_path, block_max_bytes=16)
     data = bytes(range(64))
@@ -174,10 +190,12 @@ def test_corruption_is_detected(tmp_path: Path) -> None:
         bucket.get(Note, note.id)
 
 
-def test_decode_rebuilds_subclass() -> None:
+def test_decode_rebuilds_subclass(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
     note = Note(body=["x"])
     note.title = "T"
-    decoded = Block.decode(note.encode(), id=note.id)
+    bucket.put(note)
+    decoded = bucket.get(Block, note.id)
     assert isinstance(decoded, Note)
     assert decoded.title == "T"
 

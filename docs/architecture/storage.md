@@ -71,18 +71,20 @@
 ```python
 Block:
   id          # 稳定身份（ULID），创建即分配，**锁死**
-  checksum    # = BLAKE3(canonical(type, body, attrs))，十六进制
+  checksum    # = body_hash：只覆盖 body（BLAKE3，十六进制）；桶按它去重
   type        # 承载类型（str / Enum）
-  body        # 主体（list / bytes / 标量）
-  attrs       # 原生属性（dict）
+  body        # 主体（list / bytes / 标量）→ 进**内容池**，按 body_hash 去重
+  attrs       # 原生属性（dict）→ 随块行存，**不参与去重**
   config      # 写入配置（dict）
   author      # 作者
   size        # 主体字节数（bytes 取长度，其余取确定性编码长度）
   created / updated   # unix ms
 ```
 
-- `content()` = `{type, body, attrs}`；`checksum` 只覆盖它。
-- `encode()` 落盘时不含 `id`：**内容按 checksum 去重**，身份由目录行记录。
+- **body 与 attrs 分家**：`body` 进内容池（同 body 只存一份）；`attrs` 随块行存。
+  于是「同正文、不同属性（标题 / 标签 / 签名 / 时间）」既能共享正文、又互不污染。
+- `checksum`（= body_hash）只算 body，不含 id / attrs / 签名；子类可覆写口径
+  （笔记剥离行 id、把行内样式算入）。
 - 领域结构**直接继承 `Block`**，用 `Attr` / `Body` 重新描述字段；`Bucket` 负责 I/O。
 
 ---
@@ -100,8 +102,9 @@ Block:
 
 ```sql
 packs(id PK, blocks, bytes, sealed, created)
-contents(checksum PK, pack_id, offset, length)      -- 物理内容，按 checksum 去重
-blocks(id PK, checksum, type, size, author, config, created, updated)  -- 逻辑块
+contents(checksum PK, pack_id, offset, length)      -- body 内容池：按 body_hash 去重
+blocks(id PK, checksum, type, size, author, config, meta, created, updated)
+                                                    -- checksum=body_hash；meta=attrs(CBOR)
 versions(id PK, oid, prev, at, payload)            -- 版本链（反向补丁；见 §9）
 version_heads(oid PK, head, count)                  -- 每条笔记的链头
 relations(id PK, src, dst, kind, at, attrs, created)-- 关系（一等行）
@@ -109,6 +112,7 @@ search(oid PK, body)                                -- 检索文本
 meta(key PK, value)
 ```
 
+- `contents` 就是**去重池**：`body_hash`（主键）→ 物理位置，查找 O(1)；同 body 只存一份。
 - 目录是**唯一真源**：块的位置只在这里；不做"可重建的派生索引"。
 - 领域自描述的业务表走 `Block.tables()` + `Bucket.mount()` 创建；通用查询用 `Bucket.table()`，
   复杂 SQL 走 `Bucket.execute()/query()`——上层不 import sqlite。
@@ -128,14 +132,13 @@ meta(key PK, value)
 写入（一次 `bucket.put(block)`）：
 
 1. `block.validate()`（领域校验，默认放行）；
-2. 算 `checksum`；领域对象按 checksum 查是否已有物理内容，无则：
-   编码 → 追加到活跃 pack（`fsync`）→ 记 `contents`；
-3. 记/更新 `blocks` 行；提交事务。
+2. 算 `body_hash`；查内容池，无则：`canonical(body)` → 追加到活跃 pack（`fsync`）→ 记 `contents`；
+3. 记/更新 `blocks` 行（`checksum=body_hash`，`meta=canonical(attrs)`）；提交事务。
 
 读取（`bucket.get(cls, id)`）：
 
-1. 由 `blocks` 行拿 checksum → `contents` 定位 → 读 pack；
-2. 解码为对应子类，重算 checksum 校验；类型不符抛 `KindMismatchError`。
+1. 由 `blocks` 行拿 `checksum` → `contents` 定位 → 读 pack 得 body；`meta` 取 attrs；
+2. 拼合还原为对应子类，重算 `body_hash` 校验；类型不符抛 `KindMismatchError`。
 
 大内容：`Bucket.put_content(bytes)` 切片 + 索引块（`cairn.index`）；分片块不做块级去重。
 

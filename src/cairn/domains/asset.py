@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, BinaryIO, ClassVar, Self
 
 from ..core.store import Attr, Block, Body
+from .base import normalize_tags
 
 ASSET_KIND = "cairn.asset"
 ASSET_SCHEMA = 1
@@ -65,9 +66,11 @@ class Asset(Block):
     body = Body()
     mime: ClassVar[str | None] = None
 
-    schema = Attr(default=ASSET_SCHEMA)
-    name = Attr()
-    origin_mime = Attr()            # 转码前的原始编码，留作来源记录
+    schema: Attr[int] = ASSET_SCHEMA
+    title: Attr[str | None] = None
+    tags: Attr = Attr(factory=dict, coerce=normalize_tags)
+    name: Attr[str | None] = None
+    origin_mime: Attr[str | None] = None    # 转码前的原始编码，留作来源记录
 
     @classmethod
     def create(
