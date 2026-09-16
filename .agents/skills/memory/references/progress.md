@@ -8,12 +8,15 @@
 
 ## 进行中
 
-- 笔记底层已整体落地（存储桶/块、领域继承、关系 DB、版本 diff），正往编辑器本体与 UI 接。
+- **M0 底层已落地**（2026-09-17）：正文行身份 + 行内区间样式 + 通用 `VersionStore` + 笔记 Codec；
+  下一步往上接 UI 后端 `currentBlocks` 与编辑器本体。
 
 ## 待做（近期）
 
+- [ ] **Block 边界瘦身**：`title/tags/authors` 从 `Block` 挪回域（现仍在 Block）。
+- [ ] **nid / pid 表**：域 ID 分开（`notes(nid,oid)` / `projects(pid,oid)`），现仍只有 `oid`。
 - [ ] **大正文透明分片**：`Note.body` 过大时走 `Bucket.put_content`（分片 + 索引块）。
-- [ ] **文档回写**：`docs/architecture/storage.md`、`data-model.md` 仍是旧的加密/双源模型，需按桶/块重写。
+- [ ] **文档回写**：`data-model.md`、`note-model.md` 仍是旧模型（manifest / runs / 平行 style），需按桶块 + 行序列重写。
 - [ ] **关系拓扑 UI**：`relations` 表已能查上下游，界面画引用拓扑图未接。
 - [ ] **图片 / 音频转码实装**：走不传染库（图片 Pillow；音频 FLAC/Opus），视频按 (a) 暂不转码。
 - [ ] 属性 KV 化推广到**项目 / 社区**（现只有笔记是 KV）。
@@ -22,7 +25,8 @@
 
 ## 下阶段（编辑器本体）
 
-- [ ] 富编辑：正文块编辑、样式拆合、光标/选区（`note/edit.py` 已备文本编辑原语）。
+- [ ] 后端 `currentBlocks`：把「行 + 行内样式段 + 占位」暴露给 QML（现仅 `currentText` 纯文本）。
+- [ ] 富编辑：行/块级编辑 + 行内样式加撤 + 光标/选区（`note/edit.py` 已备原语）。
 - [ ] 画板绘制：`Graphic`/`Canvas` 的交互与渲染（点路径 + 变换 + 连线走线）。
 - [ ] 多媒体拖入：落 `Asset`（转码）→ 正文 `{"access": n}` 占位。
 - [ ] 「捕捉面 vs 编辑面」分离落地（全局热键秒开）。

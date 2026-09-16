@@ -33,6 +33,28 @@
 - 已定 · 笔记版本 = **增量 diff 落 DB**（`versions` 表），保留窗 30 天、惰性压实；块不管版本。
 - 已定 · `Asset` 入库先转码到统一编码（草案；图片/音频走不传染库，视频暂不转码）。
 
+## 笔记编辑模型 / 版本引擎（2026-09-17，M0）
+
+- 已定 · 正文 `body = list[{"id","v"}]`（**一元素 = 一行/一块**），元素带稳定行 id；`v` 为
+  文字或嵌入占位（`{"canvas":n}` / `{"access":n}`）。行序列保序用 list（canonical CBOR 会排序 map key，dict 不能保序）。
+- 已定 · 样式是**非对称覆盖层** `style = {行id: [ {区间(tuple): Style} ]}`；行内区间可叠加，
+  后层压前层；规范化为不重叠、有序、去默认。行内加粗不拆 body。
+- 已定 · 行 id 用 ULID（`Oid`），生成即锁死；行增删/重排不动样式，**无下标漂移**。
+- 已定 · 内容地址 **cID（checksum）剥离行 id**：同文同样式即同签名 → 纯复制/同文可去重；
+  改一字即不同。id 不参与内容计算。
+- 已定 · 版本用**通用引擎 `VersionStore`**（`core/store/version.py`，block 亲和）：版本 id =
+  `blake3(canonical({prev, at, sig}))`，`prev` 单亲链；顺序从 head 沿 prev 走，不靠时间/序号；
+  第一版记根节点（空补丁）。域提供 `Codec`（digest/diff/apply），笔记 Codec 在 `note/versions.py`。
+- 已定 · diff 是**反向补丁**（新→旧），按行 id：`PUT`（载荷=旧值，回放写回）/`DROP`（该行为新版新增）/
+  `@order`（仅顺序变化）；未变更行不入补丁。载荷必须是旧值（当前版本只在块里，回放只能倒推）。
+- 已定 · 哲学「**笔记残页**」：diff 脱离当前块上下文即失效；压实=永久遗忘；传输必须带 base；
+  需要 `fold` 把链折成新版本（尚未实现）。
+- 已定 · ID 分家：`oid`（块身份，权威，用于加载）/ `nid`（笔记业务，落域表）/ `pid`（项目业务）；
+  **字段必须分开**，值可同可异；业务 ID 不进内容、不进 cID。nid/pid 表**尚未实现**。
+- 已定 · 长行不设内核上限，交给 UI：超阈值关自动换行、逼硬回车产生新行。
+- 已定 · Block 只留「面向硬件」字段（id/checksum/type/body/attrs/config/size/created/updated）；
+  `title/tags/authors` 应挪回域（**尚未挪**）；`encrypt/shareable` 等硬件配置位未加。
+
 ## 工程 / 产品
 
 - 2026-09-14 · 已定 · skill 放 `.agents/skills/`；根 `AGENTS.md` 只做索引；`rules`=约束、`memory`=现状。

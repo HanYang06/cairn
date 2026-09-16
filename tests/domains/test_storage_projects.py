@@ -79,7 +79,7 @@ def test_note_embed_and_link(tmp_path: Path) -> None:
 
     assert note.references == (image.oid,)
     assert note.access[0].mime == "image/png"
-    assert note.body[-1] == {"access": 0}
+    assert note.body[-1]["v"] == {"access": 0}
 
     backlinks = [edge.oid for edge in Relation.backlinks(vault, other.oid)]
     assert len(backlinks) == 1

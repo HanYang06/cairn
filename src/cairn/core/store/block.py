@@ -271,13 +271,15 @@ class Block:
                 "attrs": raw.get("attrs") or {},
             }
             target = Block._REGISTRY.get(content["type"], Block)
-            return target(
+            block = target(
                 id=id,
                 body=content["body"],
                 attrs=content["attrs"],
                 type=content["type"],
-                checksum=_digest(canonical(content)),
             )
+            # 用子类的 content() 口径重算（领域可覆写，如笔记剥离行 id）。
+            block.checksum = block.compute_checksum()
+            return block
         except (cbor2.CBORDecodeError, KeyError, TypeError, ValueError) as exc:
             raise CorruptObjectError("块解析失败") from exc
 

@@ -57,13 +57,14 @@ def test_note_full_lifecycle(tmp_path: Path) -> None:
     assert loaded.canvas[0].graphics[0].form == int(Form.CIRCLE)
     assert loaded.access[0].oid == str(asset.oid)
     assert loaded.references == (asset.oid,)
-    assert loaded.body[-1] == {"canvas": 0}
+    assert loaded.body[-1]["v"] == {"canvas": 0}
 
-    # 6) 版本可重建
-    assert [item["seq"] for item in loaded.history()] == [2, 3, 4, 5]
-    assert loaded.body_at(1) == ["原始正文"]
-    assert loaded.body_at(2) == ["中间版"]
-    assert loaded.body_at(3) == ["改过"]
+    # 6) 版本可重建（最新在前：canvas → access → 改过 → 中间版 → 原始正文）
+    history = loaded.history()
+    assert len(history) == 5
+    assert [line["v"] for line in loaded.body_at(history[2]["id"])] == ["改过"]
+    assert [line["v"] for line in loaded.body_at(history[3]["id"])] == ["中间版"]
+    assert [line["v"] for line in loaded.body_at(history[-1]["id"])] == ["原始正文"]
     assert loaded.text == "改过"
 
     # 7) 关系拓扑

@@ -1,154 +1,144 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""笔记版本：**增量 diff 落 DB**，不做全量快照，避免块无限膨胀。
+"""笔记的版本 Codec：**按行 id 锚定**的反向补丁，交给通用 ``VersionStore``。
 
-每条 diff 描述"从新内容回到上一版"要做的改动，形如：
+一次变更 = 一个补丁（新 → 旧，供反向回放）：
 
-    {"i": 2, "off": 3, "del": 4, "ins": "新文字"}    # 第 2 段第 3 字起，删 4 字，插入新文字
-    {"i": 2, "del": 2, "ins": ["新段1", "新段2"]}     # 元素级：第 2 段起替换 2 段
+    {"<行id>": {"act": "PUT",  "v": 旧内容, "style": 旧样式, "after": 前驱行id|null}}
+    {"<行id>": {"act": "DROP"}}
+    {"@order": [旧顺序的行 id, ...]}                       # 仅顺序变了才出现
 
-当前版本永远在块里；历史按 diff 反向回放即可重建。
-保留窗默认 30 天：**惰性压实**——用的时候（更新时）把过期 diff 丢掉。
+- 未变更的行不进补丁；顺序变化只记 ``@order``。
+- ``PUT`` 的载荷是**旧值**（回放时写回去）；``DROP`` 表示该行是较新版新增的。
+- 行 id 是稳定锚点，所以行增删 / 重排不会让既有补丁失效。
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from ...core.store import canonical, decode_canonical
-from ...types import ObjectNotFoundError, now_ms
+from blake3 import blake3
 
-RETENTION_MS = 30 * 24 * 60 * 60 * 1000
+from ...core.store import canonical
+from .edit import is_marker
+from .model import NOTE_KIND
 
-_TABLE = "versions"
-_COLUMNS = {
-    "id": "TEXT PRIMARY KEY",
-    "oid": "TEXT NOT NULL",
-    "seq": "INTEGER NOT NULL",
-    "at": "INTEGER NOT NULL",
-    "diff": "BLOB",
-}
+State = dict[str, Any]  # {"body": [{"id","v"}], "style": {lid: [[s, e, data], ...]}}
 
 
-def _table(vault: Any) -> Any:
-    return vault.bucket.table(_TABLE, **_COLUMNS)
+def digest(state: State) -> str:
+    """内容签名（丢行 id）：同文同样式即同签名。"""
+    view: list[list[Any]] = []
+    style = state.get("style") or {}
+    for line in state.get("body") or ():
+        if is_marker(line["v"]):
+            view.append([])
+            continue
+        view.append([list(item) for item in (style.get(line["id"]) or ())])
+    payload = {
+        "type": NOTE_KIND,
+        "body": [line["v"] for line in state.get("body") or ()],
+        "style": view,
+    }
+    return blake3(canonical(payload)).hexdigest()
 
 
-def _common_prefix(old: Any, new: Any) -> int:
-    size = 0
-    while size < len(old) and size < len(new) and old[size] == new[size]:
-        size += 1
-    return size
+def diff(new_state: State, old_state: State) -> bytes:
+    """算出把 ``new`` 回退成 ``old`` 的补丁。"""
+    new_by = {line["id"]: line for line in new_state.get("body") or ()}
+    old_by = {line["id"]: line for line in old_state.get("body") or ()}
+    new_style = new_state.get("style") or {}
+    old_style = old_state.get("style") or {}
+    old_order = [line["id"] for line in old_state.get("body") or ()]
+
+    patch: dict[str, Any] = {}
+
+    for lid in new_by:
+        if lid not in old_by:
+            patch[lid] = {"act": "DROP"}
+
+    for index, lid in enumerate(old_order):
+        if lid in new_by:
+            continue
+        entry: dict[str, Any] = {"act": "PUT", "v": old_by[lid]["v"]}
+        if lid in old_style:
+            entry["style"] = old_style[lid]
+        entry["after"] = old_order[index - 1] if index > 0 else None
+        patch[lid] = entry
+
+    for lid, old_line in old_by.items():
+        new_line = new_by.get(lid)
+        if new_line is None:
+            continue
+        if old_line["v"] != new_line["v"] or old_style.get(lid) != new_style.get(lid):
+            entry = {"act": "PUT", "v": old_line["v"]}
+            if lid in old_style:
+                entry["style"] = old_style[lid]
+            patch[lid] = entry
+
+    new_common = [line["id"] for line in new_state.get("body") or () if line["id"] in old_by]
+    old_common = [lid for lid in old_order if lid in new_by]
+    if new_common != old_common:
+        patch["@order"] = old_order
+
+    return canonical(patch) if patch else b""
 
 
-def _common_suffix(old: Any, new: Any, prefix: int) -> int:
-    size = 0
-    while (
-        size < len(old) - prefix
-        and size < len(new) - prefix
-        and old[len(old) - 1 - size] == new[len(new) - 1 - size]
-    ):
-        size += 1
-    return size
+def apply(state: State, patch: Any) -> State:
+    """把反向补丁作用到状态上，得到旧状态。"""
+    body = [dict(line) for line in state.get("body") or ()]
+    style = {
+        lid: [list(item) for item in triples]
+        for lid, triples in (state.get("style") or {}).items()
+    }
+
+    for lid, entry in patch.items():
+        if lid == "@order":
+            continue
+        if entry.get("act") == "DROP":
+            body = [line for line in body if line["id"] != lid]
+            style.pop(lid, None)
+
+    for lid, entry in patch.items():
+        if lid == "@order" or entry.get("act") != "PUT":
+            continue
+        record = {"id": lid, "v": entry["v"]}
+        found = next((index for index, line in enumerate(body) if line["id"] == lid), -1)
+        if found >= 0:
+            body[found] = record
+        else:
+            after = entry.get("after")
+            position = 0
+            if after:
+                index = next((i for i, line in enumerate(body) if line["id"] == after), -1)
+                position = index + 1 if index >= 0 else 0
+            body.insert(position, record)
+        if "style" in entry:
+            style[lid] = entry["style"]
+        else:
+            style.pop(lid, None)
+
+    if "@order" in patch:
+        rank = {lid: index for index, lid in enumerate(patch["@order"])}
+        body.sort(key=lambda line: rank.get(line["id"], len(rank)))
+
+    return {"body": body, "style": style}
 
 
-def diff_body(old: list[Any], new: list[Any]) -> dict[str, Any]:
-    """算出把 ``old`` 变成 ``new`` 的最小单段改动。"""
-    if old == new:
-        return {}
-    prefix = _common_prefix(old, new)
-    suffix = _common_suffix(old, new, prefix)
-    old_mid = old[prefix : len(old) - suffix]
-    new_mid = new[prefix : len(new) - suffix]
-    single = len(old_mid) == 1 and len(new_mid) == 1
-    if single and isinstance(old_mid[0], str) and isinstance(new_mid[0], str):
-        before, after = old_mid[0], new_mid[0]
-        head = _common_prefix(before, after)
-        tail = _common_suffix(before, after, head)
-        return {
-            "i": prefix,
-            "off": head,
-            "del": len(before) - head - tail,
-            "ins": after[head : len(after) - tail],
-        }
-    return {"i": prefix, "del": len(old_mid), "ins": new_mid}
+class NoteCodec:
+    """笔记版本 Codec：实现 ``VersionStore`` 需要的三件事。"""
+
+    def digest(self, state: State) -> str:
+        return digest(state)
+
+    def diff(self, new_state: State, old_state: State) -> bytes:
+        return diff(new_state, old_state)
+
+    def apply(self, state: State, patch: Any) -> State:
+        return apply(state, patch)
 
 
-def apply_diff(body: list[Any], diff: dict[str, Any]) -> list[Any]:
-    if not diff:
-        return list(body)
-    out = list(body)
-    index = int(diff["i"])
-    if "off" in diff:
-        text = str(out[index])
-        offset = int(diff["off"])
-        remove = int(diff["del"])
-        out[index] = text[:offset] + str(diff["ins"]) + text[offset + remove :]
-    else:
-        out[index : index + int(diff["del"])] = list(diff["ins"])
-    return out
+NOTE_CODEC = NoteCodec()
 
-
-def record(vault: Any, oid: str, seq: int, frm: list[Any], to: list[Any]) -> None:
-    """记录一条 diff：把 ``frm``（新版）变回 ``to``（上一版）。"""
-    diff = diff_body(frm, to)
-    if not diff:
-        return
-    _table(vault).insert(
-        {
-            "id": f"{oid}:{seq}",
-            "oid": oid,
-            "seq": seq,
-            "at": now_ms(),
-            "diff": canonical(diff),
-        }
-    )
-    vault.bucket.commit()
-
-
-def history(vault: Any, oid: str) -> list[dict[str, int]]:
-    rows = _table(vault).select(oid=oid)
-    return sorted(
-        ({"seq": int(row["seq"]), "at": int(row["at"])} for row in rows),
-        key=lambda item: item["seq"],
-    )
-
-
-def body_at(vault: Any, oid: str, seq: int, current_body: list[Any]) -> list[Any]:
-    """从当前内容反向回放，重建第 ``seq`` 版。"""
-    rows = {int(row["seq"]): row for row in _table(vault).select(oid=oid)}
-    latest = max(rows) if rows else 1
-    body = list(current_body)
-    for step in range(latest, seq, -1):
-        row = rows.get(step)
-        if row is None:
-            raise ObjectNotFoundError(f"版本缺失: {oid}@{step}")
-        body = apply_diff(body, decode_canonical(bytes(row["diff"])))
-    return body
-
-
-def compact(vault: Any, oid: str, *, retention_ms: int | None = None) -> int:
-    """惰性压实：丢掉超出保留窗的 diff。"""
-    window = RETENTION_MS if retention_ms is None else retention_ms
-    cutoff = now_ms() - window
-    table = _table(vault)
-    removed = 0
-    for row in table.select(oid=oid):
-        if int(row["at"]) < cutoff:
-            table.delete(id=str(row["id"]))
-            removed += 1
-    if removed:
-        vault.bucket.commit()
-    return removed
-
-
-__all__ = [
-    "RETENTION_MS",
-    "apply_diff",
-    "body_at",
-    "compact",
-    "diff_body",
-    "history",
-    "record",
-]
+__all__ = ["NOTE_CODEC", "NoteCodec", "State", "apply", "diff", "digest"]

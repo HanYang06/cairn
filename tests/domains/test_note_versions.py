@@ -6,53 +6,56 @@ from __future__ import annotations
 from pathlib import Path
 
 from cairn.core import Vault
-from cairn.core.store import decode_canonical
+from cairn.core.store import VersionStore, decode_canonical
 from cairn.domains import Note
-from cairn.domains.note.versions import compact
 
 
 def _vault(tmp_path: Path) -> Vault:
     return Vault.create(tmp_path / "vault")
 
 
-def test_version_diff_reconstructs_history(tmp_path: Path) -> None:
+def test_version_chain_reconstructs_history(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     note = Note.create(vault, "v1", title="t")
     note.update(text="v2")
     note.update(text="v3")
 
-    assert [item["seq"] for item in note.history()] == [2, 3]
-    assert note.body_at(1) == ["v1"]
-    assert note.body_at(2) == ["v2"]
-    assert note.body_at(3) == ["v3"]
+    history = note.history()          # 最新在前：[v3, v2, root(v1)]
+    assert len(history) == 3
+    root = history[-1]["id"]
+    middle = history[-2]["id"]
+
     assert note.text == "v3"
+    assert [line["v"] for line in note.body_at(root)] == ["v1"]
+    assert [line["v"] for line in note.body_at(middle)] == ["v2"]
 
 
 def test_metadata_only_change_does_not_version(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     note = Note.create(vault, "x")
+    before = note.history()
     note.update(title="新标题")
-    assert note.history() == []
+    assert note.history() == before
 
 
-def test_version_diff_is_incremental(tmp_path: Path) -> None:
+def test_diff_is_reverse_and_incremental(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     note = Note.create(vault, "hello world")
     note.update(text="hello cairn")
 
-    rows = vault.bucket.query("SELECT diff FROM versions WHERE oid = ?", (note.id,))
-    assert len(rows) == 1
-    diff = decode_canonical(bytes(rows[0]["diff"]))
-    # 存的是"从新版回上一版"的 diff：把 "hello cairn" 改回 "hello world"
-    assert diff == {"i": 0, "off": 6, "del": 5, "ins": "world"}
+    head = note.history()[0]["id"]
+    rows = vault.bucket.query("SELECT payload FROM versions WHERE id = ?", (head,))
+    patch = decode_canonical(bytes(rows[0]["payload"]))
+    lids = [line["id"] for line in note.body]
+    assert patch[lids[0]] == {"act": "PUT", "v": "hello world"}
 
 
 def test_lazy_compaction_drops_expired(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     note = Note.create(vault, "v1")
     note.update(text="v2")
-    assert note.history() != []
+    assert len(note.history()) == 2
 
-    removed = compact(vault, note.id, retention_ms=0)
-    assert removed == 1
+    removed = VersionStore(vault.bucket).compact(note.id, retention_ms=0)
+    assert removed == 2
     assert note.history() == []

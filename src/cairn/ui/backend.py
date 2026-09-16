@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import copy
 import datetime
 import json
 import os
@@ -652,8 +653,13 @@ class Backend(QObject):
         if not oid:
             return ""
         try:
-            body = Note.load(self._vault, oid).body_at(seq)
-            return "".join(segment for segment in body if isinstance(segment, str))
+            note = Note.load(self._vault, oid)
+            history = note.history()
+            index = len(history) - seq
+            if not 0 <= index < len(history):
+                return ""
+            body = note.body_at(history[index]["id"])
+            return "\n".join(str(line["v"]) for line in body if isinstance(line["v"], str))
         except Exception:
             return ""
 
@@ -664,28 +670,19 @@ class Backend(QObject):
             return []
         try:
             note = Note.load(self._vault, oid)
-            entries = note.history()
-            latest = max((entry["seq"] for entry in entries), default=1)
-            versions = [
+            history = note.history()
+            total = len(history)
+            return [
                 {
-                    "seq": latest,
-                    "updated": _fmt_time(note.updated),
-                    "size": _fmt_size(note.size),
-                    "current": True,
+                    "seq": total - index,
+                    "id": entry["id"],
+                    "updated": _fmt_time(entry["at"]),
+                    "size": "",
+                    "current": index == 0,
                     "author": "",
                 }
+                for index, entry in enumerate(history)
             ]
-            for entry in sorted(entries, key=lambda item: item["seq"], reverse=True):
-                versions.append(
-                    {
-                        "seq": entry["seq"] - 1,
-                        "updated": _fmt_time(entry["at"]),
-                        "size": "",
-                        "current": False,
-                        "author": "",
-                    }
-                )
-            return versions
         except Exception:
             return []
 
@@ -784,7 +781,12 @@ class Backend(QObject):
         oid = self._history_oid or self._oid()
         if not oid:
             return
-        Note.load(self._vault, oid).restore(seq)
+        note = Note.load(self._vault, oid)
+        history = note.history()
+        index = len(history) - seq
+        if not 0 <= index < len(history):
+            return
+        note.restore(history[index]["id"])
         if self._current is not None and str(self._current.oid) == oid:
             self._current = Note.load(self._vault, oid)
             self.currentChanged.emit()
@@ -902,6 +904,20 @@ class Backend(QObject):
             self.propsChanged.emit()
         self.notes.reload()
 
+    def _clone_note(self, source: Note, title: str) -> Note:
+        """逐字节克隆正文/样式/嵌入（保留行 id），只换标题。"""
+        note = Note()
+        note._vault = self._vault
+        note.body = copy.deepcopy(source.body)
+        note.style = copy.deepcopy(source.style)
+        note.canvas = copy.deepcopy(source.canvas)
+        note.access = copy.deepcopy(source.access)
+        note.tags = dict(source.tags)
+        note.attrs["props"] = copy.deepcopy(source.props())
+        note.title = title
+        note.save()
+        return note
+
     @Slot(str, result=str)
     def deriveFrom(self, oid: str) -> str:
         """以指定笔记为源复刻一份，并建立 derived-from 边。"""
@@ -912,8 +928,7 @@ class Backend(QObject):
             source = Note.load(self._vault, oid)
         except Exception:
             return ""
-        title = f"{source.title or '未命名'}（复刻）"
-        note = Note.create(self._vault, source.text, title=title)
+        note = self._clone_note(source, f"{source.title or '未命名'}（复刻）")
         Relation.create(
             self._vault,
             note.oid,
@@ -1059,8 +1074,7 @@ class Backend(QObject):
             return ""
         self.flush()
         source = self._current
-        title = f"{source.title or '未命名'}（复刻）"
-        note = Note.create(self._vault, source.text, title=title)
+        note = self._clone_note(source, f"{source.title or '未命名'}（复刻）")
         Relation.create(
             self._vault,
             note.oid,

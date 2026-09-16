@@ -1,245 +1,54 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""笔记领域的数据结构与工具（收敛点）。
+"""笔记领域：正文 = **行序列 + 行内区间样式**，版本走通用 ``VersionStore``。
 
-note 的类型本身在这里描述；``note/__init__.py`` 只做转出。
+正文形态：
+    body  = [ {"id": lid, "v": "第一行"}, {"id": lid2, "v": {"canvas": 0}} ]
+    style = { lid: [ {(0, 3): Style(bold=True)} ] }        # 行内区间，丢行 id 进摘要
 
-正文是 **list**，元素是「文字段」或「画板占位」；样式与之等长对齐：
-
-    body   = ["床前明月光，", "疑是地上霜。", {"canvas": 0}, "低头思故乡"]
-    style  = [Style(), Style(bold=True), Style(), Style()]
-    canvas = [Canvas.to_data(), ...]        # 画板
-
-画板里：
-    - 图形（Graphic）承载几何：预制编号 + 中心点 + 尺寸 + 缩放 + 旋转 + 坐标；
-    - 连线（Link）只记两端图形的**下标**与线型——走线是派生的，不存。
-
-图形与连线都序列化成纯数值序列，文件里没有对象、没有文字。
+- 行 id 稳定锚点，样式/版本都按它寻址，行增删不漂移。
+- 内容签名（cID 用的 checksum）**剥离行 id**：同文同样式 → 同签名 → 可去重；
+  改一个字则签名不同，天然不去重。
+- 版本由 ``VersionStore`` + ``versions.NOTE_CODEC`` 承载，本类只做接线。
 """
 
 from __future__ import annotations
 
+import copy
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass, field
-from enum import IntEnum
 from typing import Any, ClassVar, Self
 
-from ...core.store import Attr, Block, Body
+from ...core.store import Attr, Block, VersionStore
 from ...types import Oid
 from ..base import UNSET
-from .edit import apply_text_edit
-from .versions import body_at, compact, history, record
-
-NOTE_KIND = "cairn.note"
-NOTE_MIME = "application/x-cairn-note"
-NOTE_SCHEMA = 1
-
-Text = str
-Segment = Text | dict[str, Any]
-
-
-class Form(IntEnum):
-    """预制图形编号（平面图形就这么多，从零画是不需要的）。"""
-
-    CIRCLE = 0
-    ELLIPSE = 1
-    POLYGON = 2
-    TRAPEZOID = 3
-    PARALLELOGRAM = 4
-    ARROW = 5
-
-
-class Line(IntEnum):
-    """线条分型，不预制。"""
-
-    STRAIGHT = 0
-    CURVE = 1
-    ARROW = 2
-    DASHED = 3
-
-
-@dataclass(slots=True)
-class Style:
-    """一段文字的样式；全默认即"无修饰"。"""
-
-    bold: bool = False
-    italic: bool = False
-    underline: bool = False
-    strike: bool = False
-    font: str = ""
-    color: str = ""
-    size: float = 0.0
-
-    def to_data(self) -> dict[str, Any]:
-        return asdict(self)
-
-    @classmethod
-    def from_data(cls, data: dict[str, Any]) -> Style:
-        known = {key: data[key] for key in cls.__dataclass_fields__ if key in data}
-        return cls(**known)
-
-
-@dataclass(slots=True)
-class Paint:
-    """图形的画法：描边 + 填充 + 渐变 + 透明度 + 闭合。
-
-    颜色用 32 位整数 ``0xRRGGBBAA``（纯数字，落盘友好）；``0`` 表示不画。
-    """
-
-    stroke: int = 0
-    width: float = 0.0
-    line: int = 0                 # 线型（Line）
-    fill: int = 0
-    fill2: int = 0                # 渐变第二色；与 fill 相同即纯色
-    grad: float = 0.0             # 渐变角度（度）
-    alpha: float = 1.0            # 透明度 0..1
-    closed: bool = False          # 是否闭合（填充需要）
-
-    def to_seq(self) -> list[float]:
-        return [
-            float(self.stroke),
-            self.width,
-            float(self.line),
-            float(self.fill),
-            float(self.fill2),
-            self.grad,
-            self.alpha,
-            1.0 if self.closed else 0.0,
-        ]
-
-    @classmethod
-    def from_seq(cls, seq: Sequence[float]) -> Paint:
-        values = [float(value) for value in seq]
-        if len(values) < 8:
-            return cls()
-        return cls(
-            stroke=int(values[0]),
-            width=values[1],
-            line=int(values[2]),
-            fill=int(values[3]),
-            fill2=int(values[4]),
-            grad=values[5],
-            alpha=values[6],
-            closed=bool(values[7]),
-        )
-
-
-@dataclass(slots=True)
-class Graphic:
-    """一个图形 = 一条**点路径** + 变换 + 画法；渲染器只认点，不认形状。
-
-    坐标约定：
-        points   扁平点序列（x0,y0,x1,y1,…），**渲染真源**（乌龟画图那种）
-        cx / cy  中心点（由最远边界算出，作为绘制的真实坐标）
-        w / h    四方向最远边界推出的宽 / 高（点已按它归一化）
-        scale    缩放：0 = 原始；负 = 缩小；正 = 放大（factor = 1 + scale）
-        rot      旋转，正负
-        paint    画法：描边 / 填充 / 渐变 / 透明度 / 闭合
-        form     来源的预制编号；``-1`` 表示自定义，仅作记录，不参与渲染
-        params   生成时用的外置参数，同样只是来源记录
-    """
-
-    form: int = -1
-    cx: float = 0.0
-    cy: float = 0.0
-    w: float = 0.0
-    h: float = 0.0
-    rot: float = 0.0
-    scale: float = 0.0
-    points: list[float] = field(default_factory=list)
-    params: list[float] = field(default_factory=list)
-    paint: Paint = field(default_factory=Paint)
-
-    def to_seq(self) -> list[float]:
-        return [
-            float(self.form),
-            self.cx,
-            self.cy,
-            self.w,
-            self.h,
-            self.rot,
-            self.scale,
-            float(len(self.points)),
-            *self.points,
-            float(len(self.params)),
-            *self.params,
-            *self.paint.to_seq(),
-        ]
-
-    @classmethod
-    def from_seq(cls, seq: Sequence[float]) -> Graphic:
-        values = [float(value) for value in seq]
-        if len(values) < 9:
-            raise ValueError("图形序列过短")
-        form, cx, cy, w, h, rot, scale = values[:7]
-        point_count = int(values[7])
-        points = values[8 : 8 + point_count]
-        param_count = int(values[8 + point_count])
-        params = values[9 + point_count : 9 + point_count + param_count]
-        paint = Paint.from_seq(values[9 + point_count + param_count :])
-        return cls(int(form), cx, cy, w, h, rot, scale, points, params, paint)
-
-
-@dataclass(slots=True)
-class Link:
-    """两个图形之间的连线：只记下标与线型，走线派生。"""
-
-    src: int = 0
-    dst: int = 0
-    kind: int = 0
-
-    def to_seq(self) -> list[float]:
-        return [float(self.src), float(self.dst), float(self.kind)]
-
-    @classmethod
-    def from_seq(cls, seq: Sequence[float]) -> Link:
-        values = [float(value) for value in seq]
-        return cls(int(values[0]), int(values[1]), int(values[2]))
-
-
-@dataclass(slots=True)
-class Access:
-    """正文里嵌入的多媒体引用：真正的字节在资产（``Asset``）块里。"""
-
-    oid: str = ""
-    mime: str = ""
-    name: str = ""
-    size: float = 0.0
-
-    def to_data(self) -> dict[str, Any]:
-        return asdict(self)
-
-    @classmethod
-    def from_data(cls, data: dict[str, Any]) -> Access:
-        known = {key: data[key] for key in cls.__dataclass_fields__ if key in data}
-        return cls(**known)
-
-
-@dataclass(slots=True)
-class Canvas:
-    """画板：图形 + 图形之间的关系。"""
-
-    graphics: list[Graphic] = field(default_factory=list)
-    links: list[Link] = field(default_factory=list)
-
-    def to_data(self) -> dict[str, list[list[float]]]:
-        return {
-            "g": [graphic.to_seq() for graphic in self.graphics],
-            "l": [link.to_seq() for link in self.links],
-        }
-
-    @classmethod
-    def from_data(cls, data: dict[str, Any]) -> Canvas:
-        return cls(
-            graphics=[Graphic.from_seq(seq) for seq in (data.get("g") or ())],
-            links=[Link.from_seq(seq) for seq in (data.get("l") or ())],
-        )
-
-
-def bare(text: str) -> list[Segment]:
-    """纯文本 → 单元素正文。"""
-    return [text]
+from .edit import Line as LineDict
+from .edit import (
+    StyleMap,
+    apply_text,
+    coerce_style,
+    encode_style,
+    flatten_text,
+    is_marker,
+    new_id,
+    normalize_body,
+    signature_style,
+)
+from .model import (
+    NOTE_KIND,
+    NOTE_MIME,
+    NOTE_SCHEMA,
+    Access,
+    Canvas,
+    Form,
+    Graphic,
+    Line,
+    Link,
+    Paint,
+    Segment,
+    Style,
+)
+from .versions import NOTE_CODEC
 
 
 def canvas_ref(index: int) -> dict[str, int]:
@@ -252,47 +61,53 @@ def access_ref(index: int) -> dict[str, int]:
     return {"access": index}
 
 
-def blank_styles(count: int) -> list[Style]:
-    """生成 ``count`` 个空样式，与正文等长。"""
-    return [Style() for _ in range(count)]
+class NoteBody:
+    """``body`` 的声明：始终返回带 id 的行序列。"""
+
+    def __get__(self, obj: Block | None, _owner: type | None = None) -> Any:
+        if obj is None:
+            return self
+        if "_body" not in obj.__dict__:
+            obj.__dict__["_body"] = normalize_body([])
+        return obj.__dict__["_body"]
+
+    def __set__(self, obj: Block, value: Any) -> None:
+        obj.__dict__["_body"] = normalize_body(value)
 
 
-def normalize(
-    body: list[Segment],
-    style: list[Style] | None = None,
-) -> tuple[list[Segment], list[Style]]:
-    """规范化并对齐：丢弃空文字，``style`` 与 ``body`` 等长（缺的补空样式）。
+class NoteStyle:
+    """``style`` 的声明：类型化样式表，落盘在 ``attrs['style']``。"""
 
-    画板占位（dict）照原样保留。保证 ``len(body) == len(style)``。
-    """
-    styles = list(style or [])
-    segments: list[tuple[Segment, Style]] = []
-    for index, segment in enumerate(body):
-        if segment == "":
-            continue
-        item = styles[index] if index < len(styles) else None
-        segments.append((segment, item if isinstance(item, Style) else Style()))
-    if not segments:
-        return [""], [Style()]
-    return [segment for segment, _ in segments], [entry for _, entry in segments]
+    def __get__(self, obj: Block | None, _owner: type | None = None) -> Any:
+        if obj is None:
+            return self
+        return coerce_style(obj.attrs.get("style"), obj.__dict__.get("_body") or [])
+
+    def __set__(self, obj: Block, value: Any) -> None:
+        lines = obj.__dict__.get("_body") or normalize_body([])
+        encoded = encode_style(coerce_style(value, lines))
+        if encoded:
+            obj.attrs["style"] = encoded
+        else:
+            obj.attrs.pop("style", None)
 
 
 class Note(Block):
-    """笔记块：正文 + 画板 + 一大堆属性。"""
+    """笔记块：行序列正文 + 行内样式 + 画板 + 多媒体 + 属性。"""
 
     type = NOTE_KIND
     mime: ClassVar[str | None] = NOTE_MIME
 
-    body: list[Segment] = Body(factory=list)  # type: ignore[assignment]
-    style: list[Style] = Attr(factory=list, item=Style)  # type: ignore[assignment]
+    body = NoteBody()
+    style = NoteStyle()
     canvas: list[Canvas] = Attr(factory=list, item=Canvas)  # type: ignore[assignment]
     access: list[Access] = Attr(factory=list, item=Access)  # type: ignore[assignment]
 
     # 属性（正文之外，全在这里）
     schema = Attr(default=NOTE_SCHEMA)
-    signature = Attr(default="")            # 创作签名
+    signature = Attr(default="")            # 创作签名（创建即锁死）
     privacy = Attr(default="")              # 隐私状态
-    derived = Attr(factory=list)            # 派生关系列表
+    derived = Attr(factory=list)            # 派生关系列表（旧字段，派生已走关系表）
     authors = Attr(factory=list)            # 署名作者（有序：一作、二作…）；author 是原作者
     favorite = Attr(default=False)
     archived = Attr(default=False)
@@ -301,23 +116,41 @@ class Note(Block):
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        # 上次落盘时的正文；``save()`` 以此为基线记版本
-        self._saved_body: list[Any] | None = None
+        # 上次落盘时的版本状态；``save()`` 以此为基线记版本
+        self._saved_state: dict[str, Any] | None = None
 
+    # ---- 内容签名（剥离行 id）----
+    def content(self) -> dict[str, Any]:
+        attrs = {key: value for key, value in self.attrs.items() if key != "style"}
+        style_view = signature_style(self.body, self.style)
+        if any(style_view):
+            attrs["style"] = style_view
+        return {
+            "type": self.type,
+            "body": [line["v"] for line in self.body],
+            "attrs": attrs,
+        }
+
+    # ---- 读写 ----
     @classmethod
     def load(cls, vault: Any, oid: Oid | str) -> Self:
         note = super().load(vault, oid)
-        note._saved_body = list(note.body)
+        note._saved_state = note._state()
         return note
 
     def save(self, *, search_text: str | None = None) -> Self:
         if search_text is None:
             search_text = _search_text(self.title, self.text)
-        previous = self._saved_body
+        previous = self._saved_state
         super().save(search_text=search_text)
-        if previous is not None and previous != list(self.body):
-            self._record_version(previous, list(self.body))
-        self._saved_body = list(self.body)
+        store = VersionStore(self._require_vault().bucket)
+        if previous is None:
+            store.root(self.id, NOTE_CODEC, self._state())
+        else:
+            current = self._state()
+            if current != previous:
+                store.commit(self.id, NOTE_CODEC, previous, current)
+        self._saved_state = self._state()
         return self
 
     @classmethod
@@ -343,26 +176,16 @@ class Note(Block):
     # ---- 正文 ----
     @property
     def text(self) -> str:
-        return "".join(segment for segment in self.body if isinstance(segment, str))
+        return flatten_text(self.body)
 
     def set_text(self, text: str) -> None:
-        """改正文文字；画板 / 多媒体占位按位置保留（见 ``note/edit.py``）。"""
-        old_styles = list(self.style)
-        body = apply_text_edit(list(self.body), text)
-        self.body = body
-        self.style = [
-            old_styles[index] if index < len(old_styles) else Style() for index in range(len(body))
-        ]
+        """整段替换文字；行 id 与嵌入占位尽量保留。"""
+        self.body = apply_text(self.body, text)
 
     def reorder(self, order: Sequence[int]) -> None:
-        """按旧下标顺序重排正文；样式跟着走，保持一一对齐。
-
-        ``order`` 是旧索引的新排列，例如 ``[2, 0, 1]`` 把第 2 段提到最前。
-        """
-        body = list(self.body)
-        styles = list(self.style)
-        self.body = [body[index] for index in order]
-        self.style = [styles[index] if index < len(styles) else Style() for index in order]
+        """按旧下标顺序重排行；样式按行 id 自动跟随。"""
+        lines = list(self.body)
+        self.body = [lines[index] for index in order]
 
     # ---- 画板 / 多媒体嵌入 ----
     @property
@@ -391,48 +214,11 @@ class Note(Block):
         return entry
 
     def _append_marker(self, marker: dict[str, int]) -> None:
-        body, styles = normalize([*self.body, marker], [*self.style, Style()])
-        self.body = body
-        self.style = styles
+        self.body = [*self.body, {"id": new_id(), "v": marker}]
         if self._vault is not None:
             self.save()
 
-    # ---- 版本（增量 diff，落 DB；惰性压实）----
-    def _record_version(self, old_body: list[Any], new_body: list[Any]) -> None:
-        if self._vault is None or old_body == new_body:
-            return
-        entries = history(self._vault, self.id)
-        seq = max((item["seq"] for item in entries), default=1) + 1
-        record(self._vault, self.id, seq, new_body, old_body)
-        compact(self._vault, self.id)
-
-    def history(self) -> list[dict[str, int]]:
-        if self._vault is None:
-            return []
-        return history(self._vault, self.id)
-
-    def body_at(self, seq: int) -> list[Any]:
-        if self._vault is None:
-            return list(self.body)
-        return body_at(self._vault, self.id, seq, list(self.body))
-
-    def restore(self, seq: int) -> Self:
-        """把第 ``seq`` 版的内容作为新版本写回（线性历史继续向前）。"""
-        body = self.body_at(seq)
-        old_styles = list(self.style)
-        self.body = body
-        self.style = [
-            old_styles[index] if index < len(old_styles) else Style() for index in range(len(body))
-        ]
-        self.save()
-        return self
-
-    def link(self, target: Oid | str, relation: str = "references") -> Any:
-        from ..relation import Relation
-
-        return Relation.create(self._require_vault(), self.oid, target, relation=relation)
-
-    # ---- 更新 ----
+    # ---- 属性 ----
     def update(
         self,
         *,
@@ -454,6 +240,43 @@ class Note(Block):
         self.save(search_text=_search_text(self.title, self.text))
         return self
 
+    def link(self, target: Oid | str, relation: str = "references") -> Any:
+        from ..relation import Relation
+
+        return Relation.create(self._require_vault(), self.oid, target, relation=relation)
+
+    # ---- 版本（走通用引擎）----
+    def _state(self) -> dict[str, Any]:
+        return {
+            "body": [{"id": line["id"], "v": copy.deepcopy(line["v"])} for line in self.body],
+            "style": encode_style(self.style),
+        }
+
+    def history(self) -> list[dict[str, Any]]:
+        if self._vault is None:
+            return []
+        return VersionStore(self._vault.bucket).history(self.id)
+
+    def body_at(self, version: str) -> list[LineDict]:
+        if self._vault is None:
+            return list(self.body)
+        state = VersionStore(self._vault.bucket).state_at(
+            self.id, NOTE_CODEC, self._state(), str(version)
+        )
+        return state["body"]
+
+    def restore(self, version: str) -> Self:
+        """把指定版本的正文/样式作为新版本写回（历史继续向前）。"""
+        if self._vault is None:
+            return self
+        state = VersionStore(self._vault.bucket).state_at(
+            self.id, NOTE_CODEC, self._state(), str(version)
+        )
+        self.body = state["body"]
+        self.style = state["style"]
+        self.save()
+        return self
+
 
 def _search_text(title: str | None, text: str) -> str:
     return f"{title or ''}\n{text}"
@@ -468,14 +291,16 @@ __all__ = [
     "Form",
     "Graphic",
     "Line",
+    "LineDict",
     "Link",
     "Note",
+    "NoteBody",
+    "NoteStyle",
     "Paint",
     "Segment",
     "Style",
+    "StyleMap",
     "access_ref",
-    "bare",
-    "blank_styles",
     "canvas_ref",
-    "normalize",
+    "is_marker",
 ]

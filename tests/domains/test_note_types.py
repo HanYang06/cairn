@@ -14,10 +14,8 @@ from cairn.domains.note.types import (
     Paint,
     Style,
     access_ref,
-    bare,
-    blank_styles,
     canvas_ref,
-    normalize,
+    is_marker,
 )
 from cairn.types import Oid
 
@@ -28,28 +26,8 @@ def _graphic(**overrides: object) -> Graphic:
     return Graphic(**values)  # type: ignore[arg-type]
 
 
-def test_bare_is_single_element() -> None:
-    assert bare("床前明月光，低头思故乡") == ["床前明月光，低头思故乡"]
-
-
-def test_blank_styles_are_aligned() -> None:
-    assert blank_styles(3) == [Style(), Style(), Style()]
-
-
-def test_normalize_drops_empty_and_aligns() -> None:
-    body, style = normalize(["床前明月光，", "", "低头思故乡"], [Style(bold=True)])
-    assert body == ["床前明月光，", "低头思故乡"]
-    assert style == [Style(bold=True), Style()]
-
-
-def test_normalize_keeps_embed_markers() -> None:
-    body, style = normalize(["文字", canvas_ref(0), access_ref(1), "尾"])
-    assert body == ["文字", {"canvas": 0}, {"access": 1}, "尾"]
-    assert style == [Style(), Style(), Style(), Style()]
-
-
-def test_normalize_empty() -> None:
-    assert normalize([]) == ([""], [Style()])
+def _texts(note: Note) -> list[str]:
+    return [line["v"] for line in note.body]  # type: ignore[misc]
 
 
 def test_style_roundtrips_through_data() -> None:
@@ -94,14 +72,60 @@ def test_canvas_roundtrips_graphics_and_links() -> None:
     assert Canvas.from_data(data) == canvas
 
 
+def test_body_is_lines_with_stable_ids() -> None:
+    note = Note()
+    note.body = ["第一行\n第二行"]
+    assert _texts(note) == ["第一行", "第二行"]
+    ids = [line["id"] for line in note.body]
+    assert all(ids) and len(set(ids)) == 2
+    assert note.text == "第一行\n第二行"
+
+
+def test_empty_line_is_kept() -> None:
+    note = Note()
+    note.body = ["甲", "", "乙"]
+    assert _texts(note) == ["甲", "", "乙"]
+    assert note.text == "甲\n\n乙"
+
+
+def test_markers_are_own_lines() -> None:
+    note = Note()
+    note.body = ["文字", canvas_ref(0), access_ref(1), "尾"]
+    assert [line["v"] for line in note.body] == [
+        "文字",
+        {"canvas": 0},
+        {"access": 1},
+        "尾",
+    ]
+    assert is_marker(note.body[1]["v"])
+
+
+def test_line_style_range_roundtrip() -> None:
+    note = Note()
+    note.body = ["床前明月光"]
+    lid = note.body[0]["id"]
+    note.style = {lid: [{(2, 4): Style(bold=True)}]}
+    stored = note.style
+    assert stored[lid] == [{(2, 4): Style(bold=True)}]
+
+
+def test_style_overlay_later_wins() -> None:
+    note = Note()
+    note.body = ["abcdef"]
+    lid = note.body[0]["id"]
+    note.style = {lid: [{(0, 4): Style(bold=True)}, {(2, 6): Style(italic=True)}]}
+    resolved = note.style[lid][0]
+    assert resolved == {(0, 2): Style(bold=True), (2, 6): Style(italic=True)}
+
+
 def test_note_typed_canvas_and_marker() -> None:
     note = Note()
     note.body = ["床前明月光，", canvas_ref(0), "低头思故乡"]
     note.canvas = [Canvas(graphics=[_graphic()])]
 
-    assert note.body[1] == {"canvas": 0}
-    assert note.text == "床前明月光，低头思故乡"
-    assert isinstance(note.canvas[0], Canvas)          # 取出来是对象，不是 dict
+    assert note.body[1]["v"] == {"canvas": 0}
+    assert note.text == "床前明月光，\n低头思故乡"
+    assert isinstance(note.canvas[0], Canvas)
     assert note.canvas[0].graphics == [_graphic()]
 
 
@@ -111,7 +135,7 @@ def test_note_typed_access_and_marker() -> None:
     note.body = ["图：", access_ref(0)]
     note.access = [Access(oid=oid, mime="image/png", name="a.png", size=3.0)]
 
-    assert note.body[1] == {"access": 0}
+    assert note.body[1]["v"] == {"access": 0}
     assert isinstance(note.access[0], Access)
     assert note.access[0].mime == "image/png"
     assert note.references == (note.access[0].oid,)
@@ -120,46 +144,34 @@ def test_note_typed_access_and_marker() -> None:
 def test_add_access_embeds_into_body() -> None:
     note = Note()
     note.body = ["看图"]
-    note.style = [Style()]
     note.access = []
     entry = note.add_access(str(Oid.new()), mime="video/mp4", name="clip.mp4")
     assert entry.mime == "video/mp4"
-    assert note.body[-1] == {"access": 0}
+    assert note.body[-1]["v"] == {"access": 0}
     assert note.access[0] == entry
 
 
-def test_reorder_keeps_body_and_style_aligned() -> None:
+def test_reorder_keeps_style_by_line_id() -> None:
     note = Note()
     note.body = ["a", "b", "c"]
-    note.style = [Style(bold=True), Style(), Style(italic=True)]
+    ids = [line["id"] for line in note.body]
+    note.style = {ids[0]: [{(0, 1): Style(bold=True)}], ids[2]: [{(0, 1): Style(italic=True)}]}
 
     note.reorder([2, 0, 1])
 
-    assert note.body == ["c", "a", "b"]
-    assert note.style == [Style(italic=True), Style(bold=True), Style()]
+    assert _texts(note) == ["c", "a", "b"]
+    assert note.style[ids[2]][0][(0, 1)] == Style(italic=True)
+    assert note.style[ids[0]][0][(0, 1)] == Style(bold=True)
 
 
-def test_set_text_preserves_markers() -> None:
+def test_set_text_preserves_line_ids_and_markers() -> None:
     note = Note()
     note.body = ["前面", {"access": 0}, "后面"]
-    note.style = [Style(), Style(), Style()]
     note.access = [Access(oid=str(Oid.new()), mime="image/png")]
+    marker_id = note.body[1]["id"]
 
     note.set_text("前面后面改")
 
-    assert note.body == ["前面", {"access": 0}, "后面改"]
-
-
-def test_set_text_keeps_boundary_marker_drops_inner() -> None:
-    note = Note()
-    note.body = ["前面", {"access": 0}, "后面"]
-    note.style = [Style(), Style(), Style()]
-    note.access = [Access(oid=str(Oid.new()), mime="image/png")]
-    note.set_text("前面后面改")          # 占位在边界 → 保留
-    assert note.body == ["前面", {"access": 0}, "后面改"]
-
-    inner = Note()
-    inner.body = ["abc", {"canvas": 0}, "def"]
-    inner.canvas = [Canvas()]
-    inner.set_text("abXYZ")             # 占位落在被替换区间内 → 消失
-    assert inner.body == ["abXYZ"]
+    assert note.body[0]["v"] == "前面后面改"
+    assert note.body[1]["id"] == marker_id
+    assert note.body[1]["v"] == {"access": 0}

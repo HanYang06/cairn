@@ -102,7 +102,8 @@ Block:
 packs(id PK, blocks, bytes, sealed, created)
 contents(checksum PK, pack_id, offset, length)      -- 物理内容，按 checksum 去重
 blocks(id PK, checksum, type, size, author, config, created, updated)  -- 逻辑块
-versions(id PK, oid, seq, at, diff)                 -- 笔记版本（增量 diff）
+versions(id PK, oid, prev, at, payload)            -- 版本链（反向补丁；见 §9）
+version_heads(oid PK, head, count)                  -- 每条笔记的链头
 relations(id PK, src, dst, kind, at, attrs, created)-- 关系（一等行）
 search(oid PK, body)                                -- 检索文本
 meta(key PK, value)
@@ -140,13 +141,19 @@ meta(key PK, value)
 
 ---
 
-## 9. 版本（笔记，增量 diff）
+## 9. 版本（通用引擎 `VersionStore`）
 
-- 表 `versions(oid, seq, at, diff)`；每条 diff 描述"从新版回上一版"的最小单段改动：
-  `{i, off, del, ins}`（元素下标 / 字符偏移 / 删除长度 / 插入内容）。
-- 当前版本永远在块里；历史按 diff 反向回放重建（`body_at(seq)`）。
-- 保留窗默认 **30 天**，更新时**惰性压实**（过期 diff 丢弃）。详见 `note/versions.py`。
-- 块本身**不承载版本**：版本是笔记 / 项目各自的策略。
+- 引擎在 `core/store/version.py`，**block 亲和**：以块 id 为键，只管链、顺序、回放、压实，
+  不认识领域语义；域提供 `Codec`（`digest / diff / apply`）。
+- 表 `versions(id PK, oid, prev, at, payload)` + `version_heads(oid PK, head, count)`：
+  - **版本 id = `blake3(canonical({prev, at, sig}))`**：哈希身份 + `prev` 单亲链；顺序从 `head`
+    沿 `prev` 走，不依赖时间/序号（Git 式，将来可扩多亲 DAG）。
+  - 第一版记一个**根节点**（空补丁），此后每次内容变化追加一个反向补丁。
+- 补丁是**反向的**（新 → 旧）：当前版本永远在块里，历史从 `head` 反向回放重建。
+  - 笔记补丁按**行 id** 锚定：`PUT`（载荷=旧值）/ `DROP` / `@order`；未变更行不入补丁。
+- 保留窗默认 **30 天**，更新时**惰性压实**（丢链尾）。哲学：「**笔记残页**」——补丁脱离当前块
+  上下文即失效；压实=永久遗忘；传输必须带 base；`fold`（把链折成新版本）尚未实现。
+- 块本身**不承载版本**：版本是笔记 / 项目各自的策略（同一引擎，不同 Codec）。
 
 ---
 

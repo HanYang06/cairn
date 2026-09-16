@@ -26,12 +26,14 @@ from .block import (
 from .bucket import CATALOG_NAME, Bucket, BucketConfig
 from .catalog import BlockLocation, Catalog
 from .table import Table
+from .version import RETENTION_MS, Codec, VersionStore, version_id
 
 __all__ = [
     "BLOCK_VERSION",
     "CATALOG_NAME",
     "INDEX_TYPE",
     "PART_TYPE",
+    "RETENTION_MS",
     "Attr",
     "Block",
     "BlockLocation",
@@ -39,7 +41,10 @@ __all__ = [
     "Bucket",
     "BucketConfig",
     "Catalog",
+    "Codec",
     "Table",
+    "VersionStore",
     "canonical",
     "decode_canonical",
+    "version_id",
 ]
