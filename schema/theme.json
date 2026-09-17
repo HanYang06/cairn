@@ -296,6 +296,41 @@
             "number",
             "boolean"
           ]
+        },
+        "dur_fast": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "dur_base": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "dur_slow": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "easing": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "reduce_motion": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
         }
       },
       "additionalProperties": false

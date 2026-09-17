@@ -22,7 +22,6 @@ _QSS = Template(
 QWidget {
     background-color: $bg;
     color: $text;
-    font-family: "$font_family";
     font-size: ${fs_body}px;
 }
 QMainWindow, QDialog { background-color: $bg; }

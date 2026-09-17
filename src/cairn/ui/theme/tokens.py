@@ -67,6 +67,13 @@ class Theme:
     tab_bar_h: int = 36
     status_h: int = 24
 
+    # ===== motion =====
+    dur_fast: int = 120
+    dur_base: int = 180
+    dur_slow: int = 260
+    easing: str = "outQuad"
+    reduce_motion: bool = False
+
     def as_dict(self) -> dict[str, str]:
         """扁平化为字符串字典，供 QSS 模板替换。"""
         return {field.name: str(getattr(self, field.name)) for field in fields(self)}

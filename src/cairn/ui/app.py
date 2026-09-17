@@ -151,7 +151,16 @@ def main(argv: list[str] | None = None) -> int:
     app.setOrganizationName("Cairn")
     _font = QFont()
     _font.setFamilies(
-        ["Sarasa Mono SC", "Cascadia Mono", "Consolas", "Noto Sans Mono CJK SC", "monospace"]
+        [
+            "Sarasa Mono SC",
+            "Noto Sans Mono CJK SC",
+            "Cascadia Mono",
+            "Consolas",
+            "Microsoft YaHei UI",
+            "Microsoft YaHei",
+            "SimSun",
+            "monospace",
+        ]
     )
     app.setFont(_font)
 

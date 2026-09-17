@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 from PySide6.QtCore import Signal
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QLabel,
@@ -119,6 +120,7 @@ class IconButton(Component):
         super().__init__(parent)
         self._button = QToolButton(self)
         self._button.setText(glyph)
+        self._button.setFont(QFont(self.theme.icon_font))
         if tip:
             self._button.setToolTip(tip)
         layout = QVBoxLayout(self)
