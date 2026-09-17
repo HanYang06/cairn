@@ -12,6 +12,8 @@ from __future__ import annotations
 from ..component import Component
 from .atoms import Button, Chip, Divider, Field, IconButton, Label, Section, ToggleSwitch
 from .base import Panel
+from .chrome import StatusBar, TitleBar
+from .commandpalette import CommandPalette
 from .editor import NoteDocument, NoteEditor
 from .formattoolbar import FormatToolbar
 from .navigator import NavigatorPanel
@@ -22,6 +24,7 @@ __all__ = [
     "ActivityBar",
     "Button",
     "Chip",
+    "CommandPalette",
     "Component",
     "Divider",
     "Field",
@@ -35,7 +38,9 @@ __all__ = [
     "NoteEditor",
     "Panel",
     "Section",
+    "StatusBar",
     "TabBar",
+    "TitleBar",
     "ToggleSwitch",
     "Toolbar",
 ]

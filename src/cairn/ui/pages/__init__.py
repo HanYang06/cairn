@@ -8,5 +8,7 @@ from __future__ import annotations
 from .base import Page
 from .history import HistoryPage
 from .relations import RelationsPage
+from .search import SearchPage
+from .tags import TagsPage
 
-__all__ = ["HistoryPage", "Page", "RelationsPage"]
+__all__ = ["HistoryPage", "Page", "RelationsPage", "SearchPage", "TagsPage"]

@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""主窗口与外壳：`MainWindow`（QMainWindow）+ `Shell`（活动栏 + 三栏）。
+"""主窗口与外壳：`MainWindow`（QMainWindow）+ `Shell`。
 
-导航是分组树；中央是「标签页 + 页面栈」（笔记 / 关系 / 历史 + 项目 / 社区占位）；
-检查器接属性模型；编辑器接富文本控件。见 `rules/references/ui-boundary.md`。
+外壳 = 标题栏 +（活动栏 + 三栏）+ 状态栏；中央是「标签页 + 页面栈」；命令面板浮层。
+见 `rules/references/ui-boundary.md`。
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
@@ -21,10 +22,20 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .components import ActivityBar, FormatToolbar, InspectorPanel, NavigatorPanel, TabBar
+from .components import (
+    ActivityBar,
+    CommandPalette,
+    FormatToolbar,
+    InspectorPanel,
+    NavigatorPanel,
+    StatusBar,
+    TabBar,
+    TitleBar,
+)
 from .components.editor import NoteEditor
 from .layout import HBox, Split, Stack, VBox
-from .pages import HistoryPage, Page, RelationsPage
+from .pages import HistoryPage, Page, RelationsPage, SearchPage, TagsPage
+from .session import VAULT_LABEL
 from .theme import current_theme
 
 if TYPE_CHECKING:
@@ -37,7 +48,10 @@ _ACTIVITY_ITEMS = (
     ("notes", "\ue7c3", "笔记"),
     ("projects", "\ue8b7", "项目"),
     ("community", "\ue716", "社区"),
+    ("search", "\ue721", "搜索"),
+    ("tags", "\ue8ec", "标签"),
 )
+_PAGE_INDEX = {"notes": 0, "projects": 3, "community": 4, "search": 5, "tags": 6}
 
 
 def _placeholder(hint: str) -> Page:
@@ -51,18 +65,23 @@ def _placeholder(hint: str) -> Page:
     return page
 
 
-class Shell(HBox):
-    """窗口内主体：活动栏 +（导航 + 中央标签页/页面栈 + 检查器）。"""
+class Shell(VBox):
+    """窗口内主体：标题栏 +（活动栏 + 导航 + 中央 + 检查器）+ 状态栏。"""
 
-    def __init__(self, app: App, parent: QWidget | None = None) -> None:
+    def __init__(self, app: App, parent: QWidget | None = None) -> None:  # noqa: PLR0915 — 外壳装配集中于此
         super().__init__(parent=parent, spacing=0)
         self._app = app
 
+        self.titlebar = TitleBar(f"Cairn / {VAULT_LABEL}")
+        self.add(self.titlebar)
+        self.statusbar = StatusBar()
+
+        body = HBox(spacing=0)
         self.activity = ActivityBar()
         for item_id, glyph, tip in _ACTIVITY_ITEMS:
             self.activity.add_item(item_id, glyph, tip=tip)
         self.activity.activated.connect(self.switch_page)
-        self.add(self.activity)
+        body.add(self.activity)
 
         self.navigator = NavigatorPanel()
         self.navigator.set_model(app.groups)
@@ -97,12 +116,23 @@ class Shell(HBox):
         self.projects_page = _placeholder("项目（远期）")
         self.community_page = _placeholder("社区（远期）")
 
+        self.search_page = SearchPage()
+        self.search_page.set_model(app.search_results)
+        self.search_page.query_changed.connect(app.search_notes)
+        self.search_page.note_activated.connect(self._open_note)
+
+        self.tags_page = TagsPage()
+        self.tags_page.set_model(app.tags)
+        self.tags_page.tag_activated.connect(self._search_tag)
+
         self._pages = [
             self.notes_page,
             self.relations_page,
             self.history_page,
             self.projects_page,
             self.community_page,
+            self.search_page,
+            self.tags_page,
         ]
         self.center = Stack(*self._pages)
         app.tabs_changed.connect(self._sync_tabs)
@@ -123,17 +153,27 @@ class Shell(HBox):
         splitter.setStretchFactor(1, 1)
         splitter.setStretchFactor(2, 0)
         splitter.setSizes([current_theme().side_bar_w, 900, 288])
-        self.add(self.split, stretch=1)
+        body.add(self.split, stretch=1)
+        self.add(body, stretch=1)
+
+        self.add(self.statusbar)
+
+        self.command_palette = CommandPalette(self)
+        self.command_palette.set_provider(self._palette_items)
+        self.command_palette.chosen.connect(self._on_palette_chosen)
+        shortcut = QShortcut(QKeySequence("Ctrl+P"), self)
+        shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        shortcut.activated.connect(self.command_palette.open_palette)
 
     # ---- 路由 ----
     def switch_page(self, item_id: str) -> None:
         """活动栏：切换中央页面。"""
-        index = {"notes": 0, "projects": 3, "community": 4}.get(item_id)
+        index = _PAGE_INDEX.get(item_id)
         if index is not None:
             self.center.set_current(index)
 
     def _sync_tabs(self) -> None:
-        """标签变更后：重建标签条并按当前页切栈。"""
+        """标签变更后：重建标签条、按当前页切栈、刷新状态。"""
         self.tabbar.set_tabs(self._app.tab_rows(), self._app.active_key)
         key = self._app.active_key
         if key == "relations":
@@ -142,6 +182,14 @@ class Shell(HBox):
             self.center.set_current(2)
         elif key:
             self.center.set_current(0)
+        self._update_status()
+
+    def _update_status(self) -> None:
+        self.statusbar.set_message(f"{self._app.notes.rowCount()} 篇笔记 · 就绪")
+
+    def _search_tag(self, tag: str) -> None:
+        self.switch_page("search")
+        self.search_page.set_query(tag)
 
     # ---- 笔记 ----
     def _open_note(self, oid: str) -> None:
@@ -156,17 +204,39 @@ class Shell(HBox):
         except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
             return
         self.editor.load_note(note)
+        self.titlebar.set_text(f"Cairn / {VAULT_LABEL} · {note.title or '未命名'}")
 
     def _new_note(self) -> None:
         self._app.create_note(title="新笔记")
-
-    def _run_tool(self, tool_id: str, _source: object) -> None:
-        self.editor.apply_tool(tool_id)
 
     def _new_group(self) -> None:
         node = self.navigator.current_node()
         parent = node.key if node is not None and node.kind == "group" else ""
         self._app.create_group("新组", parent_gid=parent)
+
+    def _run_tool(self, tool_id: str, _source: object) -> None:
+        self.editor.apply_tool(tool_id)
+
+    # ---- 命令面板 ----
+    def _palette_items(self, query: str) -> list[tuple[str, str, str]]:
+        needle = query.strip().lower()
+        commands = [
+            (command.title, "command", command.id)
+            for command in self._app.commands.all()
+            if not needle or needle in command.title.lower() or needle in command.id.lower()
+        ]
+        notes = [
+            (row.title, "note", row.oid)
+            for row in self._app.session.note_rows()
+            if needle and (needle in row.title.lower() or needle in row.preview.lower())
+        ]
+        return (commands + notes)[:30]
+
+    def _on_palette_chosen(self, kind: str, key: str) -> None:
+        if kind == "command":
+            self._app.run_command(key)
+        elif kind == "note":
+            self._open_note(key)
 
     # ---- 右键菜单 ----
     def _show_context(self, kind: str, key: str, pos: QPoint) -> None:
@@ -180,7 +250,10 @@ class Shell(HBox):
             menu.addAction("关系", self._app.open_relations)
             menu.addAction("历史", lambda: self._app.open_history(key))
             menu.addAction("移出分组", lambda: self._app.clear_note_groups(key))
-            menu.addAction("回收", lambda: self._app.trash_note(key))
+            if self._app.show_trash:
+                menu.addAction("恢复", lambda: self._app.restore_note(key))
+            else:
+                menu.addAction("回收", lambda: self._app.trash_note(key))
         if not menu.isEmpty():
             menu.exec(pos)
 
@@ -191,7 +264,7 @@ class Shell(HBox):
 
 
 class MainWindow(QMainWindow):
-    """OS 窗口：中央区放 `Shell`，底部状态栏。"""
+    """OS 窗口：中央区放 `Shell`。"""
 
     def __init__(self, app: App) -> None:
         super().__init__()
@@ -199,6 +272,3 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Cairn")
         self.resize(1200, 800)
         self.setCentralWidget(Shell(app, self))
-        status = self.statusBar()
-        if status is not None:
-            status.showMessage("就绪")

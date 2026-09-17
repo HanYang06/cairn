@@ -108,8 +108,11 @@ class App(QObject):
         )
         self.relations: ListModel[RelationRow] = ListModel(_relation_fields(), display="title")
         self.versions: ListModel[VersionRow] = ListModel(_version_fields(), display="label")
+        self.tags: ListModel[str] = ListModel([("name", lambda tag: tag)], display="name")
+        self.search_results: ListModel[NoteRow] = ListModel(_note_fields(), display="title")
         self._open_tabs: list[TabRow] = []
         self._active_key = ""
+        self._show_trash = False
         self._current_oid = ""
         self._pending_body: tuple[list[dict[str, Any]], dict[str, Any]] | None = None
         self._save = QTimer(self)
@@ -119,6 +122,7 @@ class App(QObject):
         self.bridge.changed.connect(self._on_changed)
         self.reload_notes()
         self.reload_groups()
+        self.reload_tags()
 
     @property
     def current_oid(self) -> str:
@@ -126,8 +130,73 @@ class App(QObject):
         return self._current_oid
 
     def reload_notes(self) -> None:
-        """按当前 Session 投影刷新笔记列表模型。"""
-        self.notes.set_rows(self.session.note_rows())
+        """按当前 Session 投影刷新笔记列表模型（按回收站开关过滤）。"""
+        rows = self.session.note_rows()
+        if self._show_trash:
+            rows = [row for row in rows if row.trashed]
+        else:
+            rows = [row for row in rows if not row.trashed]
+        self.notes.set_rows(rows)
+
+    def reload_tags(self) -> None:
+        """聚合全部标签。"""
+        tags: set[str] = set()
+        for row in self.session.note_rows():
+            tags.update(row.tags)
+        self.tags.set_rows(sorted(tags))
+
+    def search_notes(self, query: str) -> None:
+        """按关键词过滤笔记（标题 / 预览），写入搜索模型。"""
+        needle = query.strip().lower()
+        if not needle:
+            self.search_results.set_rows([])
+            return
+        rows = [
+            row
+            for row in self.session.note_rows()
+            if needle in row.title.lower() or needle in row.preview.lower()
+        ]
+        self.search_results.set_rows(rows)
+
+    @property
+    def show_trash(self) -> bool:
+        """是否处于回收站视图。"""
+        return self._show_trash
+
+    def toggle_trash(self) -> None:
+        """切换回收站视图。"""
+        self._show_trash = not self._show_trash
+        self.reload_notes()
+
+    def empty_trash(self) -> None:
+        """清空回收站（真删）。"""
+        for row in self.session.note_rows():
+            if row.trashed:
+                self.vault.delete(row.oid)
+        self.reload_notes()
+        self.reload_tags()
+
+    def trash_note(self, oid: str) -> None:
+        """把笔记移入回收站（标记 props.trashed）。"""
+        try:
+            note = self.session.note(oid)
+        except Exception:  # noqa: BLE001 — 缺失不崩界面
+            return
+        props = note.props()
+        props["trashed"] = True
+        note.update(props=props)
+        self.reload_notes()
+
+    def restore_note(self, oid: str) -> None:
+        """从回收站恢复。"""
+        try:
+            note = self.session.note(oid)
+        except Exception:  # noqa: BLE001 — 缺失不崩界面
+            return
+        props = note.props()
+        props["trashed"] = False
+        note.update(props=props)
+        self.reload_notes()
 
     def create_note(self, text: str = "", *, title: str | None = None) -> str:
         """新建一篇笔记并打开；返回其 oid。"""
@@ -225,17 +294,6 @@ class App(QObject):
                 changed = True
         if changed:
             self.reload_groups()
-
-    def trash_note(self, oid: str) -> None:
-        """把笔记移入回收站（标记 props.trashed）。"""
-        try:
-            note = self.session.note(oid)
-        except Exception:  # noqa: BLE001 — 缺失不崩界面
-            return
-        props = note.props()
-        props["trashed"] = True
-        note.update(props=props)
-        self.reload_notes()
 
     def open_note(self, oid: str) -> None:
         """打开 / 激活某篇笔记（新增或复用标签页）。"""
@@ -369,6 +427,7 @@ class App(QObject):
     def _on_changed(self) -> None:
         self.reload_notes()
         self.reload_groups()
+        self.reload_tags()
         if self._current_oid:
             self.reload_properties()
 

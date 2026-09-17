@@ -193,7 +193,13 @@
 - 2026-09-18 · 已定 · **迁移③：格式工具栏接编辑器**：`NoteEditor.apply_tool`（bold/italic/underline/
   strike、对齐、标题、缩进、列表、引用/代码、清除行内/段落）——**行为接 `QTextEdit`，元数据复用内核
   注册表**；新增 `components/formattoolbar.py`（按 `PRESET_LAYOUT` + `tool_info()` 渲染两行，
-  发 `tool_triggered(id, source)`）；`Shell` 笔记页加工具栏接编辑器。ruff/mypy/275 测试全绿（覆盖率 82%）。
+  发 `tool_triggered(id, source)`）；  `Shell` 笔记页加工具栏接编辑器。ruff/mypy/275 测试全绿（覆盖率 82%）。
+- 2026-09-18 · 已定 · **迁移④：窗口机件与搜索/标签/回收站**：`App` 加 `tags` / `search_results`
+  模型与 `reload_tags` / `search_notes` / `show_trash` / `toggle_trash` / `empty_trash` / `restore_note`；
+  新增 `components/chrome.py`（`TitleBar` / `StatusBar`）、`components/commandpalette.py`
+  （`CommandPalette`，`Ctrl+P`，命令 + 笔记搜索）；新增 `pages/tags.py` / `search.py`；
+  `Shell` 改 `VBox`（标题栏 + 活动栏/三栏 + 状态栏），活动栏加搜索/标签，导航右键加恢复/回收。
+  ruff/mypy/277 测试全绿（覆盖率 82%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

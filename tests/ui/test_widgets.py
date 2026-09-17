@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QApplication, QSplitter
 
 from cairn.core import Vault
 from cairn.domains import Note
-from cairn.ui.components import Component, InspectorPanel, NavigatorPanel, Panel
+from cairn.ui.components import CommandPalette, Component, InspectorPanel, NavigatorPanel, Panel
 from cairn.ui.layout import Stack
 from cairn.ui.root import App
 from cairn.ui.theme import LIGHT, current_theme, set_current_theme
@@ -135,6 +135,41 @@ def test_app_run_command_creates_note(tmp_path: Path) -> None:
     assert root.run_command("note.new") is True
     assert root.notes.rowCount() == 1
     root.shutdown()
+
+
+def test_app_search_tags_trash(tmp_path: Path) -> None:
+    vault = Vault.create(tmp_path / "vault")
+    root = App(vault)
+    note = Note.create(vault, "正文", title="甲")
+    note.update(tags={"设计": None})
+    root.bridge.flush()
+
+    root.search_notes("甲")
+    assert root.search_results.rowCount() == 1
+    root.search_notes("不存在")
+    assert root.search_results.rowCount() == 0
+
+    assert "设计" in [root.tags.row_at(i) for i in range(root.tags.rowCount())]
+
+    root.trash_note(str(note.oid))
+    root.bridge.flush()
+    assert root.notes.rowCount() == 0
+    root.toggle_trash()
+    assert root.notes.rowCount() == 1
+    root.restore_note(str(note.oid))
+    root.bridge.flush()
+    root.shutdown()
+
+
+def test_command_palette_emits_choice() -> None:
+    palette = CommandPalette()
+    palette.set_provider(lambda _query: [("新建笔记", "command", "note.new")])
+    got: list[tuple[str, str]] = []
+    palette.chosen.connect(lambda kind, key: got.append((kind, key)))
+    palette.open_palette()
+    palette._list.setCurrentRow(0)
+    palette._activate_current()
+    assert got == [("command", "note.new")]
 
 
 def test_app_open_note_populates_properties(tmp_path: Path) -> None:
