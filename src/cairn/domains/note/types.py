@@ -238,6 +238,19 @@ class Note(Block):
         self.body.text = apply_text(self.body.text, text)
         self.body.refresh()
 
+    def set_body(
+        self,
+        lines: Sequence[Mapping[str, Any]],
+        *,
+        style: Mapping[str, Any] | None = None,
+    ) -> Self:
+        """整段替换正文（编辑器回写用）：行序列 + 可选行内样式。"""
+        self.body.text = normalize_body(lines)
+        if style is not None:
+            self.body.style = coerce_style(style, self.body.text)
+        self.body.refresh()
+        return self
+
     def blocks(self) -> list[dict[str, Any]]:
         """给界面用的块视图：行 + 行内样式段 + 段落属性 + 等效字数。"""
         blocks: list[dict[str, Any]] = []

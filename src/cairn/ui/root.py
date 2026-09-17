@@ -9,9 +9,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 
 from .bridge import SessionBridge
 from .models import ListModel
@@ -22,6 +22,8 @@ if TYPE_CHECKING:
 
     from ..core import Vault
     from .rows import NoteRow, PropertyRow
+
+SAVE_DEBOUNCE_MS = 800
 
 
 def _note_fields() -> list[tuple[str, Callable[[NoteRow], object]]]:
@@ -62,6 +64,11 @@ class App(QObject):
         self.notes: ListModel[NoteRow] = ListModel(_note_fields(), display="title")
         self.properties: ListModel[PropertyRow] = ListModel(_property_fields(), display="label")
         self._current_oid = ""
+        self._pending_body: tuple[list[dict[str, Any]], dict[str, Any]] | None = None
+        self._save = QTimer(self)
+        self._save.setSingleShot(True)
+        self._save.setInterval(SAVE_DEBOUNCE_MS)
+        self._save.timeout.connect(self.flush_body)
         self.bridge.changed.connect(self._on_changed)
         self.reload_notes()
 
@@ -78,9 +85,30 @@ class App(QObject):
         """把某篇笔记设为当前，并刷新检查器属性。"""
         if oid == self._current_oid:
             return
+        self.flush_body()
         self._current_oid = oid
         self.reload_properties()
         self.current_changed.emit()
+
+    def update_current_body(self, body: list[dict[str, Any]], style: dict[str, Any]) -> None:
+        """编辑器改动：记下待写正文，去抖后落盘。"""
+        self._pending_body = (body, style)
+        self._save.start()
+
+    def flush_body(self) -> None:
+        """把待写正文落到当前笔记（若有）。"""
+        self._save.stop()
+        pending = self._pending_body
+        self._pending_body = None
+        if pending is None or not self._current_oid:
+            return
+        body, style = pending
+        try:
+            note = self.session.note(self._current_oid)
+        except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
+            return
+        note.set_body(body, style=style)
+        note.persist()
 
     def reload_properties(self) -> None:
         """按当前笔记刷新检查器属性模型。"""
@@ -102,7 +130,8 @@ class App(QObject):
             self.reload_properties()
 
     def shutdown(self) -> None:
-        """退出前收口：断开桥与订阅，关闭库。"""
+        """退出前收口：落盘待写正文，断开桥与订阅，关闭库。"""
+        self.flush_body()
         self.bridge.dispose()
         self.session.close()
         self.vault.close()

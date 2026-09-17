@@ -155,6 +155,11 @@
   `ui/qmlhost.py`（`QmlView` 包 `QQuickWidget`，注入上下文）；`tools/preview_widgets.py`
   离屏/原生渲染外壳为 PNG。修字体：QSS 不再写死 `font-family`（交回应用级回退链），
   `IconButton` 用图标字体，字体链补中文字体兜底。ruff/mypy/251 测试全绿（覆盖率 84%）。
+- 2026-09-18 · 已定 · **富文本编辑器控件**：`ui/editor/`——`formats.py`（扩展点：段落属性整块存
+  `PARA_MAP` 用户属性、行内 `Style` ↔ `QTextCharFormat`、嵌入占位存 kind/index）、`document.py`
+  （`NoteDocument`：1 行 = 1 block、行 id 存用户属性、`load_note`/`to_body` 双向无损）、`editor.py`
+  （`NoteEditor`：`body_changed` 意图 + 原生 undo/redo/跨行选区）。内核加 `Note.set_body`；
+  `App` 去抖落盘 + 切换/退出 flush；`Shell` 笔记页接编辑器。ruff/mypy/254 测试全绿（覆盖率 84%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

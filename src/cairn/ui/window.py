@@ -15,6 +15,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
 
 from .components import ActivityBar, HBox, InspectorPanel, ListPanel, Page, Split, Stack
+from .editor import NoteEditor
 from .theme import current_theme
 
 if TYPE_CHECKING:
@@ -56,7 +57,12 @@ class Shell(HBox):
         self.navigator.set_model(app.notes)
         self.navigator.activated.connect(self._open_note)
 
-        self.notes_page, self._editor_hint = _page("编辑器（P2）")
+        self.notes_page = Page()
+        self.editor = NoteEditor()
+        self.editor.body_changed.connect(app.update_current_body)
+        notes_layout = QVBoxLayout(self.notes_page)
+        notes_layout.setContentsMargins(0, 0, 0, 0)
+        notes_layout.addWidget(self.editor)
         self.projects_page, _ = _page("项目（远期）")
         self.community_page, _ = _page("社区（远期）")
         self._pages = [self.notes_page, self.projects_page, self.community_page]
@@ -87,9 +93,13 @@ class Shell(HBox):
             self.center.set_current(index)
 
     def _open_note(self, oid: str) -> None:
-        self._app.open_note(oid)
         self.switch_page("notes")
-        self._editor_hint.setText(self._app.note_title(oid))
+        self._app.open_note(oid)
+        try:
+            note = self._app.session.note(oid)
+        except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
+            return
+        self.editor.load_note(note)
 
 
 class MainWindow(QMainWindow):

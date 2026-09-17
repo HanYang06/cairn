@@ -28,7 +28,7 @@ from cairn.core import Vault
 from cairn.domains import Note
 from cairn.ui.root import App
 from cairn.ui.theme.manager import ThemeManager
-from cairn.ui.window import MainWindow
+from cairn.ui.window import MainWindow, Shell
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,6 +68,11 @@ def main(argv: list[str]) -> int:
         root.reload_notes()
 
         window = MainWindow(root)
+        shell = window.centralWidget()
+        if isinstance(shell, Shell) and root.notes.rowCount() > 0:
+            first = root.notes.row_at(0)
+            if first is not None:
+                shell.navigator.activated.emit(first.oid)
         window.resize(width, height)
         window.show()
         app.processEvents()
