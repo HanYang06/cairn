@@ -14,8 +14,10 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
 
-from .components import ActivityBar, HBox, InspectorPanel, ListPanel, Page, Split, Stack
-from .editor import NoteEditor
+from .components import ActivityBar, InspectorPanel, ListPanel
+from .components.editor import NoteEditor
+from .layout import HBox, Split, Stack
+from .pages import Page
 from .theme import current_theme
 
 if TYPE_CHECKING:

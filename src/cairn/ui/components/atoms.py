@@ -26,8 +26,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .base import Component
-from .layout import HBox, VBox
+from ..component import Component
+from ..layout import HBox, VBox
 
 if TYPE_CHECKING:
     from collections.abc import Callable

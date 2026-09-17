@@ -9,7 +9,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QSplitter
 
-from cairn.ui.components import Grid, HBox, Split, Stack, VBox
+from cairn.ui.layout import Grid, HBox, Split, Stack, VBox
 
 pytestmark = pytest.mark.usefixtures("qapp")
 

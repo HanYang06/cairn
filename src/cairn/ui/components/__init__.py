@@ -1,38 +1,35 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""可复用 UI 组件（叶子优先）。
+"""组件库：有行为的叶子（原子）与结构件；扩展点集中在这里。
 
-约定：组件只吃主题令牌，不硬编码颜色 / 圆角 / 间距；页面在这里选组件、不写样式。
+约定：组件只吃主题令牌，不硬编码颜色 / 圆角 / 间距。布局组织器另在 `ui.layout`，
+页面在 `ui.pages`。
 """
 
 from __future__ import annotations
 
+from ..component import Component
 from .atoms import Button, Chip, Divider, Field, IconButton, Label, Section, ToggleSwitch
-from .base import Component, Page, Panel
-from .layout import Box, Grid, HBox, Split, Stack, VBox
+from .base import Panel
+from .editor import NoteDocument, NoteEditor
 from .structure import ActivityBar, InspectorPanel, ListPanel, Toolbar
 
 __all__ = [
     "ActivityBar",
-    "Box",
     "Button",
     "Chip",
     "Component",
     "Divider",
     "Field",
-    "Grid",
-    "HBox",
     "IconButton",
     "InspectorPanel",
     "Label",
     "ListPanel",
-    "Page",
+    "NoteDocument",
+    "NoteEditor",
     "Panel",
     "Section",
-    "Split",
-    "Stack",
     "ToggleSwitch",
     "Toolbar",
-    "VBox",
 ]

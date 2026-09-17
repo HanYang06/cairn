@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import QModelIndex, Signal
 from PySide6.QtWidgets import QAbstractItemView, QListView
 
+from ..layout import HBox, VBox
 from .atoms import Divider, IconButton, Label
-from .layout import HBox, VBox
 
 if TYPE_CHECKING:
     from collections.abc import Callable

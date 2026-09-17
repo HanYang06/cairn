@@ -12,7 +12,8 @@ from PySide6.QtWidgets import QApplication, QSplitter
 
 from cairn.core import Vault
 from cairn.domains import Note
-from cairn.ui.components import Component, InspectorPanel, ListPanel, Panel, Stack
+from cairn.ui.components import Component, InspectorPanel, ListPanel, Panel
+from cairn.ui.layout import Stack
 from cairn.ui.root import App
 from cairn.ui.theme import LIGHT, current_theme, set_current_theme
 from cairn.ui.theme.manager import ThemeManager

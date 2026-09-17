@@ -52,7 +52,8 @@
   `theme/schema.py` 由注册表自动派生点分路径 + `validate_path`。
 - [ ] **P1 导航 + 检查器**：`Session`（身份缓存 + 投影）+ 类型化行 + `QTreeView/QListView` 模型 +
   `Inspector`（`QFormLayout` 或属性模型）。
-  - [x] 笔记**列表**已接（`App.notes` 模型 + `ListPanel`，自动刷新）；**分组树**、检查器未做。
+  - [x] 笔记**列表**已接（`App.notes` 模型 + `ListPanel`，自动刷新）；**检查器**已接（`PropertyRow`
+    投影 + `InspectorPanel` + 当前笔记联动）；**分组树**未做。
 - [ ] **P2 编辑器**：`QTextEdit`/`QTextDocument`（block ↔ 行映射）+ `QUndoStack`；
   替换 QML 逐行 `TextEdit`；解决跨行选区与撤销/重做。
 - [ ] **P3 视图与对话框**：关系 / 历史页，菜单 / 弹层 / 命令面板。

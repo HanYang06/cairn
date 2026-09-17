@@ -13,7 +13,7 @@ from PySide6.QtGui import QTextCursor
 from cairn.core import Vault
 from cairn.domains import Note
 from cairn.domains.note.types import Style
-from cairn.ui.editor import NoteDocument, NoteEditor
+from cairn.ui.components.editor import NoteDocument, NoteEditor
 from cairn.ui.root import App
 
 if TYPE_CHECKING:

@@ -14,7 +14,7 @@ from typing import Any
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QTextEdit, QVBoxLayout, QWidget
 
-from ..components import Component
+from ...component import Component
 from .document import NoteDocument
 
 

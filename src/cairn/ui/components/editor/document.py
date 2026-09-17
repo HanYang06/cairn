@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtGui import QTextBlock, QTextCharFormat, QTextCursor, QTextDocument
 
-from ...domains.note.edit import is_marker, line_styles, new_id
-from ...domains.note.model import Style
+from ....domains.note.edit import is_marker, line_styles, new_id
+from ....domains.note.model import Style
 from .formats import (
     LINE_ID,
     OBJECT_REPLACEMENT,
@@ -31,7 +31,7 @@ from .formats import (
 )
 
 if TYPE_CHECKING:
-    from ...domains.note.edit import Line, StyleMap
+    from ....domains.note.edit import Line, StyleMap
 
 
 class NoteDocument(QTextDocument):

@@ -20,10 +20,10 @@ from typing import TYPE_CHECKING, Any
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QTextBlockFormat, QTextCharFormat, QTextFormat
 
-from ..theme import current_theme
+from ...theme import current_theme
 
 if TYPE_CHECKING:
-    from ...domains.note.model import Style
+    from ....domains.note.model import Style
 
 _USER = int(QTextFormat.Property.UserProperty)
 LINE_ID = _USER + 1

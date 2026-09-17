@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""布局原语：只处理几何，不认识内容。
+"""布局原语：纯几何组织器，不认识内容、不承担事件行为。
 
 底层就这几个正交原语；复杂的、异形的、非对称的结构靠**嵌套 + 权重/伸缩 + 跨行列**
-组合出来，而不是新增原语。见 `rules/references/ui-boundary.md`。
+组合出来，而不是新增原语。组合可递归，深度不设限。见 `rules/references/ui-boundary.md`。
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .base import Component
+from ..component import Component
 
 
 class Box(Component):
