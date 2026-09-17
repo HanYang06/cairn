@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QApplication, QSplitter
 
 from cairn.core import Vault
 from cairn.domains import Note
-from cairn.ui.components import Component, InspectorPanel, ListPanel, Panel
+from cairn.ui.components import Component, InspectorPanel, NavigatorPanel, Panel
 from cairn.ui.layout import Stack
 from cairn.ui.root import App
 from cairn.ui.theme import LIGHT, current_theme, set_current_theme
@@ -67,11 +67,30 @@ def test_shell_activity_switches_pages(tmp_path: Path) -> None:
     root.shutdown()
 
 
-def test_shell_navigator_binds_notes_model(tmp_path: Path) -> None:
+def test_shell_navigator_binds_groups_model(tmp_path: Path) -> None:
     root = App(Vault.create(tmp_path / "vault"))
     shell = Shell(root)
-    assert isinstance(shell.navigator, ListPanel)
-    assert shell.navigator.view.model() is root.notes
+    assert isinstance(shell.navigator, NavigatorPanel)
+    assert shell.navigator.tree.model() is root.groups
+    root.shutdown()
+
+
+def test_app_group_operations(tmp_path: Path) -> None:
+    vault = Vault.create(tmp_path / "vault")
+    root = App(vault)
+
+    gid = root.create_group("工作")
+    node = root.groups.value_at(root.groups.index(0, 0))
+    assert node is not None
+    assert node.title == "工作"
+
+    root.rename_group(gid, "工作区")
+    node = root.groups.value_at(root.groups.index(0, 0))
+    assert node is not None
+    assert node.title == "工作区"
+
+    root.delete_group(gid)
+    assert root.groups.rowCount() == 0
     root.shutdown()
 
 
@@ -118,7 +137,7 @@ def test_shell_open_note_updates_app(tmp_path: Path) -> None:
     root.bridge.flush()
 
     shell = Shell(root)
-    shell.navigator.activated.emit(str(note.oid))
+    shell.navigator.note_activated.emit(str(note.oid))
     assert root.current_oid == str(note.oid)
     root.shutdown()
 

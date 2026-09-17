@@ -25,7 +25,7 @@ from PySide6.QtGui import QFont
 from PySide6.QtWidgets import QApplication
 
 from cairn.core import Vault
-from cairn.domains import Note
+from cairn.domains import Group, Note
 from cairn.ui.root import App
 from cairn.ui.theme.manager import ThemeManager
 from cairn.ui.window import MainWindow, Shell
@@ -61,8 +61,11 @@ def main(argv: list[str]) -> int:
     app.setFont(font)
     with tempfile.TemporaryDirectory() as tmp:
         vault = Vault.create(Path(tmp) / "vault")
-        for title, text in _SAMPLES:
-            Note.create(vault, text, title=title)
+        created = [Note.create(vault, text, title=title) for title, text in _SAMPLES]
+        work = Group.create(vault, "工作")
+        design = Group.create(vault, "设计", parent=work)
+        work.add(created[0])
+        design.add(created[1])
         root = App(vault)
         ThemeManager(app).apply_default()
         root.reload_notes()
@@ -72,7 +75,7 @@ def main(argv: list[str]) -> int:
         if isinstance(shell, Shell) and root.notes.rowCount() > 0:
             first = root.notes.row_at(0)
             if first is not None:
-                shell.navigator.activated.emit(first.oid)
+                shell.navigator.note_activated.emit(first.oid)
         window.resize(width, height)
         window.show()
         app.processEvents()

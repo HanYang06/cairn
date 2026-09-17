@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QModelIndex, Signal
-from PySide6.QtWidgets import QAbstractItemView, QListView
+from PySide6.QtCore import QModelIndex, Qt, Signal
+from PySide6.QtWidgets import QAbstractItemView, QListView, QSizePolicy
 
 from ..layout import HBox, VBox
 from .atoms import Divider, IconButton, Label
@@ -103,11 +103,14 @@ class ActivityBar(VBox):
 
     def __init__(self, *, spacing: int = 2, parent: QWidget | None = None) -> None:
         super().__init__(parent=parent, spacing=spacing)
+        self.align(Qt.AlignmentFlag.AlignTop)
         self._items: dict[str, IconButton] = {}
 
     def add_item(self, item_id: str, glyph: str, *, tip: str = "") -> IconButton:
         """加一个竖向图标条目；点击时发 ``activated(item_id)``。"""
         button = IconButton(glyph, tip=tip, on_click=lambda: self.activated.emit(item_id))
+        button.setFixedSize(30, 30)
+        button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self._items[item_id] = button
         self.add(button)
         return button

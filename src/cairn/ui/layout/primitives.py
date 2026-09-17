@@ -44,6 +44,10 @@ class Box(Component):
         for child in children:
             self.add(child)
 
+    def align(self, alignment: Qt.AlignmentFlag) -> None:
+        """设置整体对齐（如 ``AlignTop``，避免把子件摊开留白）。"""
+        self._box.setAlignment(alignment)
+
     def add(
         self,
         child: QWidget,

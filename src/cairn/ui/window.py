@@ -3,7 +3,7 @@
 
 """主窗口与外壳：`MainWindow`（QMainWindow）+ `Shell`（活动栏 + 三栏）。
 
-导航接真实笔记列表；中央 `Stack` 做页面路由；检查器接属性模型；编辑器为占位。
+导航是分组树；中央 `Stack` 做页面路由；检查器接属性模型；编辑器接富文本控件。
 见 `rules/references/ui-boundary.md`。
 """
 
@@ -12,20 +12,29 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QInputDialog,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QVBoxLayout,
+    QWidget,
+)
 
-from .components import ActivityBar, InspectorPanel, ListPanel
+from .components import ActivityBar, InspectorPanel, NavigatorPanel
 from .components.editor import NoteEditor
 from .layout import HBox, Split, Stack
 from .pages import Page
 from .theme import current_theme
 
 if TYPE_CHECKING:
+    from PySide6.QtCore import QPoint
+
     from .root import App
 
 # 活动栏条目：(id, 字形, 提示)
 _ACTIVITY_ITEMS = (
-    ("notes", "\ue8a5", "笔记"),
+    ("notes", "\ue7c3", "笔记"),
     ("projects", "\ue8b7", "项目"),
     ("community", "\ue716", "社区"),
 )
@@ -55,9 +64,12 @@ class Shell(HBox):
         self.activity.activated.connect(self.switch_page)
         self.add(self.activity)
 
-        self.navigator = ListPanel("笔记", key_of=lambda row: row.oid)
-        self.navigator.set_model(app.notes)
-        self.navigator.activated.connect(self._open_note)
+        self.navigator = NavigatorPanel()
+        self.navigator.set_model(app.groups)
+        self.navigator.note_activated.connect(self._open_note)
+        self.navigator.new_note_requested.connect(self._new_note)
+        self.navigator.new_group_requested.connect(self._new_group)
+        self.navigator.context_requested.connect(self._show_context)
 
         self.notes_page = Page()
         self.editor = NoteEditor()
@@ -95,6 +107,7 @@ class Shell(HBox):
         if 0 <= index < len(self._pages):
             self.center.set_current(index)
 
+    # ---- 笔记 ----
     def _open_note(self, oid: str) -> None:
         self.switch_page("notes")
         self._app.open_note(oid)
@@ -108,6 +121,33 @@ class Shell(HBox):
         except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
             return
         self.editor.load_note(note)
+
+    def _new_note(self) -> None:
+        self._app.create_note(title="新笔记")
+
+    def _new_group(self) -> None:
+        node = self.navigator.current_node()
+        parent = node.key if node is not None and node.kind == "group" else ""
+        self._app.create_group("新组", parent_gid=parent)
+
+    # ---- 右键菜单 ----
+    def _show_context(self, kind: str, key: str, pos: QPoint) -> None:
+        menu = QMenu(self)
+        if kind == "group" and key:
+            menu.addAction("新建子组", lambda: self._app.create_group("新组", parent_gid=key))
+            menu.addAction("改名…", lambda: self._rename_group(key))
+            menu.addAction("锁定 / 解锁", lambda: self._app.toggle_group_lock(key))
+            menu.addAction("删除组", lambda: self._app.delete_group(key))
+        elif kind == "note":
+            menu.addAction("移出分组", lambda: self._app.clear_note_groups(key))
+            menu.addAction("回收", lambda: self._app.trash_note(key))
+        if not menu.isEmpty():
+            menu.exec(pos)
+
+    def _rename_group(self, gid: str) -> None:
+        title, ok = QInputDialog.getText(self, "改组名", "名称")
+        if ok:
+            self._app.rename_group(gid, title)
 
 
 class MainWindow(QMainWindow):

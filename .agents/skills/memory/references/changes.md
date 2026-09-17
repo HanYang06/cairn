@@ -179,6 +179,11 @@
   `models.TreeModel[T]`（按 `children_of` 展开的 QAbstractItemModel，QTreeView 可直接绑）。
   ruff/mypy/272 测试全绿（覆盖率 84%）。迁移顺序：① 分组树 → ② 关系/历史 → ③ 工具栏/命令 →
   ④ 菜单/工具册/弹层 → ⑤ 切默认删 QML。
+- 2026-09-18 · 已定 · **迁移① Navigator 分组树**：新增 `components/navigator.py`（`NavigatorPanel`：
+  标题 + 工具条 + `QTreeView` + 右键意图）；`App` 加 `groups: TreeModel[GroupNode]` 与分组操作
+  （create/rename/delete/toggle_lock/add_note/remove_note/move/clear_note_groups/trash_note），
+  桥变更自动刷新；`Shell` 导航换成分组树、右键菜单接操作；`layout.Box.align` + ActivityBar 固定尺寸
+  修「子件被摊开」。ruff/mypy/273 测试全绿（覆盖率 83%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

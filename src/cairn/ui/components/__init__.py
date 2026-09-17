@@ -13,6 +13,7 @@ from ..component import Component
 from .atoms import Button, Chip, Divider, Field, IconButton, Label, Section, ToggleSwitch
 from .base import Panel
 from .editor import NoteDocument, NoteEditor
+from .navigator import NavigatorPanel
 from .structure import ActivityBar, InspectorPanel, ListPanel, Toolbar
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "InspectorPanel",
     "Label",
     "ListPanel",
+    "NavigatorPanel",
     "NoteDocument",
     "NoteEditor",
     "Panel",
