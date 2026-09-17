@@ -190,6 +190,10 @@
   与 `relations` / `versions` 模型 + `restore_version`；新增 `components/tabbar.py`（`TabBar`）、
   `pages/relations.py` / `history.py`；`Shell` 中央改为「标签条 + 页面栈」，右键菜单加关系/历史。
   ruff/mypy/274 测试全绿（覆盖率 83%）。
+- 2026-09-18 · 已定 · **迁移③：格式工具栏接编辑器**：`NoteEditor.apply_tool`（bold/italic/underline/
+  strike、对齐、标题、缩进、列表、引用/代码、清除行内/段落）——**行为接 `QTextEdit`，元数据复用内核
+  注册表**；新增 `components/formattoolbar.py`（按 `PRESET_LAYOUT` + `tool_info()` 渲染两行，
+  发 `tool_triggered(id, source)`）；`Shell` 笔记页加工具栏接编辑器。ruff/mypy/275 测试全绿（覆盖率 82%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

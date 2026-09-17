@@ -79,3 +79,27 @@ def test_app_update_body_persists(tmp_path: Path) -> None:
     reloaded = Note.load(vault, note.oid)
     assert reloaded.text == "改了"
     root.shutdown()
+
+
+def test_editor_tools_bold_align_heading(tmp_path: Path) -> None:
+    vault = Vault.create(tmp_path / "vault")
+    note = Note.create(vault, "hello")
+    editor = NoteEditor()
+    editor.load_note(note)
+
+    cursor = editor.edit.textCursor()
+    cursor.select(QTextCursor.SelectionType.Document)
+    editor.edit.setTextCursor(cursor)
+
+    assert editor.apply_tool("bold") is True
+    body, style = editor.document.to_body()
+    ranges = style.get(body[0]["id"], [])
+    assert any(span.bold for layer in ranges for span in layer.values())
+
+    assert editor.apply_tool("align-center") is True
+    assert editor.apply_tool("h1") is True
+    body, _style = editor.document.to_body()
+    assert body[0]["p"]["align"] == "center"
+    assert body[0]["p"]["heading"] == 1
+
+    assert editor.apply_tool("no-such-tool") is False

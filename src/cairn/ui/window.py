@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .components import ActivityBar, InspectorPanel, NavigatorPanel, TabBar
+from .components import ActivityBar, FormatToolbar, InspectorPanel, NavigatorPanel, TabBar
 from .components.editor import NoteEditor
 from .layout import HBox, Split, Stack, VBox
 from .pages import HistoryPage, Page, RelationsPage
@@ -79,9 +79,12 @@ class Shell(HBox):
         self.editor = NoteEditor()
         self.editor.body_changed.connect(app.update_current_body)
         app.current_changed.connect(self._load_current)
+        self.format_toolbar = FormatToolbar()
+        self.format_toolbar.tool_triggered.connect(self._run_tool)
         notes_layout = QVBoxLayout(self.notes_page)
         notes_layout.setContentsMargins(0, 0, 0, 0)
-        notes_layout.addWidget(self.editor)
+        notes_layout.addWidget(self.format_toolbar)
+        notes_layout.addWidget(self.editor, 1)
 
         self.relations_page = RelationsPage()
         self.relations_page.set_model(app.relations)
@@ -156,6 +159,9 @@ class Shell(HBox):
 
     def _new_note(self) -> None:
         self._app.create_note(title="新笔记")
+
+    def _run_tool(self, tool_id: str, _source: object) -> None:
+        self.editor.apply_tool(tool_id)
 
     def _new_group(self) -> None:
         node = self.navigator.current_node()
