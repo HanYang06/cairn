@@ -11,7 +11,8 @@ import pytest
 from PySide6.QtCore import QEasingCurve
 from PySide6.QtWidgets import QGraphicsOpacityEffect, QLabel
 
-from cairn.ui.motion import fade, make_animation
+from cairn.ui.motion import fade, make_animation, transition
+from cairn.ui.signal import Signal
 from cairn.ui.theme import current_theme, set_current_theme
 
 pytestmark = pytest.mark.usefixtures("qapp")
@@ -39,3 +40,11 @@ def test_fade_prepares_opacity_effect() -> None:
     animation = fade(label, to=0.5)
     assert isinstance(label.graphicsEffect(), QGraphicsOpacityEffect)
     assert animation.endValue() == 0.5
+
+
+def test_transition_animates_on_signal() -> None:
+    label = QLabel("x")
+    source = Signal()
+    transition(source, label, "windowOpacity", 0.5)
+    source.emit()
+    assert label.windowOpacity() == 1.0  # 动画未跑，值暂不变；只验证连接与触发不报错

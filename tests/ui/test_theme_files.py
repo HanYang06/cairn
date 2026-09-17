@@ -10,7 +10,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cairn.ui.theme import ThemeSchemaError, compile_theme, list_themes, load_theme, theme_dir
+from cairn.ui.theme import (
+    ThemeSchemaError,
+    build_elevations,
+    compile_theme,
+    list_themes,
+    load_theme,
+    theme_dir,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -64,3 +71,14 @@ def test_unknown_section_rejected(tmp_path: Path) -> None:
     source.write_text('{"extra": {}}', encoding="utf-8")
     with pytest.raises(ThemeSchemaError):
         load_theme(source)
+
+
+def test_elevation_declaration_compiles_to_effect(tmp_path: Path) -> None:
+    source = tmp_path / "elev.json"
+    source.write_text(
+        json.dumps({"style": {"widget.Panel": {"elevation": 2}}}),
+        encoding="utf-8",
+    )
+    theme_file = load_theme(source)
+    assert build_elevations(theme_file.rules) == {"Panel": 2}
+    assert "elevation" not in compile_theme(theme_file)

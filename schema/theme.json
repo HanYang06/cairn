@@ -331,6 +331,27 @@
             "number",
             "boolean"
           ]
+        },
+        "shadow_color": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "shadow_blur": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "shadow_offset": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
         }
       },
       "additionalProperties": false
@@ -428,6 +449,13 @@
             ]
           },
           "color": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "elevation": {
             "type": [
               "string",
               "number",

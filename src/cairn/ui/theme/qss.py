@@ -184,4 +184,17 @@ def compile_theme(theme_file: ThemeFile) -> str:
     return "\n".join(parts)
 
 
-__all__ = ["build_qss", "build_widget_qss", "compile_theme"]
+def build_elevations(rules: Mapping[str, str]) -> dict[str, int]:
+    """从规则里提取 ``widget.<类型>.elevation`` 声明（阴影层级，代码侧效果）。"""
+    elevations: dict[str, int] = {}
+    for path, raw in rules.items():
+        parts = path.split(".")
+        if len(parts) == 3 and parts[0] == "widget" and parts[2] == "elevation":
+            try:
+                elevations[parts[1]] = int(raw)
+            except ValueError:
+                continue
+    return elevations
+
+
+__all__ = ["build_elevations", "build_qss", "build_widget_qss", "compile_theme"]

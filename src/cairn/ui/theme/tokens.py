@@ -74,6 +74,11 @@ class Theme:
     easing: str = "outQuad"
     reduce_motion: bool = False
 
+    # ===== shadow（QSS 无阴影，编译成代码侧效果）=====
+    shadow_color: str = "#14000000"
+    shadow_blur: int = 24
+    shadow_offset: int = 4
+
     def as_dict(self) -> dict[str, str]:
         """扁平化为字符串字典，供 QSS 模板替换。"""
         return {field.name: str(getattr(self, field.name)) for field in fields(self)}

@@ -26,6 +26,7 @@ DARK = Theme(
     selection="#1F6FEB",
     hover="#161B22",
     danger="#F85149",
+    shadow_color="#66000000",
 )
 
 LIGHT = Theme(
@@ -47,6 +48,7 @@ LIGHT = Theme(
     selection="#DDF4FF",
     hover="#F3F4F6",
     danger="#CF222E",
+    shadow_color="#14000000",
 )
 
 BUILTIN: dict[str, Theme] = {DARK.name: DARK, LIGHT.name: LIGHT}

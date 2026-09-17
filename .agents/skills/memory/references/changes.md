@@ -169,6 +169,11 @@
   `ui/settings.py` 点分键 JSON 设置（`<root>/.cairn/ui.json`）——**非领域偏好，独立文件，不进 bucket**；
   `App` 持 `settings`/`commands` + `run_command`/`create_note`；`Shell` 改监听 `current_changed`
   载入编辑器（单一通路）。ruff/mypy/263 测试全绿（覆盖率 84%）。
+- 2026-09-18 · 已定 · **主题增强（elevation + 有限 transition）**：主题加阴影令牌
+  （`shadow_color/blur/offset`）；`ui/effects.py` 用 `QGraphicsDropShadowEffect` 施加阴影；
+  主题 `style` 里 `widget.<类型>.elevation` 是**声明**，`build_elevations` 编译成「类名 → 层级」，
+  `ThemeManager` 存入主题状态，`Component.showEvent` 首次显示时自动施加——QSS 仍不写 elevation，
+  效果走代码。`motion.transition`：信号触发属性动画。ruff/mypy/269 测试全绿（覆盖率 84%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

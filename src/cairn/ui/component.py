@@ -16,11 +16,14 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
+from .effects import apply_elevation
 from .signal import Subscription
-from .theme import Theme, current_theme
+from .theme import Theme, current_elevation, current_theme
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
+
+    from PySide6.QtGui import QShowEvent
 
 # 只有标准组件库里的部件进入主题词汇表；布局 / 页面 / 外壳 / 测试类不污染 schema。
 _COMPONENT_PACKAGE = "cairn.ui.components"
@@ -37,7 +40,7 @@ class Component(QWidget):
     _REGISTRY: ClassVar[dict[str, type[Component]]] = {}
     abstract: ClassVar[bool] = False
     STYLABLE: ClassVar[frozenset[str]] = frozenset(
-        {"background", "color", "border", "border_color", "radius", "padding"}
+        {"background", "color", "border", "border_color", "radius", "padding", "elevation"}
     )
     STATES: ClassVar[frozenset[str]] = frozenset({"hover", "pressed", "disabled", "focus"})
 
@@ -64,11 +67,22 @@ class Component(QWidget):
             self.setObjectName(type(self).__name__)
         # 供主题 QSS 以属性选择器命中：QWidget[cairnClass="Button"]
         self.setProperty("cairnClass", type(self).__name__)
+        self._elevation_applied = False
 
     @property
     def theme(self) -> Theme:
         """当前主题令牌；组件样式一律取自这里，不硬编码。"""
         return current_theme()
+
+    def showEvent(self, event: QShowEvent) -> None:  # noqa: N802 — Qt 覆写
+        """首次显示时按主题配置给部件装阴影（声明的 elevation）。"""
+        super().showEvent(event)
+        if self._elevation_applied:
+            return
+        self._elevation_applied = True
+        level = current_elevation(type(self).__name__)
+        if level > 0 and self.graphicsEffect() is None:
+            apply_elevation(self, level, self.theme)
 
     def watch(self, source: Any, slot: Callable[..., None]) -> None:
         """订阅一个信号（Qt 信号或 `ui.signal.Signal`）；控件销毁时自动退订。"""

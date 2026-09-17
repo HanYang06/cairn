@@ -89,4 +89,21 @@ def fade(
     return animate(effect, "opacity", to, duration=duration)
 
 
-__all__ = ["animate", "fade", "make_animation", "resolve_duration"]
+def transition(  # noqa: PLR0913 — 与 animate 同参数面
+    source: Any,
+    target: QObject,
+    prop: str,
+    to: Any,
+    *,
+    duration: int | None = None,
+    easing: str | None = None,
+) -> Any:
+    """信号触发时把属性动画到目标值（有限 transition，不写动画逻辑到配置）。"""
+
+    def _run(*_args: object) -> None:
+        animate(target, prop, to, duration=duration, easing=easing)
+
+    return source.connect(_run)
+
+
+__all__ = ["animate", "fade", "make_animation", "resolve_duration", "transition"]

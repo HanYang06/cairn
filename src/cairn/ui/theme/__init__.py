@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from .loader import ThemeFile, list_themes, load_theme, repo_root, theme_dir
-from .qss import build_qss, build_widget_qss, compile_theme
+from .qss import build_elevations, build_qss, build_widget_qss, compile_theme
 from .schema import (
     META_KEYS,
     SCHEMA_ID,
@@ -21,7 +21,7 @@ from .schema import (
     validate_path,
     widget_paths,
 )
-from .state import current_theme, set_current_theme
+from .state import current_elevation, current_theme, set_current_theme, set_elevations
 from .themes import BUILTIN, DARK, LIGHT
 from .tokens import Theme
 
@@ -34,9 +34,11 @@ __all__ = [
     "Theme",
     "ThemeFile",
     "ThemeSchemaError",
+    "build_elevations",
     "build_qss",
     "build_widget_qss",
     "compile_theme",
+    "current_elevation",
     "current_theme",
     "json_schema",
     "list_themes",
@@ -45,6 +47,7 @@ __all__ = [
     "schema_paths",
     "selector_paths",
     "set_current_theme",
+    "set_elevations",
     "theme_dir",
     "token_paths",
     "validate_path",

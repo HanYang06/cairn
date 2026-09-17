@@ -11,8 +11,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .loader import ThemeFile, list_themes, load_theme
-from .qss import build_qss, compile_theme
-from .state import set_current_theme
+from .qss import build_elevations, build_qss, compile_theme
+from .state import set_current_theme, set_elevations
 from .themes import LIGHT
 
 if TYPE_CHECKING:
@@ -36,12 +36,14 @@ class ThemeManager:
         """应用令牌主题（内置 / 直接构造的 `Theme`）。"""
         self._app.setStyleSheet(build_qss(theme))
         set_current_theme(theme)
+        set_elevations({})
         self._current = theme
 
     def apply_theme(self, theme_file: ThemeFile) -> None:
-        """应用一个主题包（令牌 + 部件规则）。"""
+        """应用一个主题包（令牌 + 部件规则 + 阴影效果）。"""
         self._app.setStyleSheet(compile_theme(theme_file))
         set_current_theme(theme_file.theme)
+        set_elevations(build_elevations(theme_file.rules))
         self._current = theme_file.theme
 
     def apply_default(self) -> None:
