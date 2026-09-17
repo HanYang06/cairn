@@ -97,6 +97,7 @@ class App(QObject):
     current_changed = Signal()
     properties_changed = Signal()
     tabs_changed = Signal()
+    profiles_changed = Signal()
 
     def __init__(self, vault: Vault, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -259,6 +260,74 @@ class App(QObject):
         if not group.key:
             return True
         return _group_key_hash(password) == group.key
+
+    # ---- 档案（本地昵称，存设置文件）----
+    def profiles(self) -> list[str]:
+        """全部档案名。"""
+        raw = self.settings.get("profiles.names", [])
+        return [str(name) for name in raw] if isinstance(raw, list) else []
+
+    @property
+    def current_profile(self) -> str:
+        """当前档案名。"""
+        return str(self.settings.get("profiles.active", "") or "本机")
+
+    def create_profile(self, name: str) -> None:
+        """新建档案并切到它。"""
+        name = name.strip()
+        if not name:
+            return
+        names = self.profiles()
+        if name not in names:
+            names.append(name)
+        self.settings.set("profiles.names", names)
+        self.settings.set("profiles.active", name)
+        self.profiles_changed.emit()
+
+    def switch_profile(self, name: str) -> None:
+        """切换档案。"""
+        if name in self.profiles():
+            self.settings.set("profiles.active", name)
+            self.profiles_changed.emit()
+
+    # ---- 分享（props.share）----
+    def share_targets(self) -> list[tuple[str, str, str]]:
+        """可分享目标：``(kind, name, label)``。"""
+        targets = [("homepage", "", "个人主页")]
+        return [*targets, *(("person", name, f"某人 · {name}") for name in self.profiles())]
+
+    def has_share(self, oid: str, kind: str, name: str) -> bool:
+        """某笔记是否已分享给目标。"""
+        try:
+            note = self.session.note(oid)
+        except Exception:  # noqa: BLE001 — 缺失不崩界面
+            return False
+        shares = note.props().get("share") or []
+        return any(
+            str(entry.get("kind")) == kind and str(entry.get("name") or "") == name
+            for entry in shares
+        )
+
+    def toggle_share(self, oid: str, kind: str, name: str) -> None:
+        """切换某个分享目标。"""
+        try:
+            note = self.session.note(oid)
+        except Exception:  # noqa: BLE001 — 缺失不崩界面
+            return
+        props = note.props()
+        shares = list(props.get("share") or [])
+
+        def same(entry: dict[str, Any]) -> bool:
+            return str(entry.get("kind")) == kind and str(entry.get("name") or "") == name
+
+        if any(same(entry) for entry in shares):
+            shares = [entry for entry in shares if not same(entry)]
+        else:
+            shares.append({"kind": kind, "name": name})
+        props["share"] = shares
+        note.update(props=props)
+        if oid == self._current_oid:
+            self.reload_properties()
 
     def create_note(self, text: str = "", *, title: str | None = None) -> str:
         """新建一篇笔记并打开；返回其 oid。"""

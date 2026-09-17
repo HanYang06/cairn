@@ -20,7 +20,7 @@ class TitleBar(HBox):
     def __init__(self, title: str = "Cairn", parent: QWidget | None = None) -> None:
         super().__init__(parent=parent, spacing=8, margins=8)
         self._label = Label(title)
-        self.add(self._label)
+        self.add(self._label, stretch=1)
 
     def set_text(self, text: str) -> None:
         """更新标题文字。"""

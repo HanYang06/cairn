@@ -209,6 +209,12 @@
   笔记 = 标题 + 预览 + 时间，选中/悬停底色，令牌取色）；`GroupNode` 带 `preview` / `updated`；
   `App` 加 `favorite_many` / `trash_many` / `toggle_homepage` / `set_group_key` / `unlock_group`；
   `Shell` 右键支持多选批量、公开主页、设置组口令。ruff/mypy/234 测试全绿（覆盖率 83%）。
+- 2026-09-18 · 已定 · **迁移收尾 + 视觉首轮**：`App` 加档案（设置文件存储：`profiles` / `current_profile`
+  / `create_profile` / `switch_profile`，`profiles_changed`）与分享（`share_targets` / `has_share` /
+  `toggle_share`）；`NavigatorTree` 支持拖拽入组（自定义 mime，`node_dropped`）；`Window` 标题栏「档案」
+  chip 菜单、右键分享子菜单、`_on_node_dropped`；`config/theme/github-*.json` 加容器 `style` 规则
+  （标题栏 / 状态栏 / 导航 / 检查器 / 标签条 / 格式栏背景）。修 `UniformRowHeights` 与标题栏撑开。
+  ruff/mypy/235 测试全绿（覆盖率 82%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

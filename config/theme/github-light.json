@@ -18,6 +18,15 @@
     "accent_text": "#FFFFFF",
     "selection": "#DDF4FF",
     "hover": "#F3F4F6",
-    "danger": "#CF222E"
+    "danger": "#CF222E",
+    "shadow_color": "#14000000"
+  },
+  "style": {
+    "widget.TitleBar": { "background": "token.chrome" },
+    "widget.StatusBar": { "background": "token.chrome" },
+    "widget.NavigatorPanel": { "background": "token.surface" },
+    "widget.InspectorPanel": { "background": "token.surface" },
+    "widget.TabBar": { "background": "token.bg" },
+    "widget.FormatToolbar": { "background": "token.bg" }
   }
 }

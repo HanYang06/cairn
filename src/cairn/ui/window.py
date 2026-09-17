@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from .components import (
     ActivityBar,
+    Chip,
     CommandPalette,
     FormatToolbar,
     InspectorPanel,
@@ -74,6 +75,8 @@ class Shell(VBox):
         self._app = app
 
         self.titlebar = TitleBar(f"Cairn / {VAULT_LABEL}")
+        self._profile_chip = Chip("档案", on_click=self._open_profile_menu)
+        self.titlebar.add(self._profile_chip)
         self.add(self.titlebar)
         self.statusbar = StatusBar()
 
@@ -90,6 +93,7 @@ class Shell(VBox):
         self.navigator.new_note_requested.connect(self._new_note)
         self.navigator.new_group_requested.connect(self._new_group)
         self.navigator.context_requested.connect(self._show_context)
+        self.navigator.node_dropped.connect(self._on_node_dropped)
 
         self.tabbar = TabBar()
         self.tabbar.activated.connect(app.activate_tab)
@@ -256,6 +260,16 @@ class Shell(VBox):
         elif kind == "note":
             menu.addAction("关系", self._app.open_relations)
             menu.addAction("历史", lambda: self._app.open_history(key))
+            share_menu = menu.addMenu("分享")
+            for share_kind, share_name, label in self._app.share_targets():
+                action = share_menu.addAction(label)
+                action.setCheckable(True)
+                action.setChecked(self._app.has_share(key, share_kind, share_name))
+                action.triggered.connect(
+                    lambda _checked=False, k=share_kind, n=share_name: self._app.toggle_share(
+                        key, k, n
+                    )
+                )
             menu.addAction("公开到主页", lambda: self._app.toggle_homepage(key))
             menu.addAction("移出分组", lambda: self._app.clear_note_groups(key))
             if self._app.show_trash:
@@ -264,6 +278,31 @@ class Shell(VBox):
                 menu.addAction("回收", lambda: self._app.trash_note(key))
         if not menu.isEmpty():
             menu.exec(pos)
+
+    def _on_node_dropped(self, key: str, kind: str, target_gid: str) -> None:
+        if kind == "group":
+            self._app.move_group(key, target_gid)
+        elif target_gid:
+            self._app.add_note_to_group(key, target_gid)
+        else:
+            self._app.clear_note_groups(key)
+
+    def _open_profile_menu(self) -> None:
+        menu = QMenu(self)
+        current = self._app.current_profile
+        for name in self._app.profiles():
+            action = menu.addAction(name)
+            action.setCheckable(True)
+            action.setChecked(name == current)
+            action.triggered.connect(lambda _checked=False, n=name: self._app.switch_profile(n))
+        menu.addSeparator()
+        menu.addAction("新建档案…", self._new_profile)
+        menu.exec(self._profile_chip.mapToGlobal(self._profile_chip.rect().center()))
+
+    def _new_profile(self) -> None:
+        name, ok = QInputDialog.getText(self, "新建档案", "名称")
+        if ok:
+            self._app.create_profile(name)
 
     def _rename_group(self, gid: str) -> None:
         title, ok = QInputDialog.getText(self, "改组名", "名称")

@@ -161,6 +161,20 @@ def test_app_search_tags_trash(tmp_path: Path) -> None:
     root.shutdown()
 
 
+def test_app_profiles_and_shares(tmp_path: Path) -> None:
+    root = App(Vault.create(tmp_path / "vault"))
+    root.create_profile("韩")
+    assert root.current_profile == "韩"
+    assert "韩" in root.profiles()
+
+    note = root.create_note(title="甲")
+    root.toggle_share(note, "person", "韩")
+    assert root.has_share(note, "person", "韩") is True
+    root.toggle_share(note, "person", "韩")
+    assert root.has_share(note, "person", "韩") is False
+    root.shutdown()
+
+
 def test_command_palette_emits_choice() -> None:
     palette = CommandPalette()
     palette.set_provider(lambda _query: [("新建笔记", "command", "note.new")])

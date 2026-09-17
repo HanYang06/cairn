@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QModelIndex, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import QMimeData, QModelIndex, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QDrag, QDragEnterEvent, QDragMoveEvent, QDropEvent, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QStyle,
@@ -39,6 +39,49 @@ _ROLE_TITLE = int(Qt.ItemDataRole.UserRole) + 3
 _ROLE_PREVIEW = int(Qt.ItemDataRole.UserRole) + 4
 _ROLE_UPDATED = int(Qt.ItemDataRole.UserRole) + 5
 _GROUP_GLYPH = "\ue8b7"
+_NODE_MIME = "application/x-cairn-node"
+
+
+class NavigatorTree(QTreeView):
+    """导航树控件：支持把节点拖到组上（发 ``item_dropped(key, kind, target)``）。"""
+
+    item_dropped = Signal(str, str, str)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self._drag_key = ""
+        self._drag_kind = "note"
+
+    def startDrag(self, _actions: object) -> None:  # noqa: N802 — Qt 覆写
+        index = self.currentIndex()
+        if not index.isValid():
+            return
+        self._drag_key = str(index.data(_ROLE_KEY))
+        self._drag_kind = str(index.data(_ROLE_KIND))
+        mime = QMimeData()
+        mime.setData(_NODE_MIME, self._drag_key.encode())
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        drag.exec(Qt.DropAction.MoveAction)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:  # noqa: N802 — Qt 覆写
+        if event.mimeData().hasFormat(_NODE_MIME):
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:  # noqa: N802 — Qt 覆写
+        if event.mimeData().hasFormat(_NODE_MIME):
+            event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent) -> None:  # noqa: N802 — Qt 覆写
+        if not event.mimeData().hasFormat(_NODE_MIME):
+            return
+        target = self.indexAt(event.position().toPoint())
+        if target.isValid() and str(target.data(_ROLE_KIND)) == "group":
+            self.item_dropped.emit(self._drag_key, self._drag_kind, str(target.data(_ROLE_KEY)))
+        event.acceptProposedAction()
 
 
 class NavigatorDelegate(QStyledItemDelegate):
@@ -132,6 +175,7 @@ class NavigatorPanel(VBox):
     new_note_requested = Signal()
     new_group_requested = Signal()
     context_requested = Signal(str, str, object)
+    node_dropped = Signal(str, str, str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent=parent, spacing=0)
@@ -148,15 +192,16 @@ class NavigatorPanel(VBox):
         self.add(header)
         self.add(Divider())
 
-        self._tree = QTreeView()
+        self._tree = NavigatorTree()
         self._tree.setObjectName("NavigatorTree")
         self._tree.setHeaderHidden(True)
-        self._tree.setUniformRowHeights(True)
+        self._tree.setUniformRowHeights(False)
         self._tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._tree.activated.connect(self._on_activated)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context)
         self._tree.setItemDelegate(NavigatorDelegate(self._tree))
+        self._tree.item_dropped.connect(self.node_dropped)
         self.add(self._tree, stretch=1)
 
     @property
