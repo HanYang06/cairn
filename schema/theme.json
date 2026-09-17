@@ -304,6 +304,11 @@
       "type": "object",
       "propertyNames": {
         "enum": [
+          "widget.ActivityBar",
+          "widget.ActivityBar:disabled",
+          "widget.ActivityBar:focus",
+          "widget.ActivityBar:hover",
+          "widget.ActivityBar:pressed",
           "widget.Button",
           "widget.Button:disabled",
           "widget.Button:focus",

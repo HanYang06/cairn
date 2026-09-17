@@ -96,4 +96,26 @@ class ListPanel(VBox):
             self.activated.emit(self._key_of(row))
 
 
-__all__ = ["ListPanel", "Toolbar"]
+class ActivityBar(VBox):
+    """活动栏：竖向图标条目，点击发 ``activated(item_id)`` 意图。"""
+
+    activated = Signal(str)
+
+    def __init__(self, *, spacing: int = 2, parent: QWidget | None = None) -> None:
+        super().__init__(parent=parent, spacing=spacing)
+        self._items: dict[str, IconButton] = {}
+
+    def add_item(self, item_id: str, glyph: str, *, tip: str = "") -> IconButton:
+        """加一个竖向图标条目；点击时发 ``activated(item_id)``。"""
+        button = IconButton(glyph, tip=tip, on_click=lambda: self.activated.emit(item_id))
+        self._items[item_id] = button
+        self.add(button)
+        return button
+
+    @property
+    def items(self) -> list[str]:
+        """条目 id（与加入顺序一致），供页面路由用。"""
+        return list(self._items)
+
+
+__all__ = ["ActivityBar", "ListPanel", "Toolbar"]

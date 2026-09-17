@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""主窗口与外壳：`MainWindow`（QMainWindow）+ `Shell`（三栏布局）。
+"""主窗口与外壳：`MainWindow`（QMainWindow）+ `Shell`（活动栏 + 三栏）。
 
-导航已接真实笔记列表（`ListModel` → `ListPanel`）；编辑器 / 检查器为占位，P1 / P2 填入。
+导航接真实笔记列表；中央 `Stack` 做页面路由；编辑器 / 检查器为占位。
 见 `rules/references/ui-boundary.md`。
 """
 
@@ -14,46 +14,64 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
 
-from .components import ListPanel, Page, Panel, Split, VBox
+from .components import ActivityBar, HBox, ListPanel, Page, Panel, Split, Stack
 from .theme import current_theme
 
 if TYPE_CHECKING:
     from .root import App
 
+# 活动栏条目：(id, 字形, 提示)
+_ACTIVITY_ITEMS = (
+    ("notes", "\ue8a5", "笔记"),
+    ("projects", "\ue8b7", "项目"),
+    ("community", "\ue716", "社区"),
+)
 
-def _fill(widget: QWidget, hint: str) -> None:
-    """给占位容器填一个居中的淡色标签。"""
+
+def _page(hint: str) -> tuple[Page, QLabel]:
+    """建一个占位页面，返回页面与其提示标签。"""
+    page = Page()
     label = QLabel(hint)
     label.setObjectName("Faint")
     label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-    layout = QVBoxLayout(widget)
+    layout = QVBoxLayout(page)
     layout.addWidget(label)
+    return page, label
 
 
-class Shell(VBox):
-    """窗口内主体：导航 + 编辑区 + 检查器三栏可拖拽。"""
+class Shell(HBox):
+    """窗口内主体：活动栏 +（导航 + 中央页面栈 + 检查器）。"""
 
     def __init__(self, app: App, parent: QWidget | None = None) -> None:
-        super().__init__(parent=parent)
+        super().__init__(parent=parent, spacing=0)
         self._app = app
+
+        self.activity = ActivityBar()
+        for item_id, glyph, tip in _ACTIVITY_ITEMS:
+            self.activity.add_item(item_id, glyph, tip=tip)
+        self.activity.activated.connect(self.switch_page)
+        self.add(self.activity)
 
         self.navigator = ListPanel("笔记", key_of=lambda row: row.oid)
         self.navigator.set_model(app.notes)
         self.navigator.activated.connect(self._open_note)
 
-        self.editor = Page()
-        self._editor_hint = QLabel("编辑器（P2）")
-        self._editor_hint.setObjectName("Faint")
-        self._editor_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        editor_layout = QVBoxLayout(self.editor)
-        editor_layout.addWidget(self._editor_hint)
+        self.notes_page, self._editor_hint = _page("编辑器（P2）")
+        self.projects_page, _ = _page("项目（远期）")
+        self.community_page, _ = _page("社区（远期）")
+        self._pages = [self.notes_page, self.projects_page, self.community_page]
+        self.center = Stack(*self._pages)
 
         self.inspector = Panel("属性")
-        _fill(self.inspector.body, "属性检查器（P1）")
+        inspector_hint = QLabel("属性检查器（P1）")
+        inspector_hint.setObjectName("Faint")
+        inspector_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        inspector_layout = QVBoxLayout(self.inspector.body)
+        inspector_layout.addWidget(inspector_hint)
 
         self.split = Split(
             self.navigator,
-            self.editor,
+            self.center,
             self.inspector,
             orientation=Qt.Orientation.Horizontal,
         )
@@ -65,7 +83,14 @@ class Shell(VBox):
         splitter.setSizes([current_theme().side_bar_w, 900, 288])
         self.add(self.split, stretch=1)
 
+    def switch_page(self, item_id: str) -> None:
+        """按活动栏条目 id 切换中央页面。"""
+        index = self.activity.items.index(item_id) if item_id in self.activity.items else -1
+        if 0 <= index < len(self._pages):
+            self.center.set_current(index)
+
     def _open_note(self, oid: str) -> None:
+        self.switch_page("notes")
         self._editor_hint.setText(self._app.note_title(oid))
 
 

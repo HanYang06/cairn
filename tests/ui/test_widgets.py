@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QApplication, QSplitter
 
 from cairn.core import Vault
 from cairn.domains import Note
-from cairn.ui.components import Component, ListPanel, Page, Panel
+from cairn.ui.components import Component, ListPanel, Panel, Stack
 from cairn.ui.root import App
 from cairn.ui.theme import LIGHT, current_theme, set_current_theme
 from cairn.ui.theme.manager import ThemeManager
@@ -49,10 +49,20 @@ def test_shell_has_three_panes(tmp_path: Path) -> None:
     root = App(Vault.create(tmp_path / "vault"))
     shell = Shell(root)
     assert isinstance(shell, Component)
-    assert isinstance(shell.editor, Page)
+    assert isinstance(shell.center, Stack)
+    assert isinstance(shell.inspector, Panel)
     splitter = shell.findChild(QSplitter, "ShellSplit")
     assert splitter is not None
     assert splitter.count() == 3
+    root.shutdown()
+
+
+def test_shell_activity_switches_pages(tmp_path: Path) -> None:
+    root = App(Vault.create(tmp_path / "vault"))
+    shell = Shell(root)
+    assert shell.center.stack.currentIndex() == 0
+    shell.activity.activated.emit("projects")
+    assert shell.center.stack.currentIndex() == 1
     root.shutdown()
 
 
