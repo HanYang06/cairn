@@ -3,8 +3,8 @@
 
 """主窗口与外壳：`MainWindow`（QMainWindow）+ `Shell`（活动栏 + 三栏）。
 
-导航是分组树；中央 `Stack` 做页面路由；检查器接属性模型；编辑器接富文本控件。
-见 `rules/references/ui-boundary.md`。
+导航是分组树；中央是「标签页 + 页面栈」（笔记 / 关系 / 历史 + 项目 / 社区占位）；
+检查器接属性模型；编辑器接富文本控件。见 `rules/references/ui-boundary.md`。
 """
 
 from __future__ import annotations
@@ -21,10 +21,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .components import ActivityBar, InspectorPanel, NavigatorPanel
+from .components import ActivityBar, InspectorPanel, NavigatorPanel, TabBar
 from .components.editor import NoteEditor
-from .layout import HBox, Split, Stack
-from .pages import Page
+from .layout import HBox, Split, Stack, VBox
+from .pages import HistoryPage, Page, RelationsPage
 from .theme import current_theme
 
 if TYPE_CHECKING:
@@ -40,19 +40,19 @@ _ACTIVITY_ITEMS = (
 )
 
 
-def _page(hint: str) -> tuple[Page, QLabel]:
-    """建一个占位页面，返回页面与其提示标签。"""
+def _placeholder(hint: str) -> Page:
+    """建一个占位页面。"""
     page = Page()
     label = QLabel(hint)
     label.setObjectName("Faint")
     label.setAlignment(Qt.AlignmentFlag.AlignCenter)
     layout = QVBoxLayout(page)
     layout.addWidget(label)
-    return page, label
+    return page
 
 
 class Shell(HBox):
-    """窗口内主体：活动栏 +（导航 + 中央页面栈 + 检查器）。"""
+    """窗口内主体：活动栏 +（导航 + 中央标签页/页面栈 + 检查器）。"""
 
     def __init__(self, app: App, parent: QWidget | None = None) -> None:
         super().__init__(parent=parent, spacing=0)
@@ -71,6 +71,10 @@ class Shell(HBox):
         self.navigator.new_group_requested.connect(self._new_group)
         self.navigator.context_requested.connect(self._show_context)
 
+        self.tabbar = TabBar()
+        self.tabbar.activated.connect(app.activate_tab)
+        self.tabbar.close_requested.connect(app.close_tab)
+
         self.notes_page = Page()
         self.editor = NoteEditor()
         self.editor.body_changed.connect(app.update_current_body)
@@ -78,17 +82,35 @@ class Shell(HBox):
         notes_layout = QVBoxLayout(self.notes_page)
         notes_layout.setContentsMargins(0, 0, 0, 0)
         notes_layout.addWidget(self.editor)
-        self.projects_page, _ = _page("项目（远期）")
-        self.community_page, _ = _page("社区（远期）")
-        self._pages = [self.notes_page, self.projects_page, self.community_page]
+
+        self.relations_page = RelationsPage()
+        self.relations_page.set_model(app.relations)
+        self.relations_page.activated.connect(self._open_note)
+
+        self.history_page = HistoryPage()
+        self.history_page.set_model(app.versions)
+        self.history_page.restore_requested.connect(app.restore_version)
+
+        self.projects_page = _placeholder("项目（远期）")
+        self.community_page = _placeholder("社区（远期）")
+
+        self._pages = [
+            self.notes_page,
+            self.relations_page,
+            self.history_page,
+            self.projects_page,
+            self.community_page,
+        ]
         self.center = Stack(*self._pages)
+        app.tabs_changed.connect(self._sync_tabs)
+        self._sync_tabs()
 
         self.inspector = InspectorPanel()
         self.inspector.set_model(app.properties)
 
         self.split = Split(
             self.navigator,
-            self.center,
+            VBox(self.tabbar, self.center, spacing=0),
             self.inspector,
             orientation=Qt.Orientation.Horizontal,
         )
@@ -100,16 +122,26 @@ class Shell(HBox):
         splitter.setSizes([current_theme().side_bar_w, 900, 288])
         self.add(self.split, stretch=1)
 
+    # ---- 路由 ----
     def switch_page(self, item_id: str) -> None:
-        """按活动栏条目 id 切换中央页面。"""
-        items = self.activity.items
-        index = items.index(item_id) if item_id in items else -1
-        if 0 <= index < len(self._pages):
+        """活动栏：切换中央页面。"""
+        index = {"notes": 0, "projects": 3, "community": 4}.get(item_id)
+        if index is not None:
             self.center.set_current(index)
+
+    def _sync_tabs(self) -> None:
+        """标签变更后：重建标签条并按当前页切栈。"""
+        self.tabbar.set_tabs(self._app.tab_rows(), self._app.active_key)
+        key = self._app.active_key
+        if key == "relations":
+            self.center.set_current(1)
+        elif key.startswith("history:"):
+            self.center.set_current(2)
+        elif key:
+            self.center.set_current(0)
 
     # ---- 笔记 ----
     def _open_note(self, oid: str) -> None:
-        self.switch_page("notes")
         self._app.open_note(oid)
 
     def _load_current(self) -> None:
@@ -139,6 +171,8 @@ class Shell(HBox):
             menu.addAction("锁定 / 解锁", lambda: self._app.toggle_group_lock(key))
             menu.addAction("删除组", lambda: self._app.delete_group(key))
         elif kind == "note":
+            menu.addAction("关系", self._app.open_relations)
+            menu.addAction("历史", lambda: self._app.open_history(key))
             menu.addAction("移出分组", lambda: self._app.clear_note_groups(key))
             menu.addAction("回收", lambda: self._app.trash_note(key))
         if not menu.isEmpty():

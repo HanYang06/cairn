@@ -70,4 +70,40 @@ class GroupNode:
     children: tuple[GroupNode, ...] = ()
 
 
-__all__ = ["GroupNode", "NoteRow", "PropertyRow"]
+@dataclass(frozen=True, slots=True)
+class RelationRow:
+    """关系视图的一行：`depth < 0` 上游（来源），`0` 当前，`> 0` 下游（派生）。"""
+
+    oid: str
+    title: str
+    depth: int
+    current: bool
+
+
+@dataclass(frozen=True, slots=True)
+class VersionRow:
+    """历史视图的一行。"""
+
+    seq: int
+    vid: str
+    updated: str
+    current: bool
+
+
+@dataclass(frozen=True, slots=True)
+class TabRow:
+    """打开标签页的一行：笔记 / 关系 / 历史。"""
+
+    key: str
+    title: str
+    kind: str
+
+
+__all__ = [
+    "GroupNode",
+    "NoteRow",
+    "PropertyRow",
+    "RelationRow",
+    "TabRow",
+    "VersionRow",
+]

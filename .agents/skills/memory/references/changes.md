@@ -184,6 +184,12 @@
   （create/rename/delete/toggle_lock/add_note/remove_note/move/clear_note_groups/trash_note），
   桥变更自动刷新；`Shell` 导航换成分组树、右键菜单接操作；`layout.Box.align` + ActivityBar 固定尺寸
   修「子件被摊开」。ruff/mypy/273 测试全绿（覆盖率 83%）。
+- 2026-09-18 · 已定 · **迁移②：标签页 + 关系 / 历史视图**：`rows` 加 `RelationRow` / `VersionRow` /
+  `TabRow`；`Session.relation_rows`（上下游）/ `version_rows`；`App` 标签机制
+  （`open_note` / `open_relations` / `open_history` / `activate_tab` / `close_tab` + `tabs_changed`）
+  与 `relations` / `versions` 模型 + `restore_version`；新增 `components/tabbar.py`（`TabBar`）、
+  `pages/relations.py` / `history.py`；`Shell` 中央改为「标签条 + 页面栈」，右键菜单加关系/历史。
+  ruff/mypy/274 测试全绿（覆盖率 83%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

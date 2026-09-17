@@ -14,10 +14,10 @@
 from __future__ import annotations
 
 from ..core import Event, ObjectDeleted, ObjectPut, Vault
-from ..domains import Note
+from ..domains import Note, ancestors, descendants
 from ..domains.group import Group
 from .format import fmt_size, fmt_time
-from .rows import GroupNode, NoteRow, PropertyRow
+from .rows import GroupNode, NoteRow, PropertyRow, RelationRow, VersionRow
 from .signal import Cancellable, Signal
 
 VAULT_LABEL = "个人空间"
@@ -90,6 +90,47 @@ class Session:
             PropertyRow("words", "字数", len(note.text), "count", editable=False),
             PropertyRow("size", "大小", fmt_size(int(info.size)), "text", editable=False),
         ]
+
+    def relation_rows(self, oid: str) -> list[RelationRow]:
+        """关系视图投影：上游（来源）+ 当前 + 下游（派生）。"""
+        try:
+            note = self.note(oid)
+        except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
+            return []
+        rows: list[RelationRow] = [
+            RelationRow(str(up), self._title(up), -1, current=False)
+            for up in ancestors(self._vault, note.oid)
+        ]
+        rows.append(RelationRow(str(note.oid), note.title or "未命名", 0, current=True))
+        rows.extend(
+            RelationRow(str(down), self._title(down), 1, current=False)
+            for down in descendants(self._vault, note.oid)
+        )
+        return rows
+
+    def version_rows(self, oid: str) -> list[VersionRow]:
+        """历史视图投影：最新在前。"""
+        try:
+            note = self.note(oid)
+        except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
+            return []
+        history = note.history()
+        total = len(history)
+        return [
+            VersionRow(
+                total - index,
+                str(entry["id"]),
+                fmt_time(int(entry["at"])),
+                current=index == 0,
+            )
+            for index, entry in enumerate(history)
+        ]
+
+    def _title(self, oid: object) -> str:
+        try:
+            return self.note(str(oid)).title or "未命名"
+        except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
+            return "（缺失）"
 
     def group_nodes(self) -> list[GroupNode]:
         """分组导航树投影：有序根组 + 末尾「未分组」笔记。"""

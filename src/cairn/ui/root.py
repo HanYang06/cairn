@@ -18,6 +18,7 @@ from .bridge import SessionBridge
 from .commands import CommandRegistry
 from .default_commands import install
 from .models import ListModel, TreeModel
+from .rows import TabRow
 from .session import Session
 from .settings import SettingsStore
 
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from ..core import Vault
-    from .rows import GroupNode, NoteRow, PropertyRow
+    from .rows import GroupNode, NoteRow, PropertyRow, RelationRow, VersionRow
 
 SAVE_DEBOUNCE_MS = 800
 
@@ -63,11 +64,31 @@ def _group_fields() -> list[tuple[str, Callable[[GroupNode], object]]]:
     ]
 
 
+def _relation_fields() -> list[tuple[str, Callable[[RelationRow], object]]]:
+    """关系视图模型的字段 → 取值函数。"""
+    return [
+        ("oid", lambda row: row.oid),
+        ("title", lambda row: row.title),
+        ("depth", lambda row: row.depth),
+        ("current", lambda row: row.current),
+    ]
+
+
+def _version_fields() -> list[tuple[str, Callable[[VersionRow], object]]]:
+    """历史视图模型的字段 → 取值函数。"""
+    return [
+        ("vid", lambda row: row.vid),
+        ("label", lambda row: row.updated + ("（当前）" if row.current else "")),
+        ("current", lambda row: row.current),
+    ]
+
+
 class App(QObject):
     """应用组合根：状态镜像、变更桥、共享模型与当前笔记。"""
 
     current_changed = Signal()
     properties_changed = Signal()
+    tabs_changed = Signal()
 
     def __init__(self, vault: Vault, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -85,6 +106,10 @@ class App(QObject):
         self.groups: TreeModel[GroupNode] = TreeModel(
             _group_fields(), lambda node: node.children, display="title"
         )
+        self.relations: ListModel[RelationRow] = ListModel(_relation_fields(), display="title")
+        self.versions: ListModel[VersionRow] = ListModel(_version_fields(), display="label")
+        self._open_tabs: list[TabRow] = []
+        self._active_key = ""
         self._current_oid = ""
         self._pending_body: tuple[list[dict[str, Any]], dict[str, Any]] | None = None
         self._save = QTimer(self)
@@ -213,12 +238,98 @@ class App(QObject):
         self.reload_notes()
 
     def open_note(self, oid: str) -> None:
-        """把某篇笔记设为当前，并刷新检查器属性。"""
-        if oid == self._current_oid:
+        """打开 / 激活某篇笔记（新增或复用标签页）。"""
+        if not oid:
+            return
+        if oid != self._current_oid:
+            self.flush_body()
+            self._current_oid = oid
+            self.reload_properties()
+            self.current_changed.emit()
+        self._add_tab(oid, self.note_title(oid), "note")
+        self._active_key = oid
+        self.tabs_changed.emit()
+
+    def open_relations(self) -> None:
+        """打开关系视图标签页。"""
+        self._add_tab("relations", "关系", "relations")
+        self._active_key = "relations"
+        self.reload_relations()
+        self.tabs_changed.emit()
+
+    def open_history(self, oid: str = "") -> None:
+        """打开某篇笔记的历史标签页。"""
+        target = oid or self._current_oid
+        if not target:
+            return
+        key = f"history:{target}"
+        self._add_tab(key, "历史", "history")
+        self._active_key = key
+        self.reload_versions(target)
+        self.tabs_changed.emit()
+
+    def activate_tab(self, key: str) -> None:
+        """按 key 激活标签页。"""
+        if not any(tab.key == key for tab in self._open_tabs):
+            return
+        if key == "relations":
+            self._active_key = key
+            self.reload_relations()
+            self.tabs_changed.emit()
+        elif key.startswith("history:"):
+            self._active_key = key
+            self.reload_versions(key.split(":", 1)[1])
+            self.tabs_changed.emit()
+        else:
+            self.open_note(key)
+
+    def close_tab(self, key: str) -> None:
+        """关闭标签页；若关的是当前页则切到最后一个。"""
+        self._open_tabs = [tab for tab in self._open_tabs if tab.key != key]
+        if key != self._active_key:
+            self.tabs_changed.emit()
+            return
+        if self._open_tabs:
+            self.activate_tab(self._open_tabs[-1].key)
+        else:
+            self._active_key = ""
+            self.tabs_changed.emit()
+
+    @property
+    def active_key(self) -> str:
+        """当前激活标签的 key。"""
+        return self._active_key
+
+    def tab_rows(self) -> list[TabRow]:
+        """当前打开的标签页。"""
+        return list(self._open_tabs)
+
+    def _add_tab(self, key: str, title: str, kind: str) -> None:
+        if any(tab.key == key for tab in self._open_tabs):
+            return
+        self._open_tabs.append(TabRow(key, title or "无标题", kind))
+
+    def reload_relations(self) -> None:
+        """按当前笔记刷新关系视图。"""
+        rows = self.session.relation_rows(self._current_oid) if self._current_oid else []
+        self.relations.set_rows(rows)
+
+    def reload_versions(self, oid: str) -> None:
+        """按笔记刷新历史视图。"""
+        self.versions.set_rows(self.session.version_rows(oid))
+
+    def restore_version(self, vid: str) -> None:
+        """把某篇笔记恢复到指定版本，并刷新视图。"""
+        if not self._current_oid:
             return
         self.flush_body()
-        self._current_oid = oid
-        self.reload_properties()
+        try:
+            note = self.session.note(self._current_oid)
+        except Exception:  # noqa: BLE001 — 缺失不崩界面
+            return
+        note.restore(vid)
+        self.reload_notes()
+        self.reload_versions(self._current_oid)
         self.current_changed.emit()
 
     def update_current_body(self, body: list[dict[str, Any]], style: dict[str, Any]) -> None:

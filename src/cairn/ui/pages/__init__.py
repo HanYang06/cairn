@@ -6,5 +6,7 @@
 from __future__ import annotations
 
 from .base import Page
+from .history import HistoryPage
+from .relations import RelationsPage
 
-__all__ = ["Page"]
+__all__ = ["HistoryPage", "Page", "RelationsPage"]

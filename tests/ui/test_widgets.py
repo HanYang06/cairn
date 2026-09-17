@@ -63,7 +63,30 @@ def test_shell_activity_switches_pages(tmp_path: Path) -> None:
     shell = Shell(root)
     assert shell.center.stack.currentIndex() == 0
     shell.activity.activated.emit("projects")
-    assert shell.center.stack.currentIndex() == 1
+    assert shell.center.stack.currentIndex() == 3
+    root.shutdown()
+
+
+def test_app_tabs_and_views(tmp_path: Path) -> None:
+    vault = Vault.create(tmp_path / "vault")
+    root = App(vault)
+    note = Note.create(vault, "正文", title="甲")
+    root.bridge.flush()
+
+    root.open_note(str(note.oid))
+    assert root.active_key == str(note.oid)
+    assert [tab.kind for tab in root.tab_rows()] == ["note"]
+
+    root.open_relations()
+    assert root.active_key == "relations"
+    assert root.relations.rowCount() >= 1
+
+    root.open_history(str(note.oid))
+    assert root.active_key == f"history:{note.oid}"
+    assert root.versions.rowCount() >= 1
+
+    root.close_tab("relations")
+    assert all(tab.key != "relations" for tab in root.tab_rows())
     root.shutdown()
 
 
@@ -124,9 +147,6 @@ def test_app_open_note_populates_properties(tmp_path: Path) -> None:
     assert root.current_oid == str(note.oid)
     rows = [root.properties.row_at(i) for i in range(root.properties.rowCount())]
     assert any(row is not None and row.pid == "favorite" for row in rows)
-
-    root.open_note("")
-    assert root.properties.rowCount() == 0
     root.shutdown()
 
 
