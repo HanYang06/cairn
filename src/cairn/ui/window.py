@@ -62,6 +62,7 @@ class Shell(HBox):
         self.notes_page = Page()
         self.editor = NoteEditor()
         self.editor.body_changed.connect(app.update_current_body)
+        app.current_changed.connect(self._load_current)
         notes_layout = QVBoxLayout(self.notes_page)
         notes_layout.setContentsMargins(0, 0, 0, 0)
         notes_layout.addWidget(self.editor)
@@ -97,6 +98,11 @@ class Shell(HBox):
     def _open_note(self, oid: str) -> None:
         self.switch_page("notes")
         self._app.open_note(oid)
+
+    def _load_current(self) -> None:
+        oid = self._app.current_oid
+        if not oid:
+            return
         try:
             note = self._app.session.note(oid)
         except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面

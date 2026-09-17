@@ -88,6 +88,13 @@ def test_app_notes_model_reflects_vault(tmp_path: Path) -> None:
     root.shutdown()
 
 
+def test_app_run_command_creates_note(tmp_path: Path) -> None:
+    root = App(Vault.create(tmp_path / "vault"))
+    assert root.run_command("note.new") is True
+    assert root.notes.rowCount() == 1
+    root.shutdown()
+
+
 def test_app_open_note_populates_properties(tmp_path: Path) -> None:
     vault = Vault.create(tmp_path / "vault")
     root = App(vault)

@@ -164,6 +164,11 @@
   解「布局 ↔ 组件」循环）；布局原语移 `ui/layout/`（**纯几何组织器**，不再入主题词汇表）；
   `Page` 移 `ui/pages/`（页面层独立扩展）；编辑器并入 `ui/components/editor/`（它算组件）。
   schema 随之只含组件（无 VBox/Stack 等布局）。ruff/mypy/254 测试全绿（覆盖率 84%）。
+- 2026-09-18 · 已定 · **命令注册表 + UI 设置存储**：命令在 `ui/commands.py` 内存声明（id/标题/行为 +
+  快捷键/分组/enabled/check，快捷键可被设置覆盖），`ui/default_commands.py` 一处声明内置命令；
+  `ui/settings.py` 点分键 JSON 设置（`<root>/.cairn/ui.json`）——**非领域偏好，独立文件，不进 bucket**；
+  `App` 持 `settings`/`commands` + `run_command`/`create_note`；`Shell` 改监听 `current_changed`
+  载入编辑器（单一通路）。ruff/mypy/263 测试全绿（覆盖率 84%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

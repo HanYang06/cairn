@@ -13,9 +13,13 @@ from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QObject, QTimer, Signal
 
+from ..domains import Note
 from .bridge import SessionBridge
+from .commands import CommandRegistry
+from .default_commands import install
 from .models import ListModel
 from .session import Session
+from .settings import SettingsStore
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -61,6 +65,12 @@ class App(QObject):
         self.vault = vault
         self.session = Session(vault)
         self.bridge = SessionBridge(self.session, self)
+        self.settings = SettingsStore(vault.root)
+        self.commands = CommandRegistry()
+        install(self.commands)
+        shortcuts = self.settings.get("commands.shortcuts", {})
+        if isinstance(shortcuts, dict):
+            self.commands.set_shortcuts(shortcuts)
         self.notes: ListModel[NoteRow] = ListModel(_note_fields(), display="title")
         self.properties: ListModel[PropertyRow] = ListModel(_property_fields(), display="label")
         self._current_oid = ""
@@ -80,6 +90,17 @@ class App(QObject):
     def reload_notes(self) -> None:
         """按当前 Session 投影刷新笔记列表模型。"""
         self.notes.set_rows(self.session.note_rows())
+
+    def create_note(self, text: str = "", *, title: str | None = None) -> str:
+        """新建一篇笔记并打开；返回其 oid。"""
+        note = Note.create(self.vault, text, title=title)
+        self.reload_notes()
+        self.open_note(str(note.oid))
+        return str(note.oid)
+
+    def run_command(self, command_id: str) -> bool:
+        """执行一条命令（上下文为组合根自身）。"""
+        return self.commands.run(command_id, self)
 
     def open_note(self, oid: str) -> None:
         """把某篇笔记设为当前，并刷新检查器属性。"""
