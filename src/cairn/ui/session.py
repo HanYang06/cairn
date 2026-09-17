@@ -15,8 +15,9 @@ from __future__ import annotations
 
 from ..core import Event, ObjectDeleted, ObjectPut, Vault
 from ..domains import Note
+from ..domains.group import Group
 from .format import fmt_size, fmt_time
-from .rows import NoteRow, PropertyRow
+from .rows import GroupNode, NoteRow, PropertyRow
 from .signal import Cancellable, Signal
 
 VAULT_LABEL = "个人空间"
@@ -89,6 +90,55 @@ class Session:
             PropertyRow("words", "字数", len(note.text), "count", editable=False),
             PropertyRow("size", "大小", fmt_size(int(info.size)), "text", editable=False),
         ]
+
+    def group_nodes(self) -> list[GroupNode]:
+        """分组导航树投影：有序根组 + 末尾「未分组」笔记。"""
+        groups = list(Group.list(self._vault))
+        by_gid = {group.gid: group for group in groups}
+        contained: set[str] = set()
+        for group in groups:
+            contained.update(group.group)
+        roots = [group for group in groups if group.gid not in contained]
+        rank = {gid: index for index, gid in enumerate(self._root_order())}
+        roots.sort(key=lambda group: rank.get(group.gid, len(rank)))
+        nodes = [self._group_node(group, by_gid, set()) for group in roots]
+
+        referenced = {ref for group in groups for ref in group.group}
+        ungrouped: list[GroupNode] = []
+        for info in self._vault.iter(type=Note.kind):
+            oid = str(info.oid)
+            if oid in referenced:
+                continue
+            node = self._note_node(oid)
+            if node is not None:
+                ungrouped.append(node)
+        if ungrouped:
+            nodes.append(GroupNode("group", "", "未分组", tuple(ungrouped)))
+        return nodes
+
+    def _group_node(self, group: Group, by_gid: dict[str, Group], seen: set[str]) -> GroupNode:
+        children: list[GroupNode] = []
+        for ref in group.group:
+            if ref in by_gid:
+                if ref in seen:
+                    continue
+                children.append(self._group_node(by_gid[ref], by_gid, {*seen, ref}))
+            else:
+                node = self._note_node(ref)
+                if node is not None:
+                    children.append(node)
+        return GroupNode("group", group.gid, group.title or "未命名组", tuple(children))
+
+    def _note_node(self, oid: str) -> GroupNode | None:
+        try:
+            note = self.note(oid)
+        except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
+            return None
+        return GroupNode("note", oid, note.title or "未命名")
+
+    def _root_order(self) -> list[str]:
+        raw = self._vault.bucket.catalog.get_meta("group_root_order") or ""
+        return [item for item in raw.split(",") if item]
 
     def _build_rows(self) -> list[NoteRow]:
         infos = sorted(

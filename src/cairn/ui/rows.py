@@ -60,4 +60,14 @@ class PropertyRow:
     editable: bool
 
 
-__all__ = ["NoteRow", "PropertyRow"]
+@dataclass(frozen=True, slots=True)
+class GroupNode:
+    """导航树的节点：组（可嵌套）或笔记（叶子）。"""
+
+    kind: str  # "group" | "note"
+    key: str  # 组为 gid（未分组为 ""）；笔记为 oid
+    title: str
+    children: tuple[GroupNode, ...] = ()
+
+
+__all__ = ["GroupNode", "NoteRow", "PropertyRow"]

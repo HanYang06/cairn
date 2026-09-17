@@ -174,6 +174,11 @@
   主题 `style` 里 `widget.<类型>.elevation` 是**声明**，`build_elevations` 编译成「类名 → 层级」，
   `ThemeManager` 存入主题状态，`Component.showEvent` 首次显示时自动施加——QSS 仍不写 elevation，
   效果走代码。`motion.transition`：信号触发属性动画。ruff/mypy/269 测试全绿（覆盖率 84%）。
+- 2026-09-18 · 已定 · **迁移①地基：分组树投影 + 通用 TreeModel**：`rows.GroupNode`（组可嵌套 /
+  笔记叶子）；`Session.group_nodes()`（按 `group_root_order` 排序根组 + 末尾「未分组」笔记）；
+  `models.TreeModel[T]`（按 `children_of` 展开的 QAbstractItemModel，QTreeView 可直接绑）。
+  ruff/mypy/272 测试全绿（覆盖率 84%）。迁移顺序：① 分组树 → ② 关系/历史 → ③ 工具栏/命令 →
+  ④ 菜单/工具册/弹层 → ⑤ 切默认删 QML。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是
