@@ -60,8 +60,14 @@
   （标题/标签/签名/时间不同不影响同正文去重）。body 与 attrs 分家存储。
 - 已定 · **段落 = 行**：**1 个硬行就是 1 段**，不设独立段落实体；段级属性放行元素 `p`，
   字级仍走行内区间 `style`。超长行（等效中文 > 300）由 UI 关软换行、转横向滚动逼硬回车，**不自动拆行**。
-- 已定 · **工具 = 基类 + 参数化实例**（`domains/note/tools.py`）；工具只服务 note；**分组 / 位置是数据**
-  （`PRESET_LAYOUT`，将来可用户自定义）。工具栏两行（字级 / 段级）、纯图标 + 提示、溢出**向下抽屉**。
+- 已定 · **工具 = 基类 + 参数化实例**（`domains/note/tools.py`）；**分组 / 位置是数据**
+  （`PRESET_LAYOUT`，将来可用户自定义）。工具栏两行（编辑型字级 / 段级）、纯图标 + 提示、溢出**向下抽屉**。
+- 已定 · **工具四分类**（2026-09-17）：`ToolCategory` = 添加 / 编辑 / 命令 / 查询；分类是工具元数据
+  （抽屉内分组），两行预设只放编辑型，其余自定义时随便摆。**编辑型 / 添加型**改 note、元数据在
+  `domains/note/tools.py`；**命令型 / 查询型**属应用与界面、元数据在 `ui/tools.py`，行为由 UI 回调 `Backend`。
+- 已定 · **`Tool.state` 只读三态**（2026-09-17）：`run` 写、`state` 读；`state` 返回 `True` 生效 /
+  `False` 未生效 / `None` 混合，供工具栏高亮；四类里只有**编辑型**有可读状态。未实现工具
+  `available=False`（UI 置灰、不执行），不假装已存在。
 - 已定 · **保存与版本分离**：自动保存只落盘（`Note.persist`）；版本检查点仅在**非连续编辑边界**产生
   （空闲超时默认 5 分钟 / 切换笔记 / `Ctrl+S` / 退出），避免逐次保存堆出大量微小版本。
 - 已定 · **`Body` 是容器基类**（`core/store/block.py`）：无 ID、依存于块；自带状态字段 `hash`
@@ -101,3 +107,21 @@
   ruff `select=ALL` + 逐条有理由的 ignore、`ruff format` 强制、warning 零容忍、覆盖率行+分支 ≥80%。
   中文项目现实豁免：中文标点（RUF001-003/D415）、方法级 docstring（D102/105/107）、领域词汇 id/type/hash（A002/A003）。
   标准见 `rules/references/quality.md`，配置事实源在 `pyproject.toml`。
+
+## UI 技术路线（2026-09-18，重定）
+
+- 已定 · **Widgets 宿主 + QML 岛**：工作台外壳、列表/树、检查器、编辑器、菜单/对话框全部走
+  QtWidgets（Python 对象组合）；QML 只保留给**画布 / 大规模关系图 / 特殊视觉**这类自包含「岛」。
+- 已定 · **编辑器用 `QTextEdit` + `QTextDocument` + `QUndoStack`**：一条硬行 ≈ 一个 block，
+  与笔记行模型同构；跨行选区、撤销/重做、IME、代码高亮由框架提供（QML 逐行 `TextEdit` 做不了）。
+- 已定 · **判据三条**：① Qt 只支持 Widgets 里嵌 Quick，不支持 Quick 里嵌 Widgets；
+  ② App 需要的动效类别（硬切/软切/渐变/滑移）Widgets 全覆盖，QML 的连续高频场景图收益与产品不符；
+  ③ **实现语言须在负责人射程内**——组件库用 Python，负责人可参与设计与维护（QML 做不到）。
+- 已定 · **命名分层**：`App`（QObject 组合根：Session/facade/命令表）+ `MainWindow`（QMainWindow）
+  + `Component` / `Panel` / `Page`（部件基类）。依赖显式注入，不用全局单例。
+- 已定 · **QML 岛是哑视图**：输入类型化 VM、输出回调；不持应用状态、不碰 Vault、不反向耦合。
+- 进行中 · 现有 QML 的 Shell / Navigator / Editor / Inspector **逐步迁到 Widgets**；
+  详见 `progress.md` 的「UI 重建」。
+- 已定 · 组件建造四规则：**联动在控制器**（compound components，不控件互连）、
+  **布局靠 `VBox/HBox/Grid/Split` 嵌套组合**（不新增原语）、**增长只在原子与页面**、
+  **主题 = 点分配置 → QSS 编译 + 有限 Qt 侧增强**。细则见 `rules/references/ui-boundary.md` §6。

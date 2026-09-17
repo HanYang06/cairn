@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .qss import build_qss
+from .state import set_current_theme
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication
@@ -30,5 +31,7 @@ class ThemeManager:
         return self._current
 
     def apply(self, theme: Theme) -> None:
+        """应用主题：全应用 QSS + 更新当前令牌状态。"""
         self._app.setStyleSheet(build_qss(theme))
+        set_current_theme(theme)
         self._current = theme

@@ -117,6 +117,7 @@ class Vault:
                 type=type,
                 seq=1,
                 created=created,
+                checksum=str(block.checksum or ""),
             )
         )
         return result
@@ -139,9 +140,19 @@ class Vault:
         return Oid.parse(target)
 
     def put_block(self, block: Block, *, search_text: str | None = None) -> Block:
-        """存储一个块（含领域块），可选更新其检索文本。"""
+        """存储一个块（含领域块），可选更新其检索文本；写入后发 ``ObjectPut``。"""
+        created = not self.bucket.has(block.id)
         self.bucket.put(block)
         self._set_search(block.id, search_text)
+        self._events.emit(
+            ObjectPut(
+                oid=Oid.parse(block.id),
+                type=block.type,
+                seq=1,
+                created=created,
+                checksum=str(block.checksum or ""),
+            )
+        )
         return block
 
     def delete(self, oid: Oid | str) -> None:

@@ -28,12 +28,13 @@ class Event:
 
 @dataclass(frozen=True, slots=True)
 class ObjectPut(Event):
-    """对象已写入。"""
+    """对象已写入。``checksum`` 让监听者据此判断内容是否真的变了。"""
 
     oid: Oid
     type: str
     seq: int
     created: bool
+    checksum: str = ""
 
 
 @dataclass(frozen=True, slots=True)

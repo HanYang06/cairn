@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from cairn.core import Event, ObjectDeleted, ObjectPut, Vault
+from cairn.core.store import Block
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -93,3 +94,21 @@ def test_delete_missing_emits_nothing(tmp_path: Path) -> None:
     vault.delete("01M26N4DXANY9TDMSJQBEP8B4J")
 
     assert seen == []
+
+
+def test_put_block_emits_checksum_and_created(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    puts: list[ObjectPut] = []
+    vault.subscribe(puts.append, event_type=ObjectPut)
+
+    block = Block(body=b"x", type="blob")
+    vault.put_block(block)
+    assert len(puts) == 1
+    assert puts[0].created is True
+    assert puts[0].type == "blob"
+    assert puts[0].checksum == block.checksum
+
+    block.body = b"y"
+    vault.put_block(block)
+    assert puts[-1].created is False
+    assert puts[-1].checksum == block.checksum

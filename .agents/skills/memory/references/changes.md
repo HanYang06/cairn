@@ -95,3 +95,30 @@
   （对齐 / 标题字号字重 / 列表序号派生 / 缩进 / 引用左条 / 代码块等宽底色 `NoWrap`）。
   导航去掉「全部笔记」标签；标题栏最大化/还原图标随 `Window.visibility` 切换。
   ruff/mypy/188 测试全绿，`--smoke` 通过。
+- 2026-09-17 · 已定 · **工具本体四分类 + 当前态高亮**：`tools.py` 加 `ToolCategory`（add/edit/command/query）、
+  `Tool.available` 与只读 `Tool.state`（`bool|None` 三态），编辑型全部补 `state`；新增添加型 `insert-code`
+  与预留 `insert-table`/`insert-canvas`/`insert-access`；`edit.py` 加 `bool_state`；新增 `ui/tools.py`
+  （命令型 + 查询型 `find`/`replace` 元数据，命令行为由 UI 回调 `Backend`）；`Backend.tools` 合并四类，
+  新增 `toolState` / `toolGroups`，`runTool` 返回聚焦行 id；`FormatToolbar` 三态高亮 + `toolTriggered(tid, source)`，
+  抽屉按类别分组，修掉按钮底色不恢复的问题；`EditorArea` 去掉单独动作行、命令并入工具体系。
+  ruff/mypy/195 测试全绿（覆盖率 83%），`--smoke` 通过。
+- 2026-09-18 · 已定 · **UI 路线转 Widgets 宿主 + QML 岛，P0 骨架落地**：`App` 组合根（`ui/root.py`）、
+  `MainWindow`/`Shell`（`ui/window.py`）、`Component`/`Panel`/`Page` 基类（`ui/components/base.py`）；
+  主题令牌统一为 GitHub 色板并成单一真源（`ui/theme/` + `current_theme` 状态），QSS 全应用一次；
+  `cairn --widgets` 入口（QML 路径不变）；`ObjectPut` 事件补进 `progress.md` 待办。
+  测试：`tests/ui/conftest.py`（会话级离屏 `QApplication`）、`test_widgets.py`、`test_widgets_smoke.py`；
+  `test_backend.py` 的 `QCoreApplication` 改 `QApplication`（Qt 单实例）。ruff/mypy/202 测试全绿（覆盖率 83%）。
+- 2026-09-18 · 已定 · **UI 状态直通地基**：`Vault.put_block` 补发 `ObjectPut`（新增 `checksum` 字段，
+  事件在写入后发出）；新增 `ui/signal.py`（Qt-free `Signal`/`Subscription`/`Cancellable`）、
+  `ui/format.py`（`fmt_time`/`fmt_size`，backend 复用去重）、`ui/rows.py`（`NoteRow` 类型化投影）、
+  `ui/session.py`（`Session`：投影缓存 + 变更信号，Qt-free）、`ui/bridge.py`（`SessionBridge`：
+  合并成 Qt 信号）、`ui/models.py`（泛型 `ListModel[T]`）；`Component.watch` 生命周期安全订阅；
+  `App` 组合根挂 `session`/`bridge`。链路：内核 → Session → Bridge → Model，单向。
+  ruff/mypy/214 测试全绿（覆盖率 83%）。
+- 2026-09-18 · 已定 · **布局原语**：`ui/components/layout.py`（`Box`/`VBox`/`HBox`/`Grid`/`Split`），
+  纯几何、组合优先；`Shell` 改用 `VBox` + `Split`（上层代码变简单）。设计四规则入
+  `rules/references/ui-boundary.md` §6 与 `decisions.md`。ruff/mypy/219 测试全绿（覆盖率 83%）。
+- 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
+  QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
+  （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是
+  方法 `open()`、属性是 `opened`（只读），不能用 `open: bool` 绑定。`--smoke` 与离屏预览通过。

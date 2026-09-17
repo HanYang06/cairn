@@ -1,0 +1,72 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
+"""主窗口与外壳：`MainWindow`（QMainWindow）+ `Shell`（三栏布局）。
+
+P0 只把骨架立起来：活动栏 / 导航 / 编辑区 / 检查器 / 状态栏都是占位，
+真正的模型与控件在 P1 / P2 填入。见 `rules/references/ui-boundary.md`。
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
+
+from .components import Page, Panel, Split, VBox
+from .theme import current_theme
+
+if TYPE_CHECKING:
+    from .root import App
+
+
+def _fill(widget: QWidget, hint: str) -> None:
+    """给占位容器填一个居中的淡色标签，标出后续阶段会填什么。"""
+    label = QLabel(hint)
+    label.setObjectName("Faint")
+    label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    layout = QVBoxLayout(widget)
+    layout.addWidget(label)
+
+
+class Shell(VBox):
+    """窗口内主体：导航 + 编辑区 + 检查器三栏可拖拽。"""
+
+    def __init__(self, app: App, parent: QWidget | None = None) -> None:
+        super().__init__(parent=parent)
+        self._app = app
+        self.navigator = Panel("笔记")
+        self.editor = Page()
+        self.inspector = Panel("属性")
+        _fill(self.navigator.body, "导航树（P1）")
+        _fill(self.editor, "编辑器（P2）")
+        _fill(self.inspector.body, "属性检查器（P1）")
+
+        self.split = Split(
+            self.navigator,
+            self.editor,
+            self.inspector,
+            orientation=Qt.Orientation.Horizontal,
+        )
+        splitter = self.split.splitter
+        splitter.setObjectName("ShellSplit")
+        splitter.setStretchFactor(0, 0)
+        splitter.setStretchFactor(1, 1)
+        splitter.setStretchFactor(2, 0)
+        splitter.setSizes([current_theme().side_bar_w, 900, 288])
+        self.add(self.split, stretch=1)
+
+
+class MainWindow(QMainWindow):
+    """OS 窗口：中央区放 `Shell`，底部状态栏。"""
+
+    def __init__(self, app: App) -> None:
+        super().__init__()
+        self._app = app
+        self.setWindowTitle("Cairn")
+        self.resize(1200, 800)
+        self.setCentralWidget(Shell(app, self))
+        status = self.statusBar()
+        if status is not None:
+            status.showMessage("就绪")

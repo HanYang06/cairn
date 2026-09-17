@@ -32,7 +32,7 @@
 
 | 事件 | 字段 |
 |---|---|
-| `ObjectPut` | `oid`, `type`, `seq`, `created`(新建/更新) |
+| `ObjectPut` | `oid`, `type`, `seq`, `created`(新建/更新), `checksum`(内容签名，判变用) |
 | `ObjectDeleted` | `oid` |
 
 > 事件目录当前精简为这两个。旧的 `VaultUnlocked` / `VaultLocked` / `SpaceCreated` 已随

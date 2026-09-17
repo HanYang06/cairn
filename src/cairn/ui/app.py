@@ -4,9 +4,10 @@
 """Cairn 桌面应用入口（Qt Quick / QML）。
 
 用法：
-    uv run cairn             # 正常启动
+    uv run cairn             # 正常启动（当前为 QML 主界面）
     uv run cairn --watch     # 开发模式：QML 热重载（只重载 Shell，不重建窗口）
     uv run cairn --smoke     # 冒烟：0.8 秒后自动退出（用于自检/CI）
+    uv run cairn --widgets   # 启动 Widgets 外壳（重建中，见 progress.md「UI 重建」）
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import (
     Property,
@@ -23,10 +25,14 @@ from PySide6.QtCore import (
     QUrl,
     Signal,
 )
-from PySide6.QtGui import QFont, QGuiApplication
+from PySide6.QtGui import QFont
 from PySide6.QtQml import QQmlApplicationEngine
+from PySide6.QtWidgets import QApplication
 
 from .backend import Backend, env_passphrase, env_vault_root, open_vault
+
+if TYPE_CHECKING:
+    from ..core import Vault
 
 QML_DIR = Path(__file__).resolve().parent / "qml"
 ENTRY = QML_DIR / "Main.qml"
@@ -118,13 +124,30 @@ class HotReloader(QObject):
         self._scan()
 
 
+def _run_widgets(app: QApplication, vault: Vault, *, smoke: bool) -> int:
+    """启动 Widgets 外壳（P0 占位）；返回进程退出码。"""
+    from .root import App  # noqa: PLC0415 — 仅 Widgets 模式需要，避免 QML 路径导入
+    from .theme import LIGHT  # noqa: PLC0415
+    from .theme.manager import ThemeManager  # noqa: PLC0415
+    from .window import MainWindow  # noqa: PLC0415
+
+    root = App(vault)
+    ThemeManager(app).apply(LIGHT)
+    window = MainWindow(root)
+    app.aboutToQuit.connect(root.shutdown)
+    window.show()
+    if smoke:
+        QTimer.singleShot(800, app.quit)
+    return app.exec()
+
+
 def main(argv: list[str] | None = None) -> int:
-    """启动 Qt Quick 应用；返回进程退出码。"""
+    """启动桌面应用；返回进程退出码。"""
     args = list(sys.argv if argv is None else argv)
     if "--watch" in args or "--dev" in args:
         os.environ.setdefault("QML_DISABLE_DISK_CACHE", "1")
 
-    app = QGuiApplication(args)
+    app = QApplication(args)
     app.setApplicationName("Cairn")
     app.setOrganizationName("Cairn")
     _font = QFont()
@@ -137,6 +160,10 @@ def main(argv: list[str] | None = None) -> int:
         vault = open_vault(env_vault_root(), env_passphrase())
     except Exception:  # noqa: BLE001 — 顶层入口：启动失败统一以退出码 1 结束
         return 1
+
+    if "--widgets" in args:
+        return _run_widgets(app, vault, smoke="--smoke" in args)
+
     backend = Backend(vault)
     app.aboutToQuit.connect(backend.shutdown)
 

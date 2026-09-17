@@ -102,6 +102,8 @@ convention = "google"
 # BLE001/S110/S112/SLF001：Qt 边界适配层统一兜底任意内核异常并转成界面状态。
 "src/cairn/ui/backend.py" = ["N802", "N815", "B008", "BLE001", "S110", "S112", "SLF001"]
 "src/cairn/ui/app.py" = ["N815"]
+# Qt 模型覆写方法（roleNames）必须保持驼峰；默认参数用 QModelIndex() 是 Qt 约定。
+"src/cairn/ui/models.py" = ["N802", "B008"]
 # 表名/列名来自内部领域自描述并经 _quote 转义，值全部参数化（无注入面）。
 "src/cairn/core/store/table.py" = ["S608"]
 # 测试与工具脚本：断言、注解、docstring、魔法数、打印等不按产品代码要求

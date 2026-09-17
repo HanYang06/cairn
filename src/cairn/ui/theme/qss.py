@@ -1,7 +1,10 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""把主题令牌渲染成 QSS。一个模板，服务所有主题。"""
+"""把主题令牌渲染成 QSS。一个模板，服务所有主题。
+
+约定：组件只提供 `objectName` / 类名，样式一律由这里统一给出，不各自 `setStyleSheet`。
+"""
 
 from __future__ import annotations
 
@@ -17,55 +20,96 @@ QWidget {
     background-color: $bg;
     color: $text;
     font-family: "$font_family";
-    font-size: ${font_size}pt;
+    font-size: ${fs_body}px;
 }
 QMainWindow, QDialog { background-color: $bg; }
+QMainWindow::separator { background: $border_faint; width: 1px; height: 1px; }
+
+QLabel#Muted { color: $muted; }
+QLabel#Faint { color: $faint; }
+QLabel#PanelTitle {
+    color: $text;
+    font-size: ${fs_small}px;
+    font-weight: 600;
+    padding: ${space_sm}px ${space_md}px;
+}
+
 QFrame#Card {
     background-color: $surface;
     border: 1px solid $border;
-    border-radius: ${radius_card}px;
+    border-radius: ${radius_lg}px;
 }
-QListWidget, QListView, QTreeView {
+QFrame#Divider { background: $border_faint; max-height: 1px; }
+
+QListView, QTreeView, QTableView {
     background-color: $surface;
-    border: 1px solid $border;
-    border-radius: ${radius}px;
+    border: none;
     outline: none;
+    show-decoration-selected: 1;
 }
-QListWidget::item, QListView::item {
-    padding: ${spacing}px;
-    border-radius: ${radius}px;
+QListView::item, QTreeView::item, QTableView::item {
+    padding: ${space_sm}px;
+    border-radius: ${radius_sm}px;
 }
-QListWidget::item:selected, QListView::item:selected {
+QListView::item:hover, QTreeView::item:hover { background-color: $hover; }
+QListView::item:selected, QTreeView::item:selected {
     background-color: $selection;
     color: $text;
 }
-QPushButton {
+QHeaderView::section {
+    background-color: $surface;
+    color: $muted;
+    border: none;
+    border-bottom: 1px solid $border_faint;
+    padding: ${space_sm}px;
+}
+
+QPushButton, QToolButton {
     background-color: $elevated;
     border: 1px solid $border;
     border-radius: ${radius}px;
-    padding: ${spacing}px;
+    padding: ${space_xs}px ${space_sm}px;
 }
-QPushButton:hover { border-color: $accent; }
+QPushButton:hover, QToolButton:hover { border-color: $accent; }
+QPushButton:pressed, QToolButton:pressed { background-color: $hover; }
 QPushButton#Primary {
     background-color: $accent;
-    color: $on_accent;
+    color: $accent_text;
     border: none;
 }
+
 QLineEdit, QPlainTextEdit, QTextEdit {
     background-color: $surface;
     border: 1px solid $border;
     border-radius: ${radius}px;
-    padding: ${spacing}px;
+    padding: ${space_sm}px;
     selection-background-color: $accent;
-    selection-color: $on_accent;
+    selection-color: $accent_text;
 }
 QLineEdit:focus, QPlainTextEdit:focus, QTextEdit:focus { border-color: $accent; }
-QLabel#Muted { color: $muted; }
+
+QMenuBar { background-color: $chrome; }
+QMenuBar::item { padding: ${space_xs}px ${space_sm}px; background: transparent; }
+QMenuBar::item:selected { background-color: $hover; border-radius: ${radius_sm}px; }
+QMenu { background-color: $elevated; border: 1px solid $border; padding: ${space_xs}px; }
+QMenu::item { padding: ${space_xs}px ${space_lg}px; border-radius: ${radius_sm}px; }
+QMenu::item:selected { background-color: $selection; }
+
+QSplitter::handle { background: transparent; }
+QSplitter::handle:hover { background: $border; }
+
+QStatusBar {
+    background-color: $chrome;
+    color: $muted;
+    border-top: 1px solid $border_faint;
+}
 QToolTip {
     background-color: $elevated;
     color: $text;
     border: 1px solid $border;
+    padding: ${space_xs}px ${space_sm}px;
 }
+
 QScrollBar:vertical { background: transparent; width: 10px; margin: 0; }
 QScrollBar::handle:vertical {
     background: $border;
@@ -73,7 +117,14 @@ QScrollBar::handle:vertical {
     min-height: 24px;
 }
 QScrollBar::handle:vertical:hover { background: $muted; }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 0; }
+QScrollBar::handle:horizontal {
+    background: $border;
+    border-radius: 5px;
+    min-width: 24px;
+}
 QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 """.lstrip()
 )
 
@@ -81,3 +132,6 @@ QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
 def build_qss(theme: Theme) -> str:
     """用令牌渲染 QSS；缺令牌会显式报错。"""
     return _QSS.substitute(theme.as_dict())
+
+
+__all__ = ["build_qss"]
