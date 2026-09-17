@@ -59,3 +59,21 @@
 - **主题 = 点分配置 → QSS 编译**：配置只覆盖 QSS 能表达的（token / widget / 伪状态 / 页面作用域）；
   阴影 / 动效等落到代码侧（`QGraphicsDropShadowEffect` / `QPropertyAnimation`），
   增强**逐条加、可测、有边界**，不模拟整个 CSS。
+
+### 主题包约定（2026-09-18）
+
+- 主题文件放 `config/theme/*.json`，**文件名即主题名**；`CAIRN_THEME_DIR` 可覆盖目录。
+- 主题文件**两段式**：全局 `token` 块 + `style` 块（**CSS 式选择器 → 声明块**，选择器点名目标，
+  声明块写属性）：
+  ```json
+  { "token": { "accent": "#2F81F7" },
+    "style": {
+      "widget.Button":       { "background": "token.elevated" },
+      "widget.Button:hover": { "border_color": "token.accent" } } }
+  ```
+  选择器为 `widget.<类型>[:<状态>]`；声明键取该部件的可样式属性。
+- 加载时展开为点分路径（`token.<字段>` / `widget.<类型>[.<状态>].<属性>`）并由 schema 自动校验；
+  未知段 / 选择器 / 属性**报错**（不静默失效）。
+- 供 IDE 校验的 JSON Schema 落 `schema/theme.json`，由 `tools/gen_theme_schema.py` 生成；
+  改 schema 后必须重跑，`test_theme_schema_file.py` 会检查漂移。
+- 只有 `cairn.ui.components` 下的部件进主题词汇表；外壳 / 页面 / 测试类不入，保证 schema 确定。

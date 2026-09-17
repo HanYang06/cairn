@@ -1,0 +1,420 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/HanYang06/cairn/schema/theme.json",
+  "title": "Cairn 主题文件",
+  "description": "两段：token（全局令牌）+ style（选择器 → 声明块）。",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "dark": {
+      "type": "boolean"
+    },
+    "token": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "dark": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "bg": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "chrome": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "surface": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "elevated": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "border": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "border_strong": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "border_faint": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "text": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "muted": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "faint": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "accent": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "accent_alt": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "accent_text": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "selection": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "hover": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "danger": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "radius_sm": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "radius": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "radius_lg": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "radius_xl": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "space_xs": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "space_sm": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "space_md": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "space_lg": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "space_xl": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "font_family": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "icon_font": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "mono_font": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "fs_tiny": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "fs_small": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "fs_body": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "fs_large": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "fs_title": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "title_bar_h": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "activity_w": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "side_bar_w": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "tab_bar_h": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "status_h": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "style": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "widget.Button",
+          "widget.Button:disabled",
+          "widget.Button:focus",
+          "widget.Button:hover",
+          "widget.Button:pressed",
+          "widget.Field",
+          "widget.Field:disabled",
+          "widget.Field:focus",
+          "widget.Field:hover",
+          "widget.Field:pressed",
+          "widget.Grid",
+          "widget.Grid:disabled",
+          "widget.Grid:focus",
+          "widget.Grid:hover",
+          "widget.Grid:pressed",
+          "widget.HBox",
+          "widget.HBox:disabled",
+          "widget.HBox:focus",
+          "widget.HBox:hover",
+          "widget.HBox:pressed",
+          "widget.IconButton",
+          "widget.IconButton:disabled",
+          "widget.IconButton:focus",
+          "widget.IconButton:hover",
+          "widget.IconButton:pressed",
+          "widget.Label",
+          "widget.Panel",
+          "widget.Panel:disabled",
+          "widget.Panel:focus",
+          "widget.Panel:hover",
+          "widget.Panel:pressed",
+          "widget.Section",
+          "widget.Section:disabled",
+          "widget.Section:focus",
+          "widget.Section:hover",
+          "widget.Section:pressed",
+          "widget.Split",
+          "widget.Split:disabled",
+          "widget.Split:focus",
+          "widget.Split:hover",
+          "widget.Split:pressed",
+          "widget.VBox",
+          "widget.VBox:disabled",
+          "widget.VBox:focus",
+          "widget.VBox:hover",
+          "widget.VBox:pressed"
+        ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "background": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "border": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "border_color": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "color": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "font_size": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "font_weight": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "padding": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          },
+          "radius": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -12,6 +12,9 @@ from string import Template
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from .loader import ThemeFile
     from .tokens import Theme
 
 _QSS = Template(
@@ -134,4 +137,52 @@ def build_qss(theme: Theme) -> str:
     return _QSS.substitute(theme.as_dict())
 
 
-__all__ = ["build_qss"]
+# 主题 DSL 的属性名 → QSS 属性名。
+_QSS_PROPERTY = {
+    "background": "background-color",
+    "color": "color",
+    "border": "border",
+    "border_color": "border-color",
+    "radius": "border-radius",
+    "padding": "padding",
+    "font_size": "font-size",
+    "font_weight": "font-weight",
+}
+
+
+def _resolve(theme: Theme, value: str) -> str:
+    """把 ``token.<字段>`` 引用解成令牌值；其余原样。"""
+    if value.startswith("token."):
+        return str(getattr(theme, value[len("token.") :]))
+    return value
+
+
+def build_widget_qss(theme: Theme, rules: Mapping[str, str]) -> str:
+    """把部件点分规则编译成 QSS（选择器用动态属性 ``cairnClass``）。"""
+    grouped: dict[str, list[str]] = {}
+    for path, raw in sorted(rules.items()):
+        parts = path.split(".")
+        if len(parts) not in (3, 4) or parts[0] != "widget":
+            continue
+        type_name = parts[1]
+        state = parts[2] if len(parts) == 4 else ""
+        css = _QSS_PROPERTY.get(parts[-1])
+        if css is None:
+            continue
+        selector = f'QWidget[cairnClass="{type_name}"]' + (f":{state}" if state else "")
+        grouped.setdefault(selector, []).append(f"    {css}: {_resolve(theme, raw)};")
+    return "\n".join(
+        f"{selector} {{\n" + "\n".join(body) + "\n}" for selector, body in grouped.items()
+    )
+
+
+def compile_theme(theme_file: ThemeFile) -> str:
+    """编译一个主题包：令牌 QSS + 部件规则 QSS。"""
+    parts = [build_qss(theme_file.theme)]
+    widget_qss = build_widget_qss(theme_file.theme, theme_file.rules)
+    if widget_qss:
+        parts.append(widget_qss)
+    return "\n".join(parts)
+
+
+__all__ = ["build_qss", "build_widget_qss", "compile_theme"]

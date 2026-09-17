@@ -118,6 +118,18 @@
 - 2026-09-18 · 已定 · **布局原语**：`ui/components/layout.py`（`Box`/`VBox`/`HBox`/`Grid`/`Split`），
   纯几何、组合优先；`Shell` 改用 `VBox` + `Split`（上层代码变简单）。设计四规则入
   `rules/references/ui-boundary.md` §6 与 `decisions.md`。ruff/mypy/219 测试全绿（覆盖率 83%）。
+- 2026-09-18 · 已定 · **组件层 + 主题 schema**：`Component` 加继承注册表（`__init_subclass__`；
+  抽象基类 `abstract=True` 不入册，`Box`/`Page` 已标）+ `STYLABLE`/`STATES` 声明；新增原子
+  `Label`/`Button`/`IconButton`/`Field`/`Section`；`theme/schema.py` 由注册表 + `Theme` 字段
+  自动派生点分路径（`token.*` / `widget.<类型>[.<状态>].<属性>` / `main`）并提供 `validate_path`。
+  ruff/mypy/228 测试全绿（覆盖率 83%）。
+- 2026-09-18 · 已定 · **主题包文件系统**：`config/theme/*.json`（**文件名即主题名**）两段式
+  （全局 `token` 块 + `style` 块，**CSS 式选择器 → 声明块**：`"widget.Button:hover": {…}`）；
+  `theme/loader.py` 目录扫描 + 加载 + schema 校验（未知段/选择器/属性报错）；`theme/qss.py` 编译
+  （令牌 QSS + 部件规则，选择器 `QWidget[cairnClass=…]`）；`theme/schema.py` 导出 `json_schema()`
+  （`style.propertyNames` 枚举合法选择器），落 `schema/theme.json`（生成器 `tools/gen_theme_schema.py`，
+  测试防漂移）；内置 `github-light` / `github-dark`；`ThemeManager.apply_default()`。
+  注册表限 `cairn.ui.components` 下，词汇表确定。ruff/mypy/235 测试全绿（覆盖率 83%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

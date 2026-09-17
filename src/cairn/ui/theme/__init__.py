@@ -8,7 +8,19 @@
 
 from __future__ import annotations
 
-from .qss import build_qss
+from .loader import ThemeFile, list_themes, load_theme, repo_root, theme_dir
+from .qss import build_qss, build_widget_qss, compile_theme
+from .schema import (
+    META_KEYS,
+    SCHEMA_ID,
+    ThemeSchemaError,
+    json_schema,
+    schema_paths,
+    selector_paths,
+    token_paths,
+    validate_path,
+    widget_paths,
+)
 from .state import current_theme, set_current_theme
 from .themes import BUILTIN, DARK, LIGHT
 from .tokens import Theme
@@ -17,8 +29,24 @@ __all__ = [
     "BUILTIN",
     "DARK",
     "LIGHT",
+    "META_KEYS",
+    "SCHEMA_ID",
     "Theme",
+    "ThemeFile",
+    "ThemeSchemaError",
     "build_qss",
+    "build_widget_qss",
+    "compile_theme",
     "current_theme",
+    "json_schema",
+    "list_themes",
+    "load_theme",
+    "repo_root",
+    "schema_paths",
+    "selector_paths",
     "set_current_theme",
+    "theme_dir",
+    "token_paths",
+    "validate_path",
+    "widget_paths",
 ]

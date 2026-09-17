@@ -47,6 +47,9 @@
 
 - [x] **P0 骨架**（2026-09-18）：`App` 组合根 + `MainWindow/Shell` + `Component/Panel/Page` 基类
   + 主题令牌统一为 GitHub 色板（`ui/theme` 单一真源）+ `--widgets` 入口 + 离屏冒烟。
+- [x] **组件层起步**（2026-09-18）：`Component` 继承注册表 + `STYLABLE` / `STATES`
+  （抽象基类不入册）；原子 `Label` / `Button` / `IconButton` / `Field` / `Section`；
+  `theme/schema.py` 由注册表自动派生点分路径 + `validate_path`。
 - [ ] **P1 导航 + 检查器**：`Session`（身份缓存 + 投影）+ 类型化行 + `QTreeView/QListView` 模型 +
   `Inspector`（`QFormLayout` 或属性模型）。
 - [ ] **P2 编辑器**：`QTextEdit`/`QTextDocument`（block ↔ 行映射）+ `QUndoStack`；

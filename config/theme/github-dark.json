@@ -1,0 +1,23 @@
+{
+  "$schema": "../../schema/theme.json",
+  "name": "github-dark",
+  "dark": true,
+  "token": {
+    "bg": "#0D1117",
+    "chrome": "#010409",
+    "surface": "#0D1117",
+    "elevated": "#161B22",
+    "border": "#30363D",
+    "border_strong": "#484F58",
+    "border_faint": "#21262D",
+    "text": "#E6EDF3",
+    "muted": "#8B949E",
+    "faint": "#6E7681",
+    "accent": "#2F81F7",
+    "accent_alt": "#3FB950",
+    "accent_text": "#FFFFFF",
+    "selection": "#1F6FEB",
+    "hover": "#161B22",
+    "danger": "#F85149"
+  }
+}

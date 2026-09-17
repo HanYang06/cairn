@@ -127,12 +127,11 @@ class HotReloader(QObject):
 def _run_widgets(app: QApplication, vault: Vault, *, smoke: bool) -> int:
     """启动 Widgets 外壳（P0 占位）；返回进程退出码。"""
     from .root import App  # noqa: PLC0415 — 仅 Widgets 模式需要，避免 QML 路径导入
-    from .theme import LIGHT  # noqa: PLC0415
     from .theme.manager import ThemeManager  # noqa: PLC0415
     from .window import MainWindow  # noqa: PLC0415
 
     root = App(vault)
-    ThemeManager(app).apply(LIGHT)
+    ThemeManager(app).apply_default()
     window = MainWindow(root)
     app.aboutToQuit.connect(root.shutdown)
     window.show()
