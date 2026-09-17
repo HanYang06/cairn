@@ -8,6 +8,7 @@ from cairn.domains.note.tools import (
     BASE_SIZE,
     PRESET_LAYOUT,
     TOOLS,
+    ToolCategory,
     ToolContext,
     run_tool,
     tool_info,
@@ -108,3 +109,48 @@ def test_registry_and_preset_are_consistent() -> None:
 def test_unknown_tool_returns_false() -> None:
     note = _note()
     assert run_tool("does-not-exist", note, _ctx(note)) is False
+
+
+def test_tool_categories_and_availability() -> None:
+    assert TOOLS["bold"].category == ToolCategory.EDIT
+    assert TOOLS["insert-code"].category == ToolCategory.ADD
+    info = {tool["id"]: tool for tool in tool_info()}
+    assert info["bold"]["category"] == "edit"
+    assert info["bold"]["available"] is True
+    assert info["insert-table"]["available"] is False
+
+
+def test_placeholder_tool_does_not_run() -> None:
+    note = _note()
+    assert run_tool("insert-table", note, _ctx(note)) is False
+    assert len(note.blocks()) == 1
+
+
+def test_toggle_state_three_way() -> None:
+    note = _note("abcd")
+    run_tool("bold", note, _ctx(note, 0, 2))
+
+    assert TOOLS["bold"].state(note, _ctx(note, 0, 2)) is True
+    assert TOOLS["bold"].state(note, _ctx(note, 2, 4)) is False
+    assert TOOLS["bold"].state(note, _ctx(note)) is None
+
+
+def test_paragraph_tool_state() -> None:
+    note = _note()
+    assert TOOLS["align-center"].state(note, _ctx(note)) is False
+
+    run_tool("align-center", note, _ctx(note))
+    assert TOOLS["align-center"].state(note, _ctx(note)) is True
+    assert TOOLS["h1"].state(note, _ctx(note)) is False
+
+
+def test_insert_code_tool_sets_focus_and_paragraph() -> None:
+    note = _note("x")
+    ctx = _ctx(note)
+    assert run_tool("insert-code", note, ctx)
+    assert ctx.focus
+
+    blocks = note.blocks()
+    assert len(blocks) == 2
+    assert blocks[1]["id"] == ctx.focus
+    assert blocks[1]["para"] == {"block": "code"}

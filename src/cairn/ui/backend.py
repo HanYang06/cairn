@@ -10,7 +10,6 @@
 from __future__ import annotations
 
 import copy
-import datetime
 import json
 import os
 from pathlib import Path
@@ -32,8 +31,18 @@ from ..core import Vault
 from ..core.store import CATALOG_NAME as _CATALOG_NAME
 from ..domains import Group, Note, Relation, ancestors, descendants
 from ..domains.group import GroupError, list_groups
-from ..domains.note.tools import PRESET_LAYOUT, ToolContext, run_tool, tool_info
+from ..domains.note.tools import (
+    PRESET_LAYOUT,
+    TOOLS,
+    ToolCategory,
+    ToolContext,
+    run_tool,
+    tool_info,
+)
 from ..domains.provenance import DERIVED_FROM
+from .format import fmt_size as _fmt_size
+from .format import fmt_time as _fmt_time
+from .tools import CATEGORY_LABELS, COMMAND_TOOLS, QUERY_TOOLS
 
 DEV_PASSPHRASE = "cairn-dev"  # noqa: S105 — 开发期固定口令，非生产密钥
 VAULT_LABEL = "个人空间"
@@ -62,24 +71,6 @@ def open_vault(root: Path | str, passphrase: str = DEV_PASSPHRASE) -> Vault:
         vault.unlock(passphrase)
         return vault
     return Vault.create(root, passphrase)
-
-
-def _fmt_time(ms: int) -> str:
-    moment = datetime.datetime.fromtimestamp(ms / 1000, tz=datetime.UTC).astimezone()
-    now = datetime.datetime.now(tz=datetime.UTC).astimezone()
-    if moment.date() == now.date():
-        return moment.strftime("%H:%M")
-    if moment.year == now.year:
-        return moment.strftime("%m-%d")
-    return moment.strftime("%Y-%m-%d")
-
-
-def _fmt_size(num_bytes: int) -> str:
-    if num_bytes < 1024:
-        return f"{num_bytes} B"
-    if num_bytes < 1024 * 1024:
-        return f"{num_bytes / 1024:.1f} KB"
-    return f"{num_bytes / 1024 / 1024:.1f} MB"
 
 
 def _title_of(vault: Vault, oid: Any) -> str:
@@ -1217,24 +1208,80 @@ class Backend(QObject):
         self._current.clear_paragraph(line_id)
         self._touch()
 
-    # ---- 工具（字级 / 段级）----
+    # ---- 工具（添加 / 编辑 / 命令 / 查询）----
+    def _tool_list(self) -> list[dict[str, Any]]:
+        return [*tool_info(), *COMMAND_TOOLS, *QUERY_TOOLS]
+
     @Property(list, notify=currentChanged)
-    def tools(self) -> list[dict[str, str]]:
-        """全部工具的元数据（供工具栏渲染）。"""
-        return tool_info()
+    def tools(self) -> list[dict[str, Any]]:
+        """全部工具的元数据（笔记本体 + 应用命令 + 查询预留）。"""
+        return self._tool_list()
 
     @Property(list, notify=currentChanged)
     def toolLayout(self) -> list[list[list[str]]]:
-        """预设布局：行 → 组 → 工具 id。"""
+        """预设布局：行 → 组 → 工具 id（只放编辑型；其余在抽屉里）。"""
         return PRESET_LAYOUT
 
-    @Slot(str, str, int, int)
-    def runTool(self, tool_id: str, line_id: str, start: int, end: int) -> None:
+    @Property(list, notify=currentChanged)
+    def toolGroups(self) -> list[dict[str, Any]]:
+        """按类别分组的工具元数据（供工具抽屉分组展示）。"""
+        groups: list[dict[str, Any]] = []
+        for category in ("add", "edit", "command", "query"):
+            items = [tool for tool in self._tool_list() if tool["category"] == category]
+            if items:
+                groups.append(
+                    {
+                        "category": category,
+                        "label": CATEGORY_LABELS.get(category, category),
+                        "tools": items,
+                    }
+                )
+        return groups
+
+    def _command_state(self) -> dict[str, Any]:
+        """命令型工具的当前态（供工具栏高亮）。"""
+        if self._current is None:
+            return {}
+        props = self._current.props()
+        return {
+            "favorite": bool(props.get("favorite")),
+            "archive": bool(props.get("archived")),
+            "share": len(self._shares()) > 0,
+        }
+
+    @Slot(str, int, int, result="QVariantMap")
+    def toolState(self, line_id: str, start: int, end: int) -> dict[str, Any]:
+        """当前选区处各工具的状态：``True`` 生效 / ``False`` 未生效 / ``None`` 混合。
+
+        只读，供工具栏高亮；命令型（收藏 / 归档 / 分享）也在此一并给出。
+        """
+        state = self._command_state()
         if self._current is None or not line_id:
-            return
+            return state
         line = next((item for item in self._current.body.text if item["id"] == line_id), None)
         if line is None:
-            return
+            return state
+        value = line["v"]
+        ctx = ToolContext(
+            line_id=line_id,
+            start=int(start),
+            end=int(end),
+            length=len(value) if isinstance(value, str) else 0,
+            paragraph=dict(line.get("p") or {}),
+        )
+        for tool in TOOLS.values():
+            if tool.category == ToolCategory.EDIT:
+                state[tool.id] = tool.state(self._current, ctx)
+        return state
+
+    @Slot(str, str, int, int, result=str)
+    def runTool(self, tool_id: str, line_id: str, start: int, end: int) -> str:
+        """执行笔记工具（编辑型 / 添加型）；返回执行后应聚焦的行 id。"""
+        if self._current is None or not line_id:
+            return ""
+        line = next((item for item in self._current.body.text if item["id"] == line_id), None)
+        if line is None:
+            return ""
         value = line["v"]
         ctx = ToolContext(
             line_id=line_id,
@@ -1245,6 +1292,8 @@ class Backend(QObject):
         )
         if run_tool(tool_id, self._current, ctx):
             self._touch()
+            return ctx.focus or line_id
+        return ""
 
     @Slot(str)
     def renameNote(self, title: str) -> None:

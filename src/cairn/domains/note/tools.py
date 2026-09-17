@@ -1,25 +1,31 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""笔记工具：字级（行内样式）与段级（行级属性）命令。
+"""笔记工具：按作用分为**添加 / 编辑 / 命令 / 查询**四类。
 
 组织方式（基类 + 参数化实例）：
 
-- 基类 ``Tool`` 只描述 ``id / 图标 / 文本 / 标签 / 分组``，把"作用目标"抽象成 ``ToolContext``
-  （行 id + 选区 + 当前段落属性 + 行长度）。
+- 基类 ``Tool`` 只描述 ``id / category / 图标 / 文本 / 标签 / 分组``，把"作用目标"抽象成
+  ``ToolContext``（行 id + 选区 + 当前段落属性 + 行长度）。
 - **行为不同**的用子类（``ToggleStyleTool`` / ``SetStyleTool`` / ``SetParagraphTool`` …）；
   **同族只差参数**的用构造参数（``ToggleStyleTool("bold")``、``AlignTool("center")``），避免参数爆炸。
-- **分组与位置是数据**（``group`` 字段 + ``PRESET_LAYOUT``），不进继承链——将来用户可自行重排。
+- **分类与位置是数据**（``category`` / ``group`` 字段 + ``PRESET_LAYOUT``），不进继承链——
+  将来用户可自行重排。
 
-工具只服务 note（其他领域不适用）。
+``run`` 写、``state`` 读：``state`` 返回三态（``True`` 生效 / ``False`` 未生效 / ``None`` 混合），
+只读、无副作用，供工具栏高亮。四类里只有**编辑型**有可读状态；其余返回 ``None``。
+
+这里只放**笔记本体**的工具（编辑型 + 添加型，直接改 note）。
+命令型 / 查询型涉及应用与界面，元数据在 ``ui/tools.py``，行为由 UI 层回调 ``Backend``。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from .edit import style_at
+from .edit import bool_state, style_at
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -35,15 +41,28 @@ DEFAULT_COLORS = ("#CF222E", "#0969DA", "#1A7F37", "#9A6700")
 DEFAULT_FONTS = ("Sarasa Mono SC", "Cascadia Mono", "Consolas")
 
 
+class ToolCategory(StrEnum):
+    """工具大类：添加 / 编辑 / 命令 / 查询。"""
+
+    ADD = "add"
+    EDIT = "edit"
+    COMMAND = "command"
+    QUERY = "query"
+
+
 @dataclass(slots=True)
 class ToolContext:
-    """工具的作用目标：某行的选区 + 当前段落属性。"""
+    """工具的作用目标：某行的选区 + 当前段落属性。
+
+    ``focus`` 由工具在执行时回填：告诉 UI 执行后应把光标放到哪一行（添加型用）。
+    """
 
     line_id: str
     start: int = 0
     end: int = 0
     length: int = 0
     paragraph: Mapping[str, Any] = field(default_factory=dict)
+    focus: str | None = None
 
     def span(self) -> tuple[int, int]:
         """作用区间：有选区用选区，否则整行。"""
@@ -56,22 +75,30 @@ class Tool:
     """工具基类。"""
 
     id: str = ""
+    category: ToolCategory = ToolCategory.EDIT
     glyph: str = ""  # 图标字体字形（空则用 text）
     text: str = ""  # 文本字形（普通字体）
     label: str = ""
     group: str = ""
+    available: bool = True  # 预留工具置 False，UI 置灰
 
     def run(self, note: Note, ctx: ToolContext) -> None:
         """执行工具；子类实现。"""
         raise NotImplementedError
 
-    def info(self) -> dict[str, str]:
+    def state(self, note: Note, ctx: ToolContext) -> bool | None:  # noqa: ARG002 — 基类默认无状态
+        """读取当前态（只读）：``True`` 生效 / ``False`` 未生效 / ``None`` 混合或不适用。"""
+        return None
+
+    def info(self) -> dict[str, Any]:
         return {
             "id": self.id,
+            "category": str(self.category),
             "glyph": self.glyph,
             "text": self.text,
             "label": self.label,
             "group": self.group,
+            "available": self.available,
         }
 
 
@@ -88,6 +115,10 @@ class ToggleStyleTool(Tool):
     def run(self, note: Note, ctx: ToolContext) -> None:
         start, end = ctx.span()
         note.toggle_style(ctx.line_id, start, end, self._key)
+
+    def state(self, note: Note, ctx: ToolContext) -> bool | None:
+        start, end = ctx.span()
+        return bool_state(note.style, ctx.line_id, start, end, self._key)
 
 
 class SetStyleTool(Tool):
@@ -106,6 +137,11 @@ class SetStyleTool(Tool):
     def run(self, note: Note, ctx: ToolContext) -> None:
         start, end = ctx.span()
         note.set_style_span(ctx.line_id, start, end, self._patch)
+
+    def state(self, note: Note, ctx: ToolContext) -> bool | None:
+        start, _ = ctx.span()
+        current = style_at(note.style, ctx.line_id, start)
+        return all(getattr(current, key, None) == value for key, value in self._patch.items())
 
 
 class ColorCycleTool(Tool):
@@ -213,6 +249,15 @@ class SetParagraphTool(Tool):
         else:
             note.set_paragraph(ctx.line_id, self._patch)
 
+    def state(self, note: Note, ctx: ToolContext) -> bool | None:  # noqa: ARG002 — 只看段落属性
+        for key, value in self._patch.items():
+            if value in (None, "", [], {}):
+                if key in ctx.paragraph:
+                    return False
+            elif ctx.paragraph.get(key) != value:
+                return False
+        return True
+
 
 class IndentTool(Tool):
     """增减缩进层级。"""
@@ -243,6 +288,54 @@ class ClearParagraphTool(Tool):
         note.clear_paragraph(ctx.line_id)
 
 
+class InsertCodeTool(Tool):
+    """添加型：在当前行之后插入一个空的代码块段落。"""
+
+    id = "insert-code"
+    category = ToolCategory.ADD
+    glyph = "\ue943"
+    label = "插入代码块"
+    group = "add.block"
+
+    def run(self, note: Note, ctx: ToolContext) -> None:
+        new_id = note.insert_line_after(ctx.line_id or None, "")
+        note.set_paragraph(new_id, {"block": "code"})
+        ctx.focus = new_id
+
+
+class InsertTableTool(Tool):
+    """添加型（预留）：插入表格；表格数据模型未定，暂不实现。"""
+
+    id = "insert-table"
+    category = ToolCategory.ADD
+    glyph = "\ue80a"
+    label = "插入表格"
+    group = "add.block"
+    available = False
+
+
+class InsertCanvasTool(Tool):
+    """添加型（预留）：开画板；画板交互与渲染未接，暂不实现。"""
+
+    id = "insert-canvas"
+    category = ToolCategory.ADD
+    glyph = "\ue790"
+    label = "开画板"
+    group = "add.embed"
+    available = False
+
+
+class InsertAccessTool(Tool):
+    """添加型（预留）：插入多媒体引用；文件选择 / 转码流程未接，暂不实现。"""
+
+    id = "insert-access"
+    category = ToolCategory.ADD
+    glyph = "\ue723"
+    label = "插入附件"
+    group = "add.embed"
+    available = False
+
+
 def _registry(*tools: Tool) -> dict[str, Tool]:
     out: dict[str, Tool] = {}
     for tool in tools:
@@ -251,7 +344,7 @@ def _registry(*tools: Tool) -> dict[str, Tool]:
 
 
 TOOLS: dict[str, Tool] = _registry(
-    # ---- 字级 ----
+    # ---- 编辑型：字级 ----
     ToggleStyleTool("bold", tid="bold", text="B", label="加粗"),
     ToggleStyleTool("italic", tid="italic", text="I", label="斜体"),
     ToggleStyleTool("underline", tid="underline", text="U", label="下划线"),
@@ -261,7 +354,7 @@ TOOLS: dict[str, Tool] = _registry(
     SizeTool(-1.0, tid="size-down", text="A-", label="减小字号"),
     FontCycleTool(),
     ClearFormatTool(),
-    # ---- 段级 ----
+    # ---- 编辑型：段级 ----
     SetParagraphTool(
         {"align": "left"},
         tid="align-left",
@@ -333,9 +426,14 @@ TOOLS: dict[str, Tool] = _registry(
         toggle=True,
     ),
     ClearParagraphTool(),
+    # ---- 添加型 ----
+    InsertCodeTool(),
+    InsertTableTool(),
+    InsertCanvasTool(),
+    InsertAccessTool(),
 )
 
-# 预设布局：行 → 组 → 工具 id（用户自定义前先给这套）。
+# 预设布局：行 → 组 → 工具 id（用户自定义前先给这套；只放编辑型，添加/命令/查询在抽屉里）。
 PRESET_LAYOUT: list[list[list[str]]] = [
     [
         ["bold", "italic", "underline", "strike"],
@@ -355,15 +453,15 @@ PRESET_LAYOUT: list[list[list[str]]] = [
 ]
 
 
-def tool_info() -> list[dict[str, str]]:
+def tool_info() -> list[dict[str, Any]]:
     """全部工具的元数据（供 UI 渲染）。"""
     return [tool.info() for tool in TOOLS.values()]
 
 
 def run_tool(tool_id: str, note: Note, ctx: ToolContext) -> bool:
-    """执行工具；未知 id 返回 ``False``。"""
+    """执行工具；未知 id 或预留工具返回 ``False``。"""
     tool = TOOLS.get(tool_id)
-    if tool is None:
+    if tool is None or not tool.available:
         return False
     tool.run(note, ctx)
     return True
@@ -382,11 +480,16 @@ __all__ = [
     "ColorCycleTool",
     "FontCycleTool",
     "IndentTool",
+    "InsertAccessTool",
+    "InsertCanvasTool",
+    "InsertCodeTool",
+    "InsertTableTool",
     "SetParagraphTool",
     "SetStyleTool",
     "SizeTool",
     "ToggleStyleTool",
     "Tool",
+    "ToolCategory",
     "ToolContext",
     "run_tool",
     "tool_info",

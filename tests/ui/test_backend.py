@@ -6,23 +6,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from PySide6.QtCore import QCoreApplication
+from PySide6.QtWidgets import QApplication
 
 from cairn.ui.backend import Backend, NotesModel, TabsModel, open_vault
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
     from pathlib import Path
 
 
-@pytest.fixture(scope="session")
-def qt_app() -> Iterator[QCoreApplication]:
-    return QCoreApplication.instance() or QCoreApplication([])
-
-
 @pytest.fixture
-def backend(qt_app: QCoreApplication, tmp_path: Path) -> Backend:
-    assert QCoreApplication.instance() is qt_app
+def backend(qapp: QApplication, tmp_path: Path) -> Backend:
+    assert QApplication.instance() is qapp
     return Backend(open_vault(tmp_path / "vault", "test-pass"))
 
 
@@ -434,6 +428,41 @@ def test_run_tool_through_backend(backend: Backend) -> None:
 
     assert len(backend.tools) > 0
     assert len(backend.toolLayout) == 2
+
+
+def test_tool_state_and_groups(backend: Backend) -> None:
+    backend.captureNote("abcdef")
+    lid = backend.currentBlocks[0]["id"]
+
+    state = backend.toolState(lid, 0, 0)
+    assert state["bold"] is False
+    assert state["favorite"] is False
+
+    backend.runTool("bold", lid, 1, 3)
+    backend.flush()
+    assert backend.toolState(lid, 1, 3)["bold"] is True
+    assert backend.toolState(lid, 0, 6)["bold"] is None
+
+    backend.toggleFavorite(backend.currentOid)
+    assert backend.toolState(lid, 0, 0)["favorite"] is True
+
+    categories = {group["category"] for group in backend.toolGroups}
+    assert {"add", "edit", "command", "query"} <= categories
+    assert any(tool["id"] == "insert-code" for tool in backend.tools)
+
+
+def test_insert_code_through_backend(backend: Backend) -> None:
+    backend.captureNote("x")
+    lid = backend.currentBlocks[0]["id"]
+
+    new_id = backend.runTool("insert-code", lid, 0, 0)
+    backend.flush()
+    assert new_id
+    assert new_id != lid
+
+    blocks = backend.currentBlocks
+    assert blocks[1]["id"] == new_id
+    assert blocks[1]["para"] == {"block": "code"}
 
 
 def test_set_paragraph_through_backend(backend: Backend) -> None:

@@ -176,52 +176,6 @@ Rectangle {
         }
     }
 
-    // 命令带里的紧凑幽灵按钮：无边框，仅靠底色/字色表达悬停与激活。
-    component CmdButton: Rectangle {
-        id: cb
-        property string glyph: ""
-        property string label: ""
-        property bool active: false
-        property bool danger: false
-        signal clicked()
-        // 用 implicitWidth：布局（RowLayout）据此分配并在文案变化时重排，避免重叠。
-        implicitWidth: cbText.implicitWidth + (cb.glyph !== "" ? 24 : 16)
-        implicitHeight: 26
-        radius: CairnTheme.radiusSm
-        color: cb.active ? CairnTheme.selection : (cbMa.containsMouse ? CairnTheme.hover : "transparent")
-        Behavior on color {
-            ColorAnimation {
-                duration: CairnTheme.durFast
-            }
-        }
-        Row {
-            anchors.centerIn: parent
-            spacing: 4
-            Text {
-                visible: cb.glyph !== ""
-                anchors.verticalCenter: parent.verticalCenter
-                text: cb.glyph
-                font.family: CairnTheme.iconFont
-                font.pixelSize: 11
-                color: cb.danger ? CairnTheme.danger : (cb.active ? CairnTheme.accent : CairnTheme.muted)
-            }
-            Text {
-                id: cbText
-                anchors.verticalCenter: parent.verticalCenter
-                text: cb.label
-                color: cb.danger ? CairnTheme.danger : (cb.active ? CairnTheme.text : CairnTheme.muted)
-                font.family: CairnTheme.fontFamily
-                font.pixelSize: CairnTheme.fsTiny
-            }
-        }
-        MouseArea {
-            id: cbMa
-            anchors.fill: parent
-            hoverEnabled: true
-            onClicked: cb.clicked()
-        }
-    }
-
     component NoteEditor: Item {
         id: ed
         property bool loading: true
@@ -399,8 +353,57 @@ Rectangle {
             pane.contentX = Math.max(0, pane.contentWidth - pane.width);
     }
 
-    // 执行工具：作用于当前行的选区（无选区则整行），再刷新
-    function runTool(tid) {
+    // 同步工具栏高亮：把当前行/选区的状态推给 FormatToolbar
+    function syncToolState() {
+        var item = ed.lineItems[ed.activeLid];
+        var start = 0;
+        var end = 0;
+        if (item) {
+            start = Math.min(item.selectionStart, item.selectionEnd);
+            end = Math.max(item.selectionStart, item.selectionEnd);
+        }
+        formatBar.refreshState(start, end);
+    }
+
+    // 执行工具：命令型走应用动作，编辑 / 添加型作用于当前行选区（无选区则整行）
+    function runTool(tid, source) {
+        if (tid === "favorite") {
+            backend.toggleFavorite(backend.currentOid);
+            ed.syncToolState();
+            return;
+        }
+        if (tid === "archive") {
+            backend.toggleArchive(backend.currentOid);
+            ed.syncToolState();
+            return;
+        }
+        if (tid === "derive") {
+            backend.deriveNote();
+            return;
+        }
+        if (tid === "relations") {
+            backend.openRelations();
+            return;
+        }
+        if (tid === "history") {
+            backend.openHistory(backend.currentOid);
+            return;
+        }
+        if (tid === "inspector") {
+            area.toggleInspector();
+            formatBar.refreshState();
+            return;
+        }
+        if (tid === "share") {
+            if (source) {
+                var p = source.mapToItem(area, 0, source.height + 4);
+                area.shareRequested(p.x, p.y);
+            }
+            return;
+        }
+        if (tid === "find" || tid === "replace")
+            return; // 查询型：预留，尚未实现
+
         var item = ed.lineItems[ed.activeLid];
         if (!item)
             return;
@@ -408,10 +411,11 @@ Rectangle {
         var end = Math.max(item.selectionStart, item.selectionEnd);
         var lid = ed.activeLid;
         var root = ed;
-        backend.runTool(tid, lid, start, end);
+        var focusId = backend.runTool(tid, lid, start, end);
         root.reloadBlocks();
         Qt.callLater(function () {
-            root.focusLine(lid, end);
+            root.focusLine(focusId || lid, focusId && focusId !== lid ? 0 : end);
+            root.syncToolState();
         });
     }
 
@@ -437,8 +441,8 @@ Rectangle {
                 Layout.fillWidth: true
                 activeLineId: ed.activeLid
                 toolsEnabled: backend.currentOid !== ""
-                onToolTriggered: function (tid) {
-                    ed.runTool(tid);
+                onToolTriggered: function (tid, source) {
+                    ed.runTool(tid, source);
                 }
             }
 
@@ -447,87 +451,6 @@ Rectangle {
                 Layout.preferredHeight: 1
                 color: CairnTheme.borderFaint
                 visible: backend.currentOid !== ""
-            }
-
-            // ===== 命令带：动作（标签编辑已移入属性面板）=====
-            Rectangle {
-                Layout.fillWidth: true
-                color: CairnTheme.surface
-                implicitHeight: band.implicitHeight
-
-                ColumnLayout {
-                    id: band
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    spacing: 0
-
-                    // —— 动作行 ——
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 34
-                        RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: CairnTheme.spaceLg
-                            anchors.rightMargin: CairnTheme.spaceSm
-                            spacing: CairnTheme.spaceXs
-
-                            CmdButton {
-                                glyph: backend.currentFavorite ? "\uE735" : "\uE734"
-                                label: backend.currentFavorite ? "已收藏" : "收藏"
-                                active: backend.currentFavorite
-                                onClicked: backend.toggleFavorite(backend.currentOid)
-                            }
-                            CmdButton {
-                                glyph: "\uE7B8"
-                                label: backend.currentArchived ? "已归档" : "归档"
-                                active: backend.currentArchived
-                                onClicked: backend.toggleArchive(backend.currentOid)
-                            }
-                            CmdButton {
-                                glyph: "\uE8F1"
-                                label: "复刻"
-                                onClicked: backend.deriveNote()
-                            }
-                            CmdButton {
-                                glyph: "\uE71B"
-                                label: "关系"
-                                onClicked: backend.openRelations()
-                            }
-                            CmdButton {
-                                glyph: "\uE81C"
-                                label: "历史"
-                                onClicked: backend.openHistory(backend.currentOid)
-                            }
-                            CmdButton {
-                                id: shareBtn
-                                objectName: "bandShare"
-                                glyph: "\uE72E"
-                                label: backend.currentShares.length > 0 ? "已分享 " + backend.currentShares.length : "分享"
-                                active: backend.currentShares.length > 0
-                                onClicked: {
-                                    const p = shareBtn.mapToItem(area, 0, shareBtn.height + 4);
-                                    area.shareRequested(p.x, p.y);
-                                }
-                            }
-                            Item {
-                                Layout.fillWidth: true
-                            }
-                            CmdButton {
-                                glyph: "\uE946"
-                                label: "属性"
-                                active: area.inspectorOpen && !area.focusMode
-                                onClicked: area.toggleInspector()
-                            }
-                        }
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 1
-                color: CairnTheme.borderFaint
             }
 
             Flickable {
@@ -711,7 +634,23 @@ Rectangle {
                                         if (activeFocus) {
                                             ed.activeLid = lid;
                                             ed.refreshActiveOverlong();
+                                            ed.syncToolState();
                                         }
+                                    }
+
+                                    onCursorPositionChanged: {
+                                        if (activeFocus)
+                                            ed.syncToolState();
+                                    }
+
+                                    onSelectionStartChanged: {
+                                        if (activeFocus)
+                                            ed.syncToolState();
+                                    }
+
+                                    onSelectionEndChanged: {
+                                        if (activeFocus)
+                                            ed.syncToolState();
                                     }
 
                                     Keys.onPressed: function (event) {

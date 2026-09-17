@@ -1,22 +1,25 @@
 // SPDX-FileCopyrightText: 2026 HanYang06
 // SPDX-License-Identifier: Apache-2.0
 
-// 笔记格式工具栏：两行（字级 / 段级），按后端 toolLayout 渲染；溢出时可向下抽屉展开全部。
+// 笔记格式工具栏：两行（编辑型），按后端 toolLayout 渲染；溢出/其余类别走向下抽屉。
 // 位置不写死，布局由 backend.toolLayout 驱动（将来可用户自定义）。
+// 按钮三态由 backend.toolState 提供：生效（高亮）/ 未生效 / 混合（淡底）。
 import QtQuick
+import QtQuick.Controls
 import "theme"
 
 Rectangle {
     id: bar
     property string activeLineId: ""
     property bool toolsEnabled: false
-    signal toolTriggered(string tid)
+    signal toolTriggered(string tid, var source)
 
     readonly property int btn: 26
     readonly property int sep: 7
     readonly property real avail: width - 30
 
     property var metaById: ({})
+    property var stateMap: ({})
     property bool drawerOpen: false
 
     implicitHeight: toolsEnabled ? (rowsCol.implicitHeight + 8) : 0
@@ -29,6 +32,23 @@ Rectangle {
         for (var i = 0; i < list.length; ++i)
             map[list[i].id] = list[i];
         bar.metaById = map;
+    }
+
+    // 拉取当前行/选区的工具状态（只读，高亮用）。
+    function refreshState(start, end) {
+        if (!bar.activeLineId) {
+            bar.stateMap = ({});
+            return;
+        }
+        bar.stateMap = backend.toolState(bar.activeLineId, start || 0, end || 0);
+    }
+
+    function activeOf(tid) {
+        return bar.stateMap[tid] === true;
+    }
+
+    function mixedOf(tid) {
+        return bar.stateMap[tid] === null;
     }
 
     function rowWidth(row) {
@@ -50,12 +70,30 @@ Rectangle {
         return false;
     }
 
-    Component.onCompleted: rebuildMeta()
+    Component.onCompleted: {
+        rebuildMeta();
+        refreshState();
+        if (bar.drawerOpen)
+            toolPopup.open();
+    }
+
+    onActiveLineIdChanged: refreshState()
+
+    onDrawerOpenChanged: {
+        if (bar.drawerOpen)
+            toolPopup.open();
+        else
+            toolPopup.close();
+    }
 
     Connections {
         target: backend
         function onCurrentChanged() {
             bar.rebuildMeta();
+            bar.refreshState();
+        }
+        function onContentChanged() {
+            bar.refreshState();
         }
     }
 
@@ -91,9 +129,12 @@ Rectangle {
                             Repeater {
                                 model: modelData
                                 delegate: ToolBtn {
+                                    id: rowBtn
                                     tid: modelData
                                     meta: bar.metaById[modelData] || ({})
-                                    onClicked: bar.toolTriggered(modelData)
+                                    active: bar.activeOf(modelData)
+                                    mixed: bar.mixedOf(modelData)
+                                    onClicked: bar.toolTriggered(modelData, rowBtn)
                                 }
                             }
                             Rectangle {
@@ -140,32 +181,83 @@ Rectangle {
         }
     }
 
-    // 向下抽屉：展开全部工具（溢出时用）
-    Rectangle {
-        id: drawer
-        visible: bar.drawerOpen
-        anchors.top: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: flow.implicitHeight + 16
-        color: CairnTheme.elevated
-        border.color: CairnTheme.border
-        border.width: 1
-        z: 60
+    // 溢出抽屉：按类别分组的紧凑工具网格。
+    // 用 Popup（窗口覆盖层）保证盖在最上层、不与正文糊在一起；点外部 / Esc 自动回收。
+    Popup {
+        id: toolPopup
+        parent: bar
+        x: 0
+        y: bar.height
+        width: bar.width
+        padding: 0
+        modal: false
+        focus: true
+        closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+        onClosed: bar.drawerOpen = false
 
-        Flow {
-            id: flow
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 8
-            spacing: 2
+        enter: Transition {
+            NumberAnimation {
+                property: "opacity"
+                from: 0
+                to: 1
+                duration: CairnTheme.durBase
+                easing.type: Easing.OutQuad
+            }
+        }
+        exit: Transition {
+            NumberAnimation {
+                property: "opacity"
+                from: 1
+                to: 0
+                duration: CairnTheme.durFast
+                easing.type: Easing.InQuad
+            }
+        }
+
+        background: Rectangle {
+            color: CairnTheme.surface
+            border.color: CairnTheme.border
+            border.width: 1
+            radius: CairnTheme.radiusSm
+            bottomLeftRadius: CairnTheme.radiusLg
+            bottomRightRadius: CairnTheme.radiusLg
+        }
+
+        contentItem: Column {
+            id: drawerCol
+            padding: CairnTheme.spaceMd
+            spacing: CairnTheme.spaceSm
+
             Repeater {
-                model: backend.tools
-                delegate: ToolBtn {
-                    tid: modelData.id
-                    meta: modelData
-                    onClicked: bar.toolTriggered(modelData.id)
+                model: backend.toolGroups
+                delegate: Column {
+                    width: drawerCol.width - drawerCol.padding * 2
+                    spacing: 4
+                    Text {
+                        text: modelData.label
+                        color: CairnTheme.faint
+                        font.family: CairnTheme.fontFamily
+                        font.pixelSize: CairnTheme.fsTiny
+                    }
+                    Grid {
+                        width: parent.width
+                        spacing: 2
+                        columns: Math.max(4, Math.floor(width / 68))
+                        Repeater {
+                            model: modelData.tools
+                            delegate: DrawerTile {
+                                id: drawerTile
+                                tid: modelData.id
+                                meta: modelData
+                                active: bar.activeOf(modelData.id)
+                                mixed: bar.mixedOf(modelData.id)
+                                onClicked: {
+                                    toolPopup.close();
+                                    bar.toolTriggered(modelData.id, drawerTile);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -175,11 +267,24 @@ Rectangle {
         id: button
         property string tid: ""
         property var meta: ({})
+        property bool active: false
+        property bool mixed: false
+        readonly property bool unavailable: button.meta.available === false
         signal clicked()
         width: 26
         height: 24
         radius: CairnTheme.radiusSm
-        color: bMa.containsMouse ? CairnTheme.hover : "transparent"
+        opacity: button.unavailable ? 0.35 : 1
+        color: {
+            if (button.unavailable)
+                return "transparent";
+            if (button.active)
+                return CairnTheme.selection;
+            if (button.hovered || button.mixed)
+                return CairnTheme.hover;
+            return "transparent";
+        }
+        property alias hovered: bHover.hovered
 
         Text {
             anchors.centerIn: parent
@@ -187,13 +292,13 @@ Rectangle {
             text: button.meta.glyph || ""
             font.family: CairnTheme.iconFont
             font.pixelSize: 12
-            color: CairnTheme.muted
+            color: button.active ? CairnTheme.accent : CairnTheme.muted
         }
         Text {
             anchors.centerIn: parent
             visible: (button.meta.text || "") !== ""
             text: button.meta.text || ""
-            color: CairnTheme.text
+            color: button.active ? CairnTheme.accent : CairnTheme.text
             font.family: CairnTheme.fontFamily
             font.pixelSize: CairnTheme.fsTiny
             font.weight: button.meta.id === "bold" ? Font.Bold : Font.Normal
@@ -202,14 +307,91 @@ Rectangle {
             font.strikeout: button.meta.id === "strike"
         }
         HoverHandler {
-            onHoveredChanged: hovered ? Tips.show(button.meta.label || "", button) : Tips.hide()
+            id: bHover
+            onHoveredChanged: {
+                if (!hovered)
+                    Tips.hide();
+                else if (button.unavailable)
+                    Tips.show((button.meta.label || "") + "（预留）", button);
+                else
+                    Tips.show(button.meta.label || "", button);
+            }
         }
         MouseArea {
             id: bMa
             anchors.fill: parent
+            enabled: !button.unavailable
             hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+            cursorShape: button.unavailable ? Qt.ArrowCursor : Qt.PointingHandCursor
             onClicked: button.clicked()
+        }
+    }
+
+    // 抽屉里的工具格：图标 / 文本 + 标签，紧凑排布，便于速览与查找。
+    component DrawerTile: Rectangle {
+        id: tile
+        property string tid: ""
+        property var meta: ({})
+        property bool active: false
+        property bool mixed: false
+        readonly property bool unavailable: tile.meta.available === false
+        signal clicked()
+        implicitWidth: 64
+        implicitHeight: 46
+        radius: CairnTheme.radiusSm
+        opacity: tile.unavailable ? 0.35 : 1
+        color: {
+            if (tile.unavailable)
+                return "transparent";
+            if (tile.active)
+                return CairnTheme.selection;
+            if (tileHover.hovered || tile.mixed)
+                return CairnTheme.hover;
+            return "transparent";
+        }
+
+        Column {
+            anchors.centerIn: parent
+            spacing: 2
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: (tile.meta.text || "") === ""
+                text: tile.meta.glyph || ""
+                font.family: CairnTheme.iconFont
+                font.pixelSize: 14
+                color: tile.active ? CairnTheme.accent : CairnTheme.muted
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: (tile.meta.text || "") !== ""
+                text: tile.meta.text || ""
+                color: tile.active ? CairnTheme.accent : CairnTheme.text
+                font.family: CairnTheme.fontFamily
+                font.pixelSize: CairnTheme.fsSmall
+                font.weight: tile.meta.id === "bold" ? Font.Bold : Font.Normal
+                font.italic: tile.meta.id === "italic"
+                font.underline: tile.meta.id === "underline"
+                font.strikeout: tile.meta.id === "strike"
+            }
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: tile.width - 4
+                horizontalAlignment: Text.AlignHCenter
+                text: tile.meta.label || ""
+                color: CairnTheme.faint
+                font.family: CairnTheme.fontFamily
+                font.pixelSize: CairnTheme.fsTiny
+                elide: Text.ElideRight
+            }
+        }
+        HoverHandler {
+            id: tileHover
+        }
+        TapHandler {
+            onTapped: {
+                if (!tile.unavailable)
+                    tile.clicked();
+            }
         }
     }
 }

@@ -354,6 +354,35 @@ def style_at(smap: StyleMap, line_id: str, position: int) -> Style:
     return _style_at(smap, line_id, int(position))
 
 
+def bool_state(smap: StyleMap, line_id: str, start: int, end: int, key: str) -> bool | None:
+    """区间内某布尔样式的**三态**：全真 ``True`` / 全假 ``False`` / 混合 ``None``。
+
+    无选区（``end <= start``）时取该位置单点；供工具栏高亮「生效 / 未生效 / 半选」。
+    """
+    start, end = int(start), int(end)
+    if end <= start:
+        return bool(getattr(_style_at(smap, line_id, start), key))
+    result: bool | None = None
+    cursor = start
+    for seg_start, seg_end, style in _resolve(smap.get(line_id, [])):
+        if seg_end <= start or seg_start >= end:
+            continue
+        if seg_start > cursor:
+            if result is True:
+                return None
+            result = False
+        value = bool(getattr(style, key))
+        if result is not None and result != value:
+            return None
+        result = value
+        cursor = max(cursor, min(seg_end, end))
+    if cursor < end:
+        if result is True:
+            return None
+        result = False
+    return bool(result) if result is not None else False
+
+
 def toggle_range_style(smap: StyleMap, line_id: str, start: int, end: int, key: str) -> StyleMap:
     """对 ``[start, end)`` 切换一个布尔样式；以区间起点处的当前样式为基准取反。"""
     if key not in _BOOL_KEYS or end <= start:
@@ -435,6 +464,7 @@ __all__ = [
     "RangeStyle",
     "StyleMap",
     "apply_text",
+    "bool_state",
     "canonicalize_style",
     "clear_range_style",
     "coerce_style",
