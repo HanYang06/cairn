@@ -83,3 +83,15 @@
   `reorderInGroup`）、筛选（`filterByGroup` / `clearGroupFilter` / `groupFilter`）、`clearNoteGroups`（拖回未分组）。
   UI：`GroupMenu.qml` 组右键菜单、`PromptBox.qml` 口令输入、`Navigator` 拖拽（笔记/组拖到组上增删与移动）。
   ruff/mypy/170 测试全绿，`--smoke` 通过。
+- 2026-09-17 · 已定 · **行级（段落）属性 `p` + 超长行**：行元素变 `{id, v, p?}`（`p` 放 align/heading/list/level/block）；
+  `NoteBody.content`/hash、`NOTE_CODEC`(digest/diff/apply)、`Note._state`、`Note.blocks` 一并纳入；
+  新增 `Note.set_paragraph`/`clear_paragraph` 与后端 `setParagraph`/`clearParagraph`。
+  约定 **1 硬行 = 1 段**（不设独立段落实体）。另加 `text_weight` / `OVERLONG_WEIGHT(300)` 与 `overlong` 标志；
+  编辑器超长行 `NoWrap` + 横向滚动 + 右下「到行末」按钮。ruff/mypy/178 测试全绿，`--smoke` 通过。
+- 2026-09-17 · 已定 · **格式工具栏（两行）+ 域工具 + 行内 set/clear**：`domains/note/tools.py`（`Tool` 基类 +
+  参数化实例、`TOOLS` 注册表、`PRESET_LAYOUT`）；`edit.py` 加 `set_range_style` / `clear_range_style` / `style_at`，
+  `Note.set_style_span` / `clear_style_span`；后端 `tools` / `toolLayout` / `runTool`；
+  `FormatToolbar.qml`（字级行 + 段级行、纯图标 + `Tips`、溢出**向下抽屉**）；`EditorArea` 段落渲染
+  （对齐 / 标题字号字重 / 列表序号派生 / 缩进 / 引用左条 / 代码块等宽底色 `NoWrap`）。
+  导航去掉「全部笔记」标签；标题栏最大化/还原图标随 `Window.visibility` 切换。
+  ruff/mypy/188 测试全绿，`--smoke` 通过。

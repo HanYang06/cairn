@@ -168,11 +168,14 @@ note ──relation(DB)──► project / note
 > 语义细节见 [`note-model.md`](./note-model.md) §6。
 
 ```
-body  = [ {"id": 行id, "v": "一行文字"}, {"id": 行id, "v": {"canvas": 0}}, ... ]
+body  = [ {"id": 行id, "v": "一行文字", "p": {"heading": 1}}, {"id": 行id, "v": {"canvas": n}}, ... ]
 style = { 行id: [ {区间(tuple): Style} ] }
 ```
 
-- **一元素 = 一行 / 一块**：顺序即位置；行序列用 list 保序（canonical CBOR 会排序 map key，dict 不能保序）。
+- **一元素 = 一行 = 一段**（硬回车是段落边界；软换行只是 UI 显示）：
+  顺序即位置；行序列用 list 保序（canonical CBOR 会排序 map key，dict 不能保序）。
+- **`p` = 行级（段落）属性**（可缺省）：`align` / `heading` / `list` / `level` / `block` 等；
+  列表序号等**算得出**的不存。没有单独的"段落"实体——段落就是行。
 - **行 id 稳定**（ULID，生成即锁死）：行增删 / 重排不影响样式与版本（无下标漂移）。
 - **样式是叠加层**：`{行id → 区间层}`；行内加粗只需加区间，不拆 body；后层压前层；规范化为不重叠、有序、去默认。
 - **内容签名（checksum）剥离行 id**：同文同样式 → 同哈希 → 可去重；改一字即不同。

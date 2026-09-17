@@ -98,7 +98,7 @@ Rectangle {
                 }
             }
             WindowButton {
-                glyph: "\uE922"
+                glyph: (Window.window && Window.window.visibility === Window.Maximized) ? "\uE923" : "\uE922"
                 onClicked: {
                     if (!Window.window)
                         return;

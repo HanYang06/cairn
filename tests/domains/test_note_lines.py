@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from cairn.domains.note.edit import line_styles
+from cairn.domains.note.edit import OVERLONG_WEIGHT, line_styles, text_weight
 from cairn.domains.note.types import Note, Style, access_ref
 
 
@@ -150,3 +150,72 @@ def test_toggle_style_updates_body_hash() -> None:
     note.toggle_style(lid, 0, 3, "bold")
 
     assert note.body.hash != before
+
+
+def test_paragraph_roundtrip_and_hash() -> None:
+    left = Note()
+    left.body = ["标题"]
+    lid = _ids(left)[0]
+    right = Note()
+    right.body = ["标题"]
+
+    left.set_paragraph(lid, {"heading": 1})
+
+    assert left.paragraph(lid) == {"heading": 1}
+    assert left.body.hash != right.body.hash
+
+
+def test_set_paragraph_merges_and_deletes() -> None:
+    note = Note()
+    note.body = ["x"]
+    lid = _ids(note)[0]
+
+    note.set_paragraph(lid, {"align": "center", "heading": 2})
+    note.set_paragraph(lid, {"heading": None})
+
+    assert note.paragraph(lid) == {"align": "center"}
+
+    note.clear_paragraph(lid)
+    assert note.paragraph(lid) == {}
+
+
+def test_split_and_merge_preserve_paragraph() -> None:
+    note = Note()
+    note.body = ["abcdef"]
+    lid = _ids(note)[0]
+    note.set_paragraph(lid, {"list": "bullet"})
+
+    new_id = note.split_line(lid, 3)
+    assert note.paragraph(lid) == {"list": "bullet"}
+    assert note.paragraph(new_id) == {"list": "bullet"}
+
+    note.merge_line(new_id)
+    assert note.paragraph(lid) == {"list": "bullet"}
+
+
+def test_blocks_expose_para_and_weight() -> None:
+    note = Note()
+    note.body = ["标题"]
+    lid = _ids(note)[0]
+    note.set_paragraph(lid, {"heading": 1})
+
+    block = note.blocks()[0]
+    assert block["para"] == {"heading": 1}
+    assert block["weight"] == 2.0
+    assert block["overlong"] is False
+
+
+def test_overlong_flag_at_threshold() -> None:
+    note = Note()
+    note.body = ["字" * 301]
+    assert note.blocks()[0]["overlong"] is True
+
+    note.body = ["字" * 300]
+    assert note.blocks()[0]["overlong"] is False
+
+
+def test_text_weight_counts_wide_as_one() -> None:
+    assert text_weight("你好") == 2.0
+    assert text_weight("ab") == 1.0
+    assert text_weight("a你") == 1.5
+    assert OVERLONG_WEIGHT == 300.0

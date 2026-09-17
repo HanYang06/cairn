@@ -258,16 +258,6 @@ Rectangle {
             Layout.preferredHeight: CairnTheme.spaceSm
         }
 
-        Text {
-            Layout.leftMargin: CairnTheme.spaceMd
-            text: backend.showTrash ? "回收站" : "全部笔记"
-            color: CairnTheme.faint
-            font.family: CairnTheme.fontFamily
-            font.pixelSize: CairnTheme.fsTiny
-            font.weight: Font.DemiBold
-            font.letterSpacing: 0.6
-        }
-
         ListView {
             id: notesList
             Layout.fillWidth: true

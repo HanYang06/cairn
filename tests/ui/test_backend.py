@@ -418,6 +418,37 @@ def test_line_edit_slots(backend: Backend) -> None:
     assert [block["text"] for block in backend.currentBlocks] == ["床前明月光"]
 
 
+def test_run_tool_through_backend(backend: Backend) -> None:
+    backend.captureNote("abcdef")
+    lid = backend.currentBlocks[0]["id"]
+
+    backend.runTool("bold", lid, 1, 3)
+    backend.flush()
+    styles = backend.currentBlocks[0]["styles"]
+    assert styles[0][:2] == [1, 3]
+    assert styles[0][2]["bold"] is True
+
+    backend.runTool("align-center", lid, 0, 0)
+    backend.flush()
+    assert backend.currentBlocks[0]["para"] == {"align": "center"}
+
+    assert len(backend.tools) > 0
+    assert len(backend.toolLayout) == 2
+
+
+def test_set_paragraph_through_backend(backend: Backend) -> None:
+    backend.captureNote("段")
+    lid = backend.currentBlocks[0]["id"]
+
+    backend.setParagraph(lid, {"align": "center", "heading": 2})
+    backend.flush()
+    assert backend.currentBlocks[0]["para"] == {"align": "center", "heading": 2}
+
+    backend.clearParagraph(lid)
+    backend.flush()
+    assert backend.currentBlocks[0]["para"] == {}
+
+
 def test_autosave_defers_version_until_checkpoint(backend: Backend) -> None:
     backend.captureNote("v1")
     assert len(backend.currentVersions) == 1

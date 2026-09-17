@@ -39,6 +39,7 @@ def digest(state: State) -> str:
     payload = {
         "type": NOTE_KIND,
         "body": [line["v"] for line in state.get("body") or ()],
+        "para": [line.get("p") or {} for line in state.get("body") or ()],
         "style": view,
     }
     return blake3(canonical(payload)).hexdigest()
@@ -62,6 +63,8 @@ def diff(new_state: State, old_state: State) -> bytes:  # noqa: C901 — 三趟 
         if lid in new_by:
             continue
         entry: dict[str, Any] = {"act": "PUT", "v": old_by[lid]["v"]}
+        if old_by[lid].get("p"):
+            entry["p"] = old_by[lid]["p"]
         if lid in old_style:
             entry["style"] = old_style[lid]
         entry["after"] = old_order[index - 1] if index > 0 else None
@@ -71,8 +74,14 @@ def diff(new_state: State, old_state: State) -> bytes:  # noqa: C901 — 三趟 
         new_line = new_by.get(lid)
         if new_line is None:
             continue
-        if old_line["v"] != new_line["v"] or old_style.get(lid) != new_style.get(lid):
+        if (
+            old_line["v"] != new_line["v"]
+            or old_line.get("p") != new_line.get("p")
+            or old_style.get(lid) != new_style.get(lid)
+        ):
             entry = {"act": "PUT", "v": old_line["v"]}
+            if old_line.get("p"):
+                entry["p"] = old_line["p"]
             if lid in old_style:
                 entry["style"] = old_style[lid]
             patch[lid] = entry
@@ -85,7 +94,7 @@ def diff(new_state: State, old_state: State) -> bytes:  # noqa: C901 — 三趟 
     return canonical(patch) if patch else b""
 
 
-def apply(state: State, patch: Any) -> State:
+def apply(state: State, patch: Any) -> State:  # noqa: C901 — 反向回放：三类动作集中
     """把反向补丁作用到状态上，得到旧状态。"""
     body = [dict(line) for line in state.get("body") or ()]
     style = {
@@ -103,6 +112,8 @@ def apply(state: State, patch: Any) -> State:
         if lid == "@order" or entry.get("act") != "PUT":
             continue
         record = {"id": lid, "v": entry["v"]}
+        if entry.get("p"):
+            record["p"] = entry["p"]
         found = next((index for index, line in enumerate(body) if line["id"] == lid), -1)
         if found >= 0:
             body[found] = record

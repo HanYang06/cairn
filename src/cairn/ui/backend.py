@@ -32,6 +32,7 @@ from ..core import Vault
 from ..core.store import CATALOG_NAME as _CATALOG_NAME
 from ..domains import Group, Note, Relation, ancestors, descendants
 from ..domains.group import GroupError, list_groups
+from ..domains.note.tools import PRESET_LAYOUT, ToolContext, run_tool, tool_info
 from ..domains.provenance import DERIVED_FROM
 
 DEV_PASSPHRASE = "cairn-dev"  # noqa: S105 — 开发期固定口令，非生产密钥
@@ -1200,6 +1201,50 @@ class Backend(QObject):
             return
         self._current.toggle_style(line_id, int(start), int(end), key)
         self._touch()
+
+    @Slot(str, "QVariantMap")
+    def setParagraph(self, line_id: str, patch: dict[str, Any]) -> None:
+        """行级（段落）属性：align / heading / list / level / block…，空值删键。"""
+        if self._current is None or not line_id:
+            return
+        self._current.set_paragraph(line_id, patch)
+        self._touch()
+
+    @Slot(str)
+    def clearParagraph(self, line_id: str) -> None:
+        if self._current is None or not line_id:
+            return
+        self._current.clear_paragraph(line_id)
+        self._touch()
+
+    # ---- 工具（字级 / 段级）----
+    @Property(list, notify=currentChanged)
+    def tools(self) -> list[dict[str, str]]:
+        """全部工具的元数据（供工具栏渲染）。"""
+        return tool_info()
+
+    @Property(list, notify=currentChanged)
+    def toolLayout(self) -> list[list[list[str]]]:
+        """预设布局：行 → 组 → 工具 id。"""
+        return PRESET_LAYOUT
+
+    @Slot(str, str, int, int)
+    def runTool(self, tool_id: str, line_id: str, start: int, end: int) -> None:
+        if self._current is None or not line_id:
+            return
+        line = next((item for item in self._current.body.text if item["id"] == line_id), None)
+        if line is None:
+            return
+        value = line["v"]
+        ctx = ToolContext(
+            line_id=line_id,
+            start=int(start),
+            end=int(end),
+            length=len(value) if isinstance(value, str) else 0,
+            paragraph=dict(line.get("p") or {}),
+        )
+        if run_tool(tool_id, self._current, ctx):
+            self._touch()
 
     @Slot(str)
     def renameNote(self, title: str) -> None:

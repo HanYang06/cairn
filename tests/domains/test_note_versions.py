@@ -62,6 +62,20 @@ def test_persist_defers_version_until_checkpoint(tmp_path: Path) -> None:
     assert [line["v"] for line in note.body_at(history[0]["id"])] == ["v3"]
 
 
+def test_paragraph_attribute_is_versioned(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    note = Note.create(vault, "x")
+    lid = note.body[0]["id"]  # type: ignore[index]
+
+    note.set_paragraph(lid, {"heading": 1})
+    note.save()
+
+    history = note.history()
+    assert len(history) == 2
+    assert note.body_at(history[-1]["id"])[0].get("p") is None
+    assert note.body_at(history[0]["id"])[0].get("p") == {"heading": 1}
+
+
 def test_diff_is_reverse_and_incremental(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     note = Note.create(vault, "hello world")

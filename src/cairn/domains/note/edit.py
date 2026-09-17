@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -46,25 +47,42 @@ def is_marker(value: Any) -> bool:
     return isinstance(value, Mapping) and any(key in value for key in _MARKER_KEYS)
 
 
+# 超长行阈值：等效中文字数（见 ``text_weight``）。
+OVERLONG_WEIGHT = 300.0
+
+
+def text_weight(text: str) -> float:
+    """等效中文字数：全角 / 宽字符记 1，半角记 0.5（用于超长行判定）。"""
+    return sum(1.0 if unicodedata.east_asian_width(ch) in ("W", "F") else 0.5 for ch in text)
+
+
+def _entry(line_id: str, value: Any, para: Any = None) -> Line:
+    entry: Line = {"id": line_id, "v": value}
+    if para:
+        entry["p"] = dict(para)
+    return entry
+
+
 # ---- 正文（行序列）----
 def normalize_body(raw: Any) -> list[Line]:
-    r"""把任意输入规范成带 id 的行序列；字符串按 ``\\n`` 拆行。"""
+    r"""把任意输入规范成带 id 的行序列；字符串按 ``\n`` 拆行，保留 ``p``（段落属性）。"""
     lines: list[Line] = []
     for item in raw or ():
         if is_marker(item):
-            lines.append({"id": new_id(), "v": dict(item)})
+            lines.append(_entry(new_id(), dict(item)))
             continue
         if isinstance(item, Mapping) and "v" in item:
             lid = str(item.get("id") or new_id())
+            para = item.get("p")
             value = item["v"]
             if isinstance(value, str):
                 for offset, part in enumerate(value.split("\n")):
-                    lines.append({"id": lid if offset == 0 else new_id(), "v": part})
+                    lines.append(_entry(lid if offset == 0 else new_id(), part, para))
             else:
-                lines.append({"id": lid, "v": value})
+                lines.append(_entry(lid, value, para))
             continue
-        lines.extend({"id": new_id(), "v": part} for part in str(item).split("\n"))
-    return lines or [{"id": new_id(), "v": ""}]
+        lines.extend(_entry(new_id(), part) for part in str(item).split("\n"))
+    return lines or [_entry(new_id(), "")]
 
 
 def flatten_text(lines: Sequence[Line]) -> str:
@@ -73,24 +91,24 @@ def flatten_text(lines: Sequence[Line]) -> str:
 
 
 def apply_text(lines: Sequence[Line], text: str) -> list[Line]:
-    """整段替换文字，尽量保留行身份与嵌入占位。
+    """整段替换文字，尽量保留行身份、嵌入占位与段落属性。
 
-    文字行按位复用原有行 id；多出的新行另分配；占位行原地保留。
+    文字行按位复用原有行 id 与 ``p``；多出的新行另分配；占位行原地保留。
     """
     values = text.split("\n")
     out: list[Line] = []
     cursor = 0
     for line in lines:
         if is_marker(line["v"]):
-            out.append({"id": line["id"], "v": dict(line["v"])})
+            out.append(_entry(line["id"], dict(line["v"]), line.get("p")))
             continue
         if cursor < len(values):
-            out.append({"id": line["id"], "v": values[cursor]})
+            out.append(_entry(line["id"], values[cursor], line.get("p")))
             cursor += 1
     while cursor < len(values):
-        out.append({"id": new_id(), "v": values[cursor]})
+        out.append(_entry(new_id(), values[cursor]))
         cursor += 1
-    return out or [{"id": new_id(), "v": ""}]
+    return out or [_entry(new_id(), "")]
 
 
 # ---- 行内区间样式 ----
@@ -214,20 +232,20 @@ def _index_of(lines: Sequence[Line], line_id: str) -> int:
 
 
 def _copy_lines(lines: Sequence[Line]) -> list[Line]:
-    return [{"id": line["id"], "v": line["v"]} for line in lines]
+    return [_entry(line["id"], line["v"], line.get("p")) for line in lines]
 
 
 # ---- 行级编辑原语（返回新序列，不改原值）----
 def set_line_text(lines: Sequence[Line], line_id: str, text: str) -> list[Line]:
-    r"""改写某一行文字；含换行时按 ``\n`` 就地拆成多行（新行另分配 id）。"""
+    r"""改写某一行文字；含换行时按 ``\n`` 就地拆成多行（新行另分配 id，沿用 ``p``）。"""
     parts = str(text).split("\n")
     out: list[Line] = []
     for line in lines:
         if line["id"] != line_id or is_marker(line["v"]):
-            out.append({"id": line["id"], "v": line["v"]})
+            out.append(_entry(line["id"], line["v"], line.get("p")))
             continue
-        out.append({"id": line["id"], "v": parts[0]})
-        out.extend({"id": new_id(), "v": part} for part in parts[1:])
+        out.append(_entry(line["id"], parts[0], line.get("p")))
+        out.extend(_entry(new_id(), part, line.get("p")) for part in parts[1:])
     return out
 
 
@@ -238,14 +256,14 @@ def insert_line(
     out = _copy_lines(lines)
     lid = new_id()
     position = len(out) if after_id is None else _index_of(out, after_id) + 1
-    out.insert(max(0, position), {"id": lid, "v": str(value)})
+    out.insert(max(0, position), _entry(lid, str(value)))
     return out, lid
 
 
 def remove_line(lines: Sequence[Line], line_id: str) -> list[Line]:
     """删除一行；删空时保留一个空行，保证正文至少一行。"""
-    out = [{"id": line["id"], "v": line["v"]} for line in lines if line["id"] != line_id]
-    return out or [{"id": new_id(), "v": ""}]
+    out = [_entry(line["id"], line["v"], line.get("p")) for line in lines if line["id"] != line_id]
+    return out or [_entry(new_id(), "")]
 
 
 def split_line(
@@ -257,13 +275,13 @@ def split_line(
     old_len = 0
     for line in lines:
         if line["id"] != line_id or is_marker(line["v"]):
-            out.append({"id": line["id"], "v": line["v"]})
+            out.append(_entry(line["id"], line["v"], line.get("p")))
             continue
         text = str(line["v"])
         old_len = len(text)
         cut = max(0, min(int(offset), old_len))
-        out.append({"id": line["id"], "v": text[:cut]})
-        out.append({"id": new_lid, "v": text[cut:]})
+        out.append(_entry(line["id"], text[:cut], line.get("p")))
+        out.append(_entry(new_lid, text[cut:], line.get("p")))
     return out, new_lid, line_id, old_len
 
 
@@ -281,7 +299,7 @@ def merge_line(lines: Sequence[Line], line_id: str) -> tuple[list[Line], str | N
     if is_marker(previous["v"]) or is_marker(current["v"]):
         return _copy_lines(lines), None, 0
     previous_text = str(previous["v"])
-    out[index - 1] = {"id": previous["id"], "v": previous_text + str(current["v"])}
+    out[index - 1] = _entry(previous["id"], previous_text + str(current["v"]), previous.get("p"))
     del out[index]
     return out, previous["id"], len(previous_text)
 
@@ -331,6 +349,11 @@ def _style_at(smap: StyleMap, line_id: str, position: int) -> Style:
     return Style()
 
 
+def style_at(smap: StyleMap, line_id: str, position: int) -> Style:
+    """某一行某位置**解析后**的样式（供工具读取当前值）。"""
+    return _style_at(smap, line_id, int(position))
+
+
 def toggle_range_style(smap: StyleMap, line_id: str, start: int, end: int, key: str) -> StyleMap:
     """对 ``[start, end)`` 切换一个布尔样式；以区间起点处的当前样式为基准取反。"""
     if key not in _BOOL_KEYS or end <= start:
@@ -340,6 +363,29 @@ def toggle_range_style(smap: StyleMap, line_id: str, start: int, end: int, key: 
     data[key] = not bool(getattr(current, key))
     toggled = Style.from_data(data)
     layer: RangeStyle = {(int(start), int(end)): toggled}
+    return {**smap, line_id: [*smap.get(line_id, []), layer]}
+
+
+def set_range_style(
+    smap: StyleMap, line_id: str, start: int, end: int, patch: Mapping[str, Any]
+) -> StyleMap:
+    """对 ``[start, end)`` 设置若干样式字段（未提到的字段保持区间起点处现状）。"""
+    if end <= start:
+        return smap
+    current = _style_at(smap, line_id, int(start))
+    data = current.to_data()
+    for key, value in patch.items():
+        if key in data:
+            data[key] = value
+    layer: RangeStyle = {(int(start), int(end)): Style.from_data(data)}
+    return {**smap, line_id: [*smap.get(line_id, []), layer]}
+
+
+def clear_range_style(smap: StyleMap, line_id: str, start: int, end: int) -> StyleMap:
+    """清掉 ``[start, end)`` 的全部行内样式（叠加一层默认值）。"""
+    if end <= start:
+        return smap
+    layer: RangeStyle = {(int(start), int(end)): Style()}
     return {**smap, line_id: [*smap.get(line_id, []), layer]}
 
 
@@ -383,12 +429,14 @@ def content_signature(kind: str, lines: Sequence[Line], smap: StyleMap) -> str:
 
 
 __all__ = [
+    "OVERLONG_WEIGHT",
     "Line",
     "Marker",
     "RangeStyle",
     "StyleMap",
     "apply_text",
     "canonicalize_style",
+    "clear_range_style",
     "coerce_style",
     "content_signature",
     "decode_style",
@@ -404,8 +452,11 @@ __all__ = [
     "normalize_body",
     "remove_line",
     "set_line_text",
+    "set_range_style",
     "signature_style",
     "split_line",
     "split_style",
+    "style_at",
+    "text_weight",
     "toggle_range_style",
 ]

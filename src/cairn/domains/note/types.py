@@ -23,10 +23,11 @@ from ...core.store import Attr, Block, Body, VersionStore
 from ...types import Oid
 from ..base import UNSET, normalize_tags
 from ..signature import Signature
-from .edit import Line as LineDict
 from .edit import (
+    OVERLONG_WEIGHT,
     StyleMap,
     apply_text,
+    clear_range_style,
     coerce_style,
     drop_style,
     encode_style,
@@ -40,11 +41,14 @@ from .edit import (
     normalize_body,
     remove_line,
     set_line_text,
+    set_range_style,
     signature_style,
     split_line,
     split_style,
+    text_weight,
     toggle_range_style,
 )
+from .edit import Line as LineDict
 from .model import (
     NOTE_KIND,
     NOTE_MIME,
@@ -90,6 +94,7 @@ class NoteBody(Body):
     def content(self) -> dict[str, Any]:
         return {
             "text": [line["v"] for line in self.text],
+            "para": [line.get("p") or {} for line in self.text],
             "style": signature_style(self.text, self.style),
         }
 
@@ -234,10 +239,11 @@ class Note(Block):
         self.body.refresh()
 
     def blocks(self) -> list[dict[str, Any]]:
-        """给界面用的块视图：行 + 行内样式段；占位行给出 kind/index。"""
+        """给界面用的块视图：行 + 行内样式段 + 段落属性 + 等效字数。"""
         blocks: list[dict[str, Any]] = []
         for line in self.body.text:
             value = line["v"]
+            para = dict(line.get("p") or {})
             if is_marker(value):
                 kind = "canvas" if "canvas" in value else "access"
                 blocks.append(
@@ -247,14 +253,26 @@ class Note(Block):
                         "text": "",
                         "styles": [],
                         "index": int(value.get(kind, 0)),
+                        "para": para,
+                        "weight": 0.0,
                     }
                 )
                 continue
             styles = [
                 [start, end, style.to_data()] for start, end, style in line_styles(self.style, line)
             ]
+            weight = text_weight(str(value))
             blocks.append(
-                {"id": line["id"], "kind": "text", "text": value, "styles": styles, "index": -1}
+                {
+                    "id": line["id"],
+                    "kind": "text",
+                    "text": value,
+                    "styles": styles,
+                    "index": -1,
+                    "para": para,
+                    "weight": weight,
+                    "overlong": weight > OVERLONG_WEIGHT,
+                }
             )
         return blocks
 
@@ -310,6 +328,51 @@ class Note(Block):
         self.body.style = coerce_style(toggled, self.body.text)
         self.body.refresh()
         return self
+
+    def set_style_span(self, line_id: str, start: int, end: int, patch: Mapping[str, Any]) -> Note:
+        """对某行 ``[start, end)`` 设置若干行内样式字段（颜色 / 字号 / 字体 / 布尔）。"""
+        changed = set_range_style(self.body.style, line_id, start, end, patch)
+        self.body.style = coerce_style(changed, self.body.text)
+        self.body.refresh()
+        return self
+
+    def clear_style_span(self, line_id: str, start: int, end: int) -> Note:
+        """清掉某行 ``[start, end)`` 的全部行内样式。"""
+        changed = clear_range_style(self.body.style, line_id, start, end)
+        self.body.style = coerce_style(changed, self.body.text)
+        self.body.refresh()
+        return self
+
+    # ---- 段落属性（行级；一行 = 一段）----
+    def paragraph(self, line_id: str) -> dict[str, Any]:
+        """取某行的段落属性。"""
+        for line in self.body.text:
+            if line["id"] == line_id:
+                return dict(line.get("p") or {})
+        return {}
+
+    def set_paragraph(self, line_id: str, patch: Mapping[str, Any]) -> Note:
+        """合并段落属性；值为 ``None`` / 空串 / 空列表则删除该键。"""
+        for line in self.body.text:
+            if line["id"] != line_id:
+                continue
+            para = dict(line.get("p") or {})
+            for key, value in patch.items():
+                if value in (None, "", [], {}):
+                    para.pop(key, None)
+                else:
+                    para[key] = value
+            if para:
+                line["p"] = para
+            else:
+                line.pop("p", None)
+            break
+        self.body.refresh()
+        return self
+
+    def clear_paragraph(self, line_id: str) -> Note:
+        """清掉某行的全部段落属性。"""
+        return self.set_paragraph(line_id, dict.fromkeys(self.paragraph(line_id)))
 
     # ---- 画板 / 外联资源嵌入 ----
     @property
@@ -378,7 +441,14 @@ class Note(Block):
     # ---- 版本（走通用引擎）----
     def _state(self) -> dict[str, Any]:
         return {
-            "body": [{"id": line["id"], "v": copy.deepcopy(line["v"])} for line in self.body.text],
+            "body": [
+                {
+                    "id": line["id"],
+                    "v": copy.deepcopy(line["v"]),
+                    **({"p": copy.deepcopy(line["p"])} if line.get("p") else {}),
+                }
+                for line in self.body.text
+            ],
             "style": encode_style(self.body.style),
         }
 

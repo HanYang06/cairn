@@ -226,6 +226,8 @@ Rectangle {
         id: ed
         property bool loading: true
         property string status: ""
+        property bool activeOverlong: false
+        property string activeLid: ""
 
         Component.onCompleted: loading = false
 
@@ -264,7 +266,9 @@ Rectangle {
                 lid: block.id,
                 kind: block.kind,
                 text: block.text,
-                markerIndex: block.index
+                markerIndex: block.index,
+                overlong: block.overlong,
+                para: block.para
             });
         }
     }
@@ -352,6 +356,65 @@ Rectangle {
         });
     }
 
+    function refreshActiveOverlong() {
+        var block = ed.blockById(ed.activeLid);
+        ed.activeOverlong = block ? block.overlong : false;
+    }
+
+    function headingSize(para) {
+        var heading = Number((para && para.heading) || 0);
+        if (heading === 1)
+            return CairnTheme.fsTitle;
+        if (heading === 2)
+            return CairnTheme.fsLarge + 4;
+        if (heading === 3)
+            return CairnTheme.fsLarge;
+        return CairnTheme.fsBody;
+    }
+
+    function listIndex(index) {
+        var count = 1;
+        var i = index - 1;
+        while (i >= 0) {
+            var para = blocksModel.get(i).para || ({});
+            if (para.list === "ordered") {
+                count += 1;
+                i -= 1;
+                continue;
+            }
+            break;
+        }
+        return count;
+    }
+
+    // 跳到超长行行末（并把该行横向滚到最右）
+    function jumpToEnd(lid) {
+        var item = ed.lineItems[lid];
+        if (!item)
+            return;
+        item.forceActiveFocus();
+        item.cursorPosition = item.length;
+        var pane = item.parent;
+        if (pane && pane.contentX !== undefined)
+            pane.contentX = Math.max(0, pane.contentWidth - pane.width);
+    }
+
+    // 执行工具：作用于当前行的选区（无选区则整行），再刷新
+    function runTool(tid) {
+        var item = ed.lineItems[ed.activeLid];
+        if (!item)
+            return;
+        var start = Math.min(item.selectionStart, item.selectionEnd);
+        var end = Math.max(item.selectionStart, item.selectionEnd);
+        var lid = ed.activeLid;
+        var root = ed;
+        backend.runTool(tid, lid, start, end);
+        root.reloadBlocks();
+        Qt.callLater(function () {
+            root.focusLine(lid, end);
+        });
+    }
+
 
         // 极简：换文后一次短淡入，不做位移、不做淡出。
         NumberAnimation {
@@ -367,6 +430,24 @@ Rectangle {
         ColumnLayout {
             anchors.fill: parent
             spacing: 0
+
+            // ===== 格式工具栏（字级 / 段级两行）=====
+            FormatToolbar {
+                id: formatBar
+                Layout.fillWidth: true
+                activeLineId: ed.activeLid
+                toolsEnabled: backend.currentOid !== ""
+                onToolTriggered: function (tid) {
+                    ed.runTool(tid);
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 1
+                color: CairnTheme.borderFaint
+                visible: backend.currentOid !== ""
+            }
 
             // ===== 命令带：动作（标签编辑已移入属性面板）=====
             Rectangle {
@@ -524,19 +605,69 @@ Rectangle {
                             delegate: Item {
                                 id: lineRoot
                                 width: bodyCol.width
-                                height: bodyLine.visible ? bodyLine.height : markerChip.height
+                                height: lineFlick.visible ? lineFlick.height : markerChip.height
+                                readonly property var para: model.para || ({})
+                                readonly property bool isCode: para.block === "code"
+                                readonly property bool isQuote: para.block === "quote"
+                                readonly property bool noWrap: model.overlong || isCode
+                                readonly property int baseIndent: Number(para.level || 0) * 14
+                                readonly property int gutter: CairnTheme.spaceMd + baseIndent + (para.list ? 24 : 0)
 
-                                TextEdit {
-                                    id: bodyLine
-                                    visible: model.kind === "text"
-                                    width: parent.width
-                                    textFormat: TextEdit.RichText
-                                    wrapMode: TextEdit.Wrap
-                                    selectByMouse: true
-                                    color: CairnTheme.text
+                                Rectangle {
+                                    visible: lineRoot.isQuote && lineFlick.visible
+                                    x: CairnTheme.spaceMd + lineRoot.baseIndent
+                                    width: 3
+                                    height: parent.height
+                                    radius: 1.5
+                                    color: CairnTheme.accent
+                                    opacity: 0.6
+                                }
+
+                                Text {
+                                    visible: !!lineRoot.para.list && lineFlick.visible
+                                    x: CairnTheme.spaceMd + lineRoot.baseIndent
+                                    width: 20
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    horizontalAlignment: Text.AlignRight
+                                    text: lineRoot.para.list === "ordered" ? (ed.listIndex(index) + ".") : "•"
+                                    color: CairnTheme.muted
                                     font.family: CairnTheme.fontFamily
                                     font.pixelSize: CairnTheme.fsBody
-                                    height: Math.max(contentHeight, 22)
+                                }
+
+                                Flickable {
+                                    id: lineFlick
+                                    visible: model.kind === "text"
+                                    x: lineRoot.gutter
+                                    width: lineRoot.width - x
+                                    height: bodyLine.height
+                                    contentWidth: bodyLine.width
+                                    contentHeight: height
+                                    clip: true
+                                    interactive: lineRoot.noWrap
+                                    boundsBehavior: Flickable.StopAtBounds
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        visible: lineRoot.isCode
+                                        color: CairnTheme.bg
+                                        border.color: CairnTheme.borderFaint
+                                        border.width: 1
+                                        z: -1
+                                    }
+
+                                    TextEdit {
+                                        id: bodyLine
+                                        width: lineRoot.noWrap ? Math.max(lineFlick.width, contentWidth) : lineFlick.width
+                                        textFormat: TextEdit.RichText
+                                        wrapMode: lineRoot.noWrap ? TextEdit.NoWrap : TextEdit.Wrap
+                                        horizontalAlignment: lineRoot.para.align === "center" ? Text.AlignHCenter : (lineRoot.para.align === "right" ? Text.AlignRight : Text.AlignLeft)
+                                        selectByMouse: true
+                                        color: CairnTheme.text
+                                        font.family: lineRoot.isCode ? CairnTheme.monoFont : CairnTheme.fontFamily
+                                        font.pixelSize: ed.headingSize(lineRoot.para)
+                                        font.weight: lineRoot.para.heading ? Font.DemiBold : Font.Normal
+                                        height: Math.max(contentHeight, 22)
 
                                     property bool loading: true
                                     readonly property string lid: model.lid
@@ -572,6 +703,15 @@ Rectangle {
                                             return;
                                         backend.setLineText(lid, getText(0, length));
                                         ed.status = "编辑中…";
+                                        if (activeFocus)
+                                            ed.refreshActiveOverlong();
+                                    }
+
+                                    onActiveFocusChanged: {
+                                        if (activeFocus) {
+                                            ed.activeLid = lid;
+                                            ed.refreshActiveOverlong();
+                                        }
                                     }
 
                                     Keys.onPressed: function (event) {
@@ -633,6 +773,7 @@ Rectangle {
                                         }
                                     }
                                 }
+                                }
 
                                 Rectangle {
                                     id: markerChip
@@ -668,6 +809,36 @@ Rectangle {
                         }
                     }
                 }
+            }
+        }
+
+        // 超长行的「到行末」按钮：出现在编辑区右下空白处。
+        Rectangle {
+            id: endButton
+            objectName: "endButton"
+            visible: ed.activeOverlong
+            width: 34
+            height: 24
+            radius: CairnTheme.radiusSm
+            color: endMa.containsMouse ? CairnTheme.hover : CairnTheme.elevated
+            border.color: CairnTheme.border
+            border.width: 1
+            z: 50
+            x: flick.mapToItem(ed, flick.width, flick.height).x - width - 18
+            y: flick.mapToItem(ed, flick.width, flick.height).y - height - 18
+            Text {
+                anchors.centerIn: parent
+                text: "→|"
+                color: CairnTheme.muted
+                font.family: CairnTheme.monoFont
+                font.pixelSize: CairnTheme.fsTiny
+            }
+            MouseArea {
+                id: endMa
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: ed.jumpToEnd(ed.activeLid)
             }
         }
 
