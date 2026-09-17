@@ -26,6 +26,7 @@ from .base import Component
 class Box(Component):
     """纵 / 横布局基类；`add` 逐个加子件，支持伸缩与对齐。"""
 
+    abstract = True
     _direction: ClassVar[QBoxLayout.Direction] = QBoxLayout.Direction.TopToBottom
 
     def __init__(

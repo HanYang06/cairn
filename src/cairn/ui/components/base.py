@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
@@ -18,11 +18,39 @@ from ..signal import Subscription
 from ..theme import Theme, current_theme
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
+
+# 只有标准组件库里的部件进入主题词汇表；外壳 / 页面 / 测试类不污染 schema。
+_COMPONENT_PACKAGE = "cairn.ui.components"
 
 
 class Component(QWidget):
-    """所有 UI 部件的薄基类：统一令牌访问、命名约定与生命周期安全订阅。"""
+    """所有 UI 部件的基类：令牌访问、命名约定、生命周期订阅、**继承注册表**。
+
+    注册表照搬内核 ``Block`` 的做法：子类定义即入册，供主题 schema 自动生成词汇表。
+    子类用 ``STYLABLE`` / ``STATES`` 声明自己可被主题描述的范围；``abstract = True`` 的
+    中间基类不入册。
+    """
+
+    _REGISTRY: ClassVar[dict[str, type[Component]]] = {}
+    abstract: ClassVar[bool] = False
+    STYLABLE: ClassVar[frozenset[str]] = frozenset(
+        {"background", "color", "border", "border_color", "radius", "padding"}
+    )
+    STATES: ClassVar[frozenset[str]] = frozenset({"hover", "pressed", "disabled", "focus"})
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if cls.__dict__.get("abstract", False):
+            return
+        if not cls.__module__.startswith(_COMPONENT_PACKAGE):
+            return
+        Component._REGISTRY[cls.__name__] = cls
+
+    @classmethod
+    def registry(cls) -> Mapping[str, type[Component]]:
+        """已注册的具体部件：``{类名: 类}``（主题 schema 的词汇表）。"""
+        return dict(cls._REGISTRY)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -30,6 +58,8 @@ class Component(QWidget):
         self.destroyed.connect(self._cancel_watchers)
         if not self.objectName():
             self.setObjectName(type(self).__name__)
+        # 供主题 QSS 以属性选择器命中：QWidget[cairnClass="Button"]
+        self.setProperty("cairnClass", type(self).__name__)
 
     @property
     def theme(self) -> Theme:
@@ -78,6 +108,8 @@ class Panel(Component):
 
 class Page(Component):
     """中央内容页基类（笔记 / 关系 / 历史等按此派生）。"""
+
+    abstract = True
 
 
 __all__ = ["Component", "Page", "Panel"]
