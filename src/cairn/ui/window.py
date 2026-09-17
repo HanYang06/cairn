@@ -3,8 +3,8 @@
 
 """主窗口与外壳：`MainWindow`（QMainWindow）+ `Shell`（三栏布局）。
 
-P0 只把骨架立起来：活动栏 / 导航 / 编辑区 / 检查器 / 状态栏都是占位，
-真正的模型与控件在 P1 / P2 填入。见 `rules/references/ui-boundary.md`。
+导航已接真实笔记列表（`ListModel` → `ListPanel`）；编辑器 / 检查器为占位，P1 / P2 填入。
+见 `rules/references/ui-boundary.md`。
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
 
-from .components import Page, Panel, Split, VBox
+from .components import ListPanel, Page, Panel, Split, VBox
 from .theme import current_theme
 
 if TYPE_CHECKING:
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 def _fill(widget: QWidget, hint: str) -> None:
-    """给占位容器填一个居中的淡色标签，标出后续阶段会填什么。"""
+    """给占位容器填一个居中的淡色标签。"""
     label = QLabel(hint)
     label.setObjectName("Faint")
     label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -36,11 +36,19 @@ class Shell(VBox):
     def __init__(self, app: App, parent: QWidget | None = None) -> None:
         super().__init__(parent=parent)
         self._app = app
-        self.navigator = Panel("笔记")
+
+        self.navigator = ListPanel("笔记", key_of=lambda row: row.oid)
+        self.navigator.set_model(app.notes)
+        self.navigator.activated.connect(self._open_note)
+
         self.editor = Page()
+        self._editor_hint = QLabel("编辑器（P2）")
+        self._editor_hint.setObjectName("Faint")
+        self._editor_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        editor_layout = QVBoxLayout(self.editor)
+        editor_layout.addWidget(self._editor_hint)
+
         self.inspector = Panel("属性")
-        _fill(self.navigator.body, "导航树（P1）")
-        _fill(self.editor, "编辑器（P2）")
         _fill(self.inspector.body, "属性检查器（P1）")
 
         self.split = Split(
@@ -56,6 +64,9 @@ class Shell(VBox):
         splitter.setStretchFactor(2, 0)
         splitter.setSizes([current_theme().side_bar_w, 900, 288])
         self.add(self.split, stretch=1)
+
+    def _open_note(self, oid: str) -> None:
+        self._editor_hint.setText(self._app.note_title(oid))
 
 
 class MainWindow(QMainWindow):

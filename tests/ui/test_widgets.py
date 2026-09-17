@@ -11,7 +11,8 @@ import pytest
 from PySide6.QtWidgets import QApplication, QSplitter
 
 from cairn.core import Vault
-from cairn.ui.components import Component, Page, Panel
+from cairn.domains import Note
+from cairn.ui.components import Component, ListPanel, Page, Panel
 from cairn.ui.root import App
 from cairn.ui.theme import LIGHT, current_theme, set_current_theme
 from cairn.ui.theme.manager import ThemeManager
@@ -52,6 +53,27 @@ def test_shell_has_three_panes(tmp_path: Path) -> None:
     splitter = shell.findChild(QSplitter, "ShellSplit")
     assert splitter is not None
     assert splitter.count() == 3
+    root.shutdown()
+
+
+def test_shell_navigator_binds_notes_model(tmp_path: Path) -> None:
+    root = App(Vault.create(tmp_path / "vault"))
+    shell = Shell(root)
+    assert isinstance(shell.navigator, ListPanel)
+    assert shell.navigator.view.model() is root.notes
+    root.shutdown()
+
+
+def test_app_notes_model_reflects_vault(tmp_path: Path) -> None:
+    vault = Vault.create(tmp_path / "vault")
+    root = App(vault)
+    assert root.notes.rowCount() == 0
+
+    note = Note.create(vault, "正文", title="甲")
+    root.bridge.flush()
+    assert root.notes.rowCount() == 1
+    assert root.note_title(str(note.oid)) == "甲"
+
     root.shutdown()
 
 

@@ -140,6 +140,9 @@
 - 2026-09-18 · 已定 · **组合层起步**：`components/structure.py` 加 `ListPanel`（标题 + `Toolbar` +
   `QListView`；行激活发 `activated(key)`，数据来自 `ListModel`）；组合可递归（结构件可再嵌结构件）。
   ruff/mypy/242 测试全绿（覆盖率 84%）。
+- 2026-09-18 · 已定 · **App 共享模型 + Shell 接真实列表**：`App` 建 `ListModel[NoteRow]`，
+  桥变更自动刷新（`reload_notes`），并暴露 `note_title`；`Shell` 导航改用 `ListPanel` 绑 `app.notes`，
+  行激活显示标题（编辑器 / 检查器仍占位）。ruff/mypy/244 测试全绿（覆盖率 84%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是
