@@ -10,19 +10,119 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QModelIndex, Qt, Signal
-from PySide6.QtWidgets import QAbstractItemView, QTreeView
+from PySide6.QtCore import QModelIndex, QRect, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QStyle,
+    QStyledItemDelegate,
+    QTreeView,
+)
 
 from ..layout import HBox, VBox
+from ..theme import current_theme
 from .atoms import Divider, Label
 from .structure import Toolbar
 
 if TYPE_CHECKING:
     from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QPainter
     from PySide6.QtWidgets import QWidget
 
     from ..models import TreeModel
     from ..rows import GroupNode
+    from ..theme import Theme
+
+_ROLE_KEY = int(Qt.ItemDataRole.UserRole) + 1
+_ROLE_KIND = int(Qt.ItemDataRole.UserRole) + 2
+_ROLE_TITLE = int(Qt.ItemDataRole.UserRole) + 3
+_ROLE_PREVIEW = int(Qt.ItemDataRole.UserRole) + 4
+_ROLE_UPDATED = int(Qt.ItemDataRole.UserRole) + 5
+_GROUP_GLYPH = "\ue8b7"
+
+
+class NavigatorDelegate(QStyledItemDelegate):
+    """导航行委托：组 = 文件夹图标 + 标题；笔记 = 标题 + 预览 + 时间。"""
+
+    def sizeHint(  # type: ignore[override]  # noqa: N802 — Qt 覆写
+        self,
+        _option: object,
+        index: QModelIndex,
+    ) -> QSize:
+        kind = index.data(_ROLE_KIND)
+        return QSize(200, 42 if kind == "note" else 28)
+
+    def paint(  # type: ignore[override]
+        self,
+        painter: QPainter,
+        option: object,
+        index: QModelIndex,
+    ) -> None:
+        theme: Theme = current_theme()
+        rect = option.rect  # type: ignore[attr-defined]
+        state = option.state  # type: ignore[attr-defined]
+        if state & QStyle.StateFlag.State_Selected:
+            painter.fillRect(rect, QColor(theme.selection))
+        elif state & QStyle.StateFlag.State_MouseOver:
+            painter.fillRect(rect, QColor(theme.hover))
+
+        kind = index.data(_ROLE_KIND)
+        title = str(index.data(_ROLE_TITLE) or "")
+        if kind == "group":
+            painter.setFont(QFont(theme.icon_font))
+            painter.setPen(QColor(theme.muted))
+            painter.drawText(
+                rect.adjusted(2, 0, 0, 0),
+                int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft),
+                _GROUP_GLYPH,
+            )
+            painter.setFont(_font(theme, theme.fs_small))
+            painter.setPen(QColor(theme.text))
+            painter.drawText(
+                rect.adjusted(22, 0, 6, 0),
+                int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft),
+                painter.fontMetrics().elidedText(
+                    title, Qt.TextElideMode.ElideRight, rect.width() - 28
+                ),
+            )
+            return
+
+        preview = str(index.data(_ROLE_PREVIEW) or "")
+        updated = str(index.data(_ROLE_UPDATED) or "")
+        title_rect = QRect(rect.x() + 2, rect.y() + 5, rect.width() - 64, 17)
+        updated_rect = QRect(rect.right() - 58, rect.y() + 5, 54, 17)
+        preview_rect = QRect(rect.x() + 2, rect.y() + 22, rect.width() - 8, 15)
+
+        painter.setFont(_font(theme, theme.fs_small))
+        painter.setPen(QColor(theme.text))
+        painter.drawText(
+            title_rect,
+            int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft),
+            painter.fontMetrics().elidedText(
+                title, Qt.TextElideMode.ElideRight, title_rect.width()
+            ),
+        )
+        painter.setPen(QColor(theme.faint))
+        painter.drawText(
+            updated_rect,
+            int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight),
+            updated,
+        )
+        painter.setPen(QColor(theme.muted))
+        painter.setFont(_font(theme, theme.fs_tiny))
+        painter.drawText(
+            preview_rect,
+            int(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft),
+            painter.fontMetrics().elidedText(
+                preview, Qt.TextElideMode.ElideRight, preview_rect.width()
+            ),
+        )
+
+
+def _font(theme: Theme, size: int) -> QFont:
+    font = QFont(theme.font_family)
+    font.setPixelSize(size)
+    return font
 
 
 class NavigatorPanel(VBox):
@@ -56,6 +156,7 @@ class NavigatorPanel(VBox):
         self._tree.activated.connect(self._on_activated)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context)
+        self._tree.setItemDelegate(NavigatorDelegate(self._tree))
         self.add(self._tree, stretch=1)
 
     @property
@@ -77,6 +178,18 @@ class NavigatorPanel(VBox):
     def current_node(self) -> GroupNode | None:
         """当前选中的节点（供外部动作使用）。"""
         return self._value(self._tree.currentIndex())
+
+    def selection(self) -> list[GroupNode]:
+        """当前选中的全部节点（多选批量用）。"""
+        model = self._tree.selectionModel()
+        if model is None:
+            return []
+        nodes: list[GroupNode] = []
+        for index in model.selectedRows():
+            node = self._value(index)
+            if node is not None:
+                nodes.append(node)
+        return nodes
 
     def _value(self, index: QModelIndex) -> GroupNode | None:
         if self._model is None or not index.isValid():

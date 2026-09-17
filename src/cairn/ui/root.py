@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from blake3 import blake3
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from ..domains import Group, Note
@@ -29,6 +30,11 @@ if TYPE_CHECKING:
     from .rows import GroupNode, NoteRow, PropertyRow, RelationRow, VersionRow
 
 SAVE_DEBOUNCE_MS = 800
+
+
+def _group_key_hash(password: str) -> str:
+    """组口令的校验哈希（存哈希不存明文；这不是加密）。"""
+    return blake3(password.encode("utf-8")).hexdigest()
 
 
 def _note_fields() -> list[tuple[str, Callable[[NoteRow], object]]]:
@@ -56,11 +62,13 @@ def _property_fields() -> list[tuple[str, Callable[[PropertyRow], object]]]:
 
 
 def _group_fields() -> list[tuple[str, Callable[[GroupNode], object]]]:
-    """分组树模型的字段 → 取值函数。"""
+    """分组树模型的字段 → 取值函数（顺序与导航委托的角色对齐）。"""
     return [
         ("key", lambda node: node.key),
         ("kind", lambda node: node.kind),
         ("title", lambda node: node.title),
+        ("preview", lambda node: node.preview),
+        ("updated", lambda node: node.updated),
     ]
 
 
@@ -197,6 +205,60 @@ class App(QObject):
         props["trashed"] = False
         note.update(props=props)
         self.reload_notes()
+
+    def _set_flag_many(self, oids: list[str], key: str, value: object) -> None:
+        for raw in oids:
+            try:
+                note = self.session.note(str(raw))
+            except Exception:  # noqa: BLE001, S112 — 缺失不崩界面
+                continue
+            props = note.props()
+            props[key] = value
+            note.update(props=props)
+        self.reload_notes()
+
+    def favorite_many(self, oids: list[str]) -> None:
+        """批量收藏。"""
+        self._set_flag_many(oids, "favorite", value=True)
+
+    def trash_many(self, oids: list[str]) -> None:
+        """批量回收。"""
+        self._set_flag_many(oids, "trashed", value=True)
+
+    def toggle_homepage(self, oid: str) -> None:
+        """把笔记公开到主页 / 取消公开。"""
+        try:
+            note = self.session.note(oid)
+        except Exception:  # noqa: BLE001 — 缺失不崩界面
+            return
+        props = note.props()
+        shares = list(props.get("share") or [])
+        if any(str(entry.get("kind")) == "homepage" for entry in shares):
+            shares = [entry for entry in shares if str(entry.get("kind")) != "homepage"]
+        else:
+            shares.append({"kind": "homepage", "name": ""})
+        props["share"] = shares
+        note.update(props=props)
+        if oid == self._current_oid:
+            self.reload_properties()
+
+    def set_group_key(self, gid: str, password: str) -> None:
+        """设置 / 清除组口令（存哈希）。"""
+        group = self._group(gid)
+        if group is None:
+            return
+        group.key = _group_key_hash(password.strip()) if password.strip() else ""
+        group.save()
+        self.reload_groups()
+
+    def unlock_group(self, gid: str, password: str) -> bool:
+        """校验组口令。"""
+        group = self._group(gid)
+        if group is None:
+            return False
+        if not group.key:
+            return True
+        return _group_key_hash(password) == group.key
 
     def create_note(self, text: str = "", *, title: str | None = None) -> str:
         """新建一篇笔记并打开；返回其 oid。"""

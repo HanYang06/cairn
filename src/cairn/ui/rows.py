@@ -68,6 +68,8 @@ class GroupNode:
     key: str  # 组为 gid（未分组为 ""）；笔记为 oid
     title: str
     children: tuple[GroupNode, ...] = ()
+    updated: str = ""
+    preview: str = ""
 
 
 @dataclass(frozen=True, slots=True)

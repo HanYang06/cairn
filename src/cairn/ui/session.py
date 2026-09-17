@@ -172,10 +172,16 @@ class Session:
 
     def _note_node(self, oid: str) -> GroupNode | None:
         try:
-            note = self.note(oid)
+            row = NoteRow.from_note(self.note(oid))
         except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
             return None
-        return GroupNode("note", oid, note.title or "未命名")
+        return GroupNode(
+            "note",
+            row.oid,
+            row.title,
+            updated=row.updated_label,
+            preview=row.preview,
+        )
 
     def _root_order(self) -> list[str]:
         raw = self._vault.bucket.catalog.get_meta("group_root_order") or ""

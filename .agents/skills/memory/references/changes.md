@@ -205,6 +205,10 @@
   `tools/preview_qml.py` 与 `tests/ui/test_backend.py` / `test_smoke.py`；`packaging/cairn.spec`
   改为携带 `config/`（主题配置）；`ui/__init__` 说明更新。ruff/mypy/234 测试全绿（覆盖率 84%）。
   剩余小件：分享/档案/口令弹层、多选批量、拖拽；以及**视觉对齐**。
+- 2026-09-18 · 已定 · **迁移⑤ + 视觉首版**：`NavigatorDelegate`（组 = 文件夹图标 + 标题；
+  笔记 = 标题 + 预览 + 时间，选中/悬停底色，令牌取色）；`GroupNode` 带 `preview` / `updated`；
+  `App` 加 `favorite_many` / `trash_many` / `toggle_homepage` / `set_group_key` / `unlock_group`；
+  `Shell` 右键支持多选批量、公开主页、设置组口令。ruff/mypy/234 测试全绿（覆盖率 83%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

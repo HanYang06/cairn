@@ -16,6 +16,7 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMenu,
     QVBoxLayout,
@@ -241,14 +242,21 @@ class Shell(VBox):
     # ---- 右键菜单 ----
     def _show_context(self, kind: str, key: str, pos: QPoint) -> None:
         menu = QMenu(self)
-        if kind == "group" and key:
+        selected = [node for node in self.navigator.selection() if node.kind == "note"]
+        if len(selected) > 1:
+            oids = [node.key for node in selected]
+            menu.addAction(f"收藏所选（{len(oids)}）", lambda: self._app.favorite_many(oids))
+            menu.addAction(f"回收所选（{len(oids)}）", lambda: self._app.trash_many(oids))
+        elif kind == "group" and key:
             menu.addAction("新建子组", lambda: self._app.create_group("新组", parent_gid=key))
             menu.addAction("改名…", lambda: self._rename_group(key))
             menu.addAction("锁定 / 解锁", lambda: self._app.toggle_group_lock(key))
+            menu.addAction("设置口令…", lambda: self._prompt_group_key(key))
             menu.addAction("删除组", lambda: self._app.delete_group(key))
         elif kind == "note":
             menu.addAction("关系", self._app.open_relations)
             menu.addAction("历史", lambda: self._app.open_history(key))
+            menu.addAction("公开到主页", lambda: self._app.toggle_homepage(key))
             menu.addAction("移出分组", lambda: self._app.clear_note_groups(key))
             if self._app.show_trash:
                 menu.addAction("恢复", lambda: self._app.restore_note(key))
@@ -261,6 +269,13 @@ class Shell(VBox):
         title, ok = QInputDialog.getText(self, "改组名", "名称")
         if ok:
             self._app.rename_group(gid, title)
+
+    def _prompt_group_key(self, gid: str) -> None:
+        key, ok = QInputDialog.getText(
+            self, "设置组口令", "留空并确定即清除", QLineEdit.EchoMode.Password
+        )
+        if ok:
+            self._app.set_group_key(gid, key)
 
 
 class MainWindow(QMainWindow):
