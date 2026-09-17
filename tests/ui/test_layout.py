@@ -9,7 +9,7 @@ import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QSplitter
 
-from cairn.ui.components import Grid, HBox, Split, VBox
+from cairn.ui.components import Grid, HBox, Split, Stack, VBox
 
 pytestmark = pytest.mark.usefixtures("qapp")
 
@@ -53,3 +53,10 @@ def test_split_drags_between_panes() -> None:
     split.splitter.setStretchFactor(1, 1)
     assert isinstance(split.splitter, QSplitter)
     assert split.splitter.count() == 3
+
+
+def test_stack_switches_children() -> None:
+    stack = Stack(_label("a"), _label("b"))
+    assert stack.stack.count() == 2
+    stack.set_current(1)
+    assert stack.stack.currentIndex() == 1

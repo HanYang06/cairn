@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from .atoms import Button, Field, IconButton, Label, Section
 from .base import Component, Page, Panel
-from .layout import Box, Grid, HBox, Split, VBox
+from .layout import Box, Grid, HBox, Split, Stack, VBox
+from .structure import Toolbar
 
 __all__ = [
     "Box",
@@ -25,5 +26,7 @@ __all__ = [
     "Panel",
     "Section",
     "Split",
+    "Stack",
+    "Toolbar",
     "VBox",
 ]

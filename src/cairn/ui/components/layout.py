@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QBoxLayout,
     QGridLayout,
     QSplitter,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -135,4 +136,32 @@ class Split(Component):
         return child
 
 
-__all__ = ["Box", "Grid", "HBox", "Split", "VBox"]
+class Stack(Component):
+    """堆叠：一次只显示一个子件（页面 / 视图切换用）。"""
+
+    def __init__(self, *children: QWidget, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._stack = QStackedWidget(self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._stack)
+        for child in children:
+            self.add(child)
+
+    @property
+    def stack(self) -> QStackedWidget:
+        """底层 `QStackedWidget`。"""
+        return self._stack
+
+    def add(self, child: QWidget) -> QWidget:
+        """加一个可切换的页面；返回该子件。"""
+        self._stack.addWidget(child)
+        return child
+
+    def set_current(self, index: int) -> None:
+        """切到第 `index` 个页面。"""
+        self._stack.setCurrentIndex(index)
+
+
+__all__ = ["Box", "Grid", "HBox", "Split", "Stack", "VBox"]
