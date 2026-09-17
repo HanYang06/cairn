@@ -134,6 +134,9 @@
   页面/视图切换）；新增 `components/structure.py`（`Toolbar`：图标动作 + `triggered(id)` 意图）；
   `components/__init__` 导出。规则补「组合可递归，类型仍为组合类型」。schema 自动含新部件。
   ruff/mypy/238 测试全绿（覆盖率 83%）。
+- 2026-09-18 · 已定 · **原子补齐 + 可样式化载体**：`Component` 开 `WA_StyledBackground`（纯 QWidget
+  子类也能被 QSS 背景命中）；原子加 `Divider` / `Chip` / `ToggleSwitch`；schema 自动含新部件。
+  ruff/mypy/241 测试全绿（覆盖率 84%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

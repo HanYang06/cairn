@@ -7,7 +7,16 @@ from __future__ import annotations
 
 import pytest
 
-from cairn.ui.components import Button, Field, IconButton, Label, Section
+from cairn.ui.components import (
+    Button,
+    Chip,
+    Divider,
+    Field,
+    IconButton,
+    Label,
+    Section,
+    ToggleSwitch,
+)
 
 pytestmark = pytest.mark.usefixtures("qapp")
 
@@ -49,3 +58,24 @@ def test_section_holds_body() -> None:
     layout = section.body.layout()
     assert layout is not None
     assert layout.count() == 1
+
+
+def test_chip_emits_clicked() -> None:
+    seen: list[int] = []
+    chip = Chip("标签", on_click=lambda: seen.append(1))
+    chip.control.click()
+    assert seen == [1]
+
+
+def test_toggle_switch_emits_toggled() -> None:
+    got: list[bool] = []
+    switch = ToggleSwitch()
+    switch.toggled.connect(got.append)
+    switch.checked = True
+    assert got == [True]
+    assert switch.checked is True
+
+
+def test_divider_orientation() -> None:
+    assert Divider().maximumHeight() == 1
+    assert Divider(vertical=True).maximumWidth() == 1

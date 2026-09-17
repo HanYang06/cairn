@@ -12,6 +12,7 @@ from __future__ import annotations
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 from ..signal import Subscription
@@ -54,6 +55,8 @@ class Component(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        # 让纯 QWidget 子类也能被 QSS 背景命中（否则背景不绘制）。
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)  # noqa: FBT003 — Qt API
         self._watchers: list[tuple[Any, Any]] = []
         self.destroyed.connect(self._cancel_watchers)
         if not self.objectName():

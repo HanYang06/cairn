@@ -15,9 +15,11 @@ from typing import TYPE_CHECKING, ClassVar
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QLabel,
     QLineEdit,
     QPushButton,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -189,4 +191,93 @@ class Section(VBox):
         self._header.text = text
 
 
-__all__ = ["Button", "Field", "IconButton", "Label", "Section"]
+class Divider(Component):
+    """分隔线（横 / 纵）；本身即被样式化的载体。"""
+
+    STATES: ClassVar[frozenset[str]] = frozenset()
+    STYLABLE: ClassVar[frozenset[str]] = Component.STYLABLE | {"background"}
+
+    def __init__(self, *, vertical: bool = False, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        if vertical:
+            self.setFixedWidth(1)
+            self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        else:
+            self.setFixedHeight(1)
+            self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+
+class Chip(Component):
+    """标签 / 胶囊按钮；点击以 ``clicked`` 发意图。"""
+
+    clicked = Signal()
+
+    def __init__(
+        self,
+        text: str = "",
+        *,
+        on_click: Callable[[], None] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._button = QPushButton(text, self)
+        self._button.setFlat(True)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._button)
+        self._button.clicked.connect(self.clicked.emit)
+        if on_click is not None:
+            self.clicked.connect(on_click)
+
+    @property
+    def control(self) -> QPushButton:
+        """内层 Qt 控件。"""
+        return self._button
+
+    @property
+    def text(self) -> str:
+        return self._button.text()
+
+    @text.setter
+    def text(self, value: str) -> None:
+        self._button.setText(value)
+
+
+class ToggleSwitch(Component):
+    """布尔开关；变化以 ``toggled(bool)`` 发意图。"""
+
+    toggled = Signal(bool)
+
+    def __init__(self, *, checked: bool = False, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._check = QCheckBox(self)
+        self._check.setChecked(checked)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._check)
+        self._check.toggled.connect(self.toggled.emit)
+
+    @property
+    def control(self) -> QCheckBox:
+        """内层 Qt 控件。"""
+        return self._check
+
+    @property
+    def checked(self) -> bool:
+        return self._check.isChecked()
+
+    @checked.setter
+    def checked(self, value: bool) -> None:
+        self._check.setChecked(value)
+
+
+__all__ = [
+    "Button",
+    "Chip",
+    "Divider",
+    "Field",
+    "IconButton",
+    "Label",
+    "Section",
+    "ToggleSwitch",
+]
