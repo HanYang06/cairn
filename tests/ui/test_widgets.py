@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QApplication, QSplitter
 
 from cairn.core import Vault
 from cairn.domains import Note
-from cairn.ui.components import Component, ListPanel, Panel, Stack
+from cairn.ui.components import Component, InspectorPanel, ListPanel, Panel, Stack
 from cairn.ui.root import App
 from cairn.ui.theme import LIGHT, current_theme, set_current_theme
 from cairn.ui.theme.manager import ThemeManager
@@ -50,7 +50,7 @@ def test_shell_has_three_panes(tmp_path: Path) -> None:
     shell = Shell(root)
     assert isinstance(shell, Component)
     assert isinstance(shell.center, Stack)
-    assert isinstance(shell.inspector, Panel)
+    assert isinstance(shell.inspector, InspectorPanel)
     splitter = shell.findChild(QSplitter, "ShellSplit")
     assert splitter is not None
     assert splitter.count() == 3
@@ -84,6 +84,34 @@ def test_app_notes_model_reflects_vault(tmp_path: Path) -> None:
     assert root.notes.rowCount() == 1
     assert root.note_title(str(note.oid)) == "甲"
 
+    root.shutdown()
+
+
+def test_app_open_note_populates_properties(tmp_path: Path) -> None:
+    vault = Vault.create(tmp_path / "vault")
+    root = App(vault)
+    note = Note.create(vault, "正文", title="甲")
+    root.bridge.flush()
+
+    root.open_note(str(note.oid))
+    assert root.current_oid == str(note.oid)
+    rows = [root.properties.row_at(i) for i in range(root.properties.rowCount())]
+    assert any(row is not None and row.pid == "favorite" for row in rows)
+
+    root.open_note("")
+    assert root.properties.rowCount() == 0
+    root.shutdown()
+
+
+def test_shell_open_note_updates_app(tmp_path: Path) -> None:
+    vault = Vault.create(tmp_path / "vault")
+    root = App(vault)
+    note = Note.create(vault, "正文", title="甲")
+    root.bridge.flush()
+
+    shell = Shell(root)
+    shell.navigator.activated.emit(str(note.oid))
+    assert root.current_oid == str(note.oid)
     root.shutdown()
 
 

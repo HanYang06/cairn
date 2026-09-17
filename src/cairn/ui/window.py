@@ -3,7 +3,7 @@
 
 """主窗口与外壳：`MainWindow`（QMainWindow）+ `Shell`（活动栏 + 三栏）。
 
-导航接真实笔记列表；中央 `Stack` 做页面路由；编辑器 / 检查器为占位。
+导航接真实笔记列表；中央 `Stack` 做页面路由；检查器接属性模型；编辑器为占位。
 见 `rules/references/ui-boundary.md`。
 """
 
@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QMainWindow, QVBoxLayout, QWidget
 
-from .components import ActivityBar, HBox, ListPanel, Page, Panel, Split, Stack
+from .components import ActivityBar, HBox, InspectorPanel, ListPanel, Page, Split, Stack
 from .theme import current_theme
 
 if TYPE_CHECKING:
@@ -62,12 +62,8 @@ class Shell(HBox):
         self._pages = [self.notes_page, self.projects_page, self.community_page]
         self.center = Stack(*self._pages)
 
-        self.inspector = Panel("属性")
-        inspector_hint = QLabel("属性检查器（P1）")
-        inspector_hint.setObjectName("Faint")
-        inspector_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        inspector_layout = QVBoxLayout(self.inspector.body)
-        inspector_layout.addWidget(inspector_hint)
+        self.inspector = InspectorPanel()
+        self.inspector.set_model(app.properties)
 
         self.split = Split(
             self.navigator,
@@ -85,11 +81,13 @@ class Shell(HBox):
 
     def switch_page(self, item_id: str) -> None:
         """按活动栏条目 id 切换中央页面。"""
-        index = self.activity.items.index(item_id) if item_id in self.activity.items else -1
+        items = self.activity.items
+        index = items.index(item_id) if item_id in items else -1
         if 0 <= index < len(self._pages):
             self.center.set_current(index)
 
     def _open_note(self, oid: str) -> None:
+        self._app.open_note(oid)
         self.switch_page("notes")
         self._editor_hint.setText(self._app.note_title(oid))
 

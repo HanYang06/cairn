@@ -146,6 +146,10 @@
 - 2026-09-18 · 已定 · **主页面骨架**：新增 `ActivityBar`（竖向条目 + `activated(id)`）；`Shell` 改 `HBox`
   （活动栏 + Split），中央用 `Stack` 做页面路由（笔记 / 项目 / 社区占位）；导航行激活切回笔记页。
   ruff/mypy/245 测试全绿（覆盖率 84%）。
+- 2026-09-18 · 已定 · **检查器结构件 + 当前笔记联动**：`PropertyRow` 类型化行；`Session.note_properties`
+  投影属性（类型/库/作者/签名/标签/收藏/归档/创建/修改/字数/大小）；`App` 记当前笔记、维护
+  `properties` 模型（`current_changed` / `properties_changed`）；`InspectorPanel` 结构件接属性模型；
+  `Shell` 导航激活 → `App.open_note`。ruff/mypy/247 测试全绿（覆盖率 84%）。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是

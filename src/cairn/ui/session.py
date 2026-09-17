@@ -15,8 +15,20 @@ from __future__ import annotations
 
 from ..core import Event, ObjectDeleted, ObjectPut, Vault
 from ..domains import Note
-from .rows import NoteRow
+from .format import fmt_size, fmt_time
+from .rows import NoteRow, PropertyRow
 from .signal import Cancellable, Signal
+
+VAULT_LABEL = "个人空间"
+
+
+def _short_signature(signature: object) -> str:
+    value = str(getattr(signature, "value", "") or "")
+    if not value:
+        return "—"
+    alg = str(getattr(signature, "alg", "") or "")
+    head = value[:10] + "…"
+    return f"{alg} · {head}" if alg else head
 
 
 class Session:
@@ -47,6 +59,36 @@ class Session:
     def note(self, oid: str) -> Note:
         """按需加载一篇笔记（用于编辑，不进缓存）。"""
         return Note.load(self._vault, oid)
+
+    def note_properties(self, oid: str) -> list[PropertyRow]:
+        """把一篇笔记投影成检查器的属性行。"""
+        try:
+            note = self.note(oid)
+        except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
+            return []
+        props = note.props()
+        info = note.info
+        return [
+            PropertyRow("kind", "类型", "笔记", "text", editable=False),
+            PropertyRow("vault", "库", VAULT_LABEL, "text", editable=False),
+            PropertyRow("author", "作者", note.author or "—", "text", editable=False),
+            PropertyRow(
+                "signature", "签名", _short_signature(note.signature), "text", editable=False
+            ),
+            PropertyRow(
+                "tags",
+                "标签",
+                "、".join(str(key) for key in note.tags) or "—",
+                "text",
+                editable=False,
+            ),
+            PropertyRow("favorite", "收藏", bool(props.get("favorite")), "bool", editable=True),
+            PropertyRow("archived", "归档", bool(props.get("archived")), "bool", editable=True),
+            PropertyRow("created", "创建", fmt_time(int(info.created)), "text", editable=False),
+            PropertyRow("updated", "修改", fmt_time(int(info.updated)), "text", editable=False),
+            PropertyRow("words", "字数", len(note.text), "count", editable=False),
+            PropertyRow("size", "大小", fmt_size(int(info.size)), "text", editable=False),
+        ]
 
     def _build_rows(self) -> list[NoteRow]:
         infos = sorted(

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QObject
+from PySide6.QtCore import QObject, Signal
 
 from .bridge import SessionBridge
 from .models import ListModel
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from ..core import Vault
-    from .rows import NoteRow
+    from .rows import NoteRow, PropertyRow
 
 
 def _note_fields() -> list[tuple[str, Callable[[NoteRow], object]]]:
@@ -36,8 +36,23 @@ def _note_fields() -> list[tuple[str, Callable[[NoteRow], object]]]:
     ]
 
 
+def _property_fields() -> list[tuple[str, Callable[[PropertyRow], object]]]:
+    """检查器模型的字段 → 取值函数。"""
+    return [
+        ("pid", lambda row: row.pid),
+        ("label", lambda row: f"{row.key}: {row.value}"),
+        ("key", lambda row: row.key),
+        ("value", lambda row: row.value),
+        ("kind", lambda row: row.kind),
+        ("editable", lambda row: row.editable),
+    ]
+
+
 class App(QObject):
-    """应用组合根：状态镜像、变更桥与共享模型。"""
+    """应用组合根：状态镜像、变更桥、共享模型与当前笔记。"""
+
+    current_changed = Signal()
+    properties_changed = Signal()
 
     def __init__(self, vault: Vault, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -45,12 +60,33 @@ class App(QObject):
         self.session = Session(vault)
         self.bridge = SessionBridge(self.session, self)
         self.notes: ListModel[NoteRow] = ListModel(_note_fields(), display="title")
-        self.bridge.changed.connect(self.reload_notes)
+        self.properties: ListModel[PropertyRow] = ListModel(_property_fields(), display="label")
+        self._current_oid = ""
+        self.bridge.changed.connect(self._on_changed)
         self.reload_notes()
+
+    @property
+    def current_oid(self) -> str:
+        """当前笔记 oid（无则空串）。"""
+        return self._current_oid
 
     def reload_notes(self) -> None:
         """按当前 Session 投影刷新笔记列表模型。"""
         self.notes.set_rows(self.session.note_rows())
+
+    def open_note(self, oid: str) -> None:
+        """把某篇笔记设为当前，并刷新检查器属性。"""
+        if oid == self._current_oid:
+            return
+        self._current_oid = oid
+        self.reload_properties()
+        self.current_changed.emit()
+
+    def reload_properties(self) -> None:
+        """按当前笔记刷新检查器属性模型。"""
+        rows = self.session.note_properties(self._current_oid) if self._current_oid else []
+        self.properties.set_rows(rows)
+        self.properties_changed.emit()
 
     def note_title(self, oid: str) -> str:
         """取一篇笔记的标题（供界面展示）。"""
@@ -59,6 +95,11 @@ class App(QObject):
         except Exception:  # noqa: BLE001 — 缺失 / 损坏不崩界面
             return "（缺失）"
         return note.title or "未命名"
+
+    def _on_changed(self) -> None:
+        self.reload_notes()
+        if self._current_oid:
+            self.reload_properties()
 
     def shutdown(self) -> None:
         """退出前收口：断开桥与订阅，关闭库。"""

@@ -118,4 +118,30 @@ class ActivityBar(VBox):
         return list(self._items)
 
 
-__all__ = ["ActivityBar", "ListPanel", "Toolbar"]
+class InspectorPanel(VBox):
+    """属性检查器：标题 + 属性列表（数据来自 `ListModel`）。"""
+
+    def __init__(self, title: str = "属性", *, parent: QWidget | None = None) -> None:
+        super().__init__(parent=parent, spacing=0)
+        self._title = Label(title, role="PanelTitle")
+        self._view = QListView()
+        self._view.setObjectName("InspectorList")
+        self.add(self._title)
+        self.add(Divider())
+        self.add(self._view, stretch=1)
+
+    @property
+    def view(self) -> QListView:
+        """底层属性列表控件。"""
+        return self._view
+
+    def set_model(self, model: ListModel[Any]) -> None:
+        """绑定属性模型。"""
+        self._view.setModel(model)
+
+    def set_title(self, text: str) -> None:
+        """更新标题。"""
+        self._title.text = text
+
+
+__all__ = ["ActivityBar", "InspectorPanel", "ListPanel", "Toolbar"]

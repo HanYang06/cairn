@@ -49,4 +49,15 @@ class NoteRow:
         )
 
 
-__all__ = ["NoteRow"]
+@dataclass(frozen=True, slots=True)
+class PropertyRow:
+    """检查器里的一行属性：``kind`` 决定渲染方式（文本 / 布尔 / 计数）。"""
+
+    pid: str
+    key: str
+    value: object
+    kind: str
+    editable: bool
+
+
+__all__ = ["NoteRow", "PropertyRow"]

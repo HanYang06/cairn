@@ -11,7 +11,7 @@ from __future__ import annotations
 from .atoms import Button, Chip, Divider, Field, IconButton, Label, Section, ToggleSwitch
 from .base import Component, Page, Panel
 from .layout import Box, Grid, HBox, Split, Stack, VBox
-from .structure import ActivityBar, ListPanel, Toolbar
+from .structure import ActivityBar, InspectorPanel, ListPanel, Toolbar
 
 __all__ = [
     "ActivityBar",
@@ -24,6 +24,7 @@ __all__ = [
     "Grid",
     "HBox",
     "IconButton",
+    "InspectorPanel",
     "Label",
     "ListPanel",
     "Page",
