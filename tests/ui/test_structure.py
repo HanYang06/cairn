@@ -7,7 +7,8 @@ from __future__ import annotations
 
 import pytest
 
-from cairn.ui.components import Section, Toolbar
+from cairn.ui.components import ListPanel, Section, Toolbar
+from cairn.ui.models import ListModel
 
 pytestmark = pytest.mark.usefixtures("qapp")
 
@@ -27,3 +28,16 @@ def test_composites_nest_arbitrarily() -> None:
     inner = Section("内")
     outer.body.add(inner)
     assert inner.parent() is outer.body
+
+
+def test_list_panel_binds_model_and_emits_key() -> None:
+    panel = ListPanel("笔记", key_of=lambda row: row)
+    model: ListModel[str] = ListModel([("title", str)], display="title")
+    model.set_rows(["a", "b"])
+    panel.set_model(model)
+    got: list[str] = []
+    panel.activated.connect(got.append)
+
+    assert panel.view.model() is model
+    panel._on_activated(model.index(1, 0))
+    assert got == ["b"]

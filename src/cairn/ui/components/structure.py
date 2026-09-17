@@ -9,15 +9,20 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import QModelIndex, Signal
+from PySide6.QtWidgets import QAbstractItemView, QListView
 
-from .atoms import IconButton
-from .layout import HBox
+from .atoms import Divider, IconButton, Label
+from .layout import HBox, VBox
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from PySide6.QtWidgets import QWidget
+
+    from ..models import ListModel
 
 
 class Toolbar(HBox):
@@ -35,4 +40,60 @@ class Toolbar(HBox):
         return button
 
 
-__all__ = ["Toolbar"]
+class ListPanel(VBox):
+    """列表结构件：标题 + 工具条 + 列表；行激活发 ``activated(key)`` 意图。
+
+    只负责展示与发意图；数据来自传入的 `ListModel`，联动由页面控制器组织。
+    """
+
+    activated = Signal(str)
+
+    def __init__(
+        self,
+        title: str = "",
+        *,
+        key_of: Callable[[Any], str] | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent=parent, spacing=0)
+        self._key_of = key_of
+        self._model: ListModel[Any] | None = None
+
+        header = HBox(spacing=4)
+        self._title = Label(title, role="PanelTitle")
+        self.toolbar = Toolbar()
+        header.add(self._title, stretch=1)
+        header.add(self.toolbar)
+        self.add(header)
+        self.add(Divider())
+
+        self._view = QListView()
+        self._view.setObjectName("ListPanelView")
+        self._view.setUniformItemSizes(True)
+        self._view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self._view.activated.connect(self._on_activated)
+        self.add(self._view, stretch=1)
+
+    @property
+    def view(self) -> QListView:
+        """底层列表控件。"""
+        return self._view
+
+    def set_model(self, model: ListModel[Any]) -> None:
+        """绑定数据模型。"""
+        self._model = model
+        self._view.setModel(model)
+
+    def set_title(self, text: str) -> None:
+        """更新标题。"""
+        self._title.text = text
+
+    def _on_activated(self, index: QModelIndex) -> None:
+        if self._key_of is None or self._model is None or not index.isValid():
+            return
+        row = self._model.row_at(index.row())
+        if row is not None:
+            self.activated.emit(self._key_of(row))
+
+
+__all__ = ["ListPanel", "Toolbar"]
