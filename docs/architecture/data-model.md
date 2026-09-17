@@ -143,6 +143,7 @@ note ──relation(DB)──► project / note
 | `cairn.canvas` | `CanvasBody` | 画板：模式 + 图形 + 连线（数值序列） |
 | `cairn.asset` | 裸 body（bytes） | 二进制 / 大对象，入库先转码 |
 | `cairn.project` | 裸 body（默认空） | 具名容器；成员走 `contains` 关系 |
+| `cairn.group` | 裸 body（默认空） | 组：`gid` 域身份 + 有序子项 ID 列表（笔记 / 项目 / 组），可嵌套 |
 | `cairn.block` | 裸 body | 未登记 `type` 的兜底裸块 |
 | `cairn.part` / `cairn.index` | 裸 body | 内部分片 / 索引块（不做块级去重） |
 | —（不是块） | — | 关系：`relations` 表的一行 |
@@ -213,6 +214,18 @@ CanvasBody = { "m": mode, "g": [图形序列...], "l": [连线序列...] }
   只是点路径参数化的预设；自定义形状 = 一组点。
 - **算得出来的不记录**：能由 `form + 参数` 推出的顶点一律不存。
 
+### 5.6 组（Group）
+
+> **已实现（数据模型，2026-09-17）**：`domains/group.py`（`cairn.group`）；导航树未接。
+
+- **组是块**：有自己的稳定域 ID **`gid`**（与块的存储身份 `oid` **分开**）与 `title` / `lock`。
+- **`group: list[str]`**：有序子项 ID 列表，装笔记 / 项目 / **组**——组存 `gid`，其余存 `oid`；
+  顺序即显示顺序，可无限嵌套。
+- **两套归属都存**：`group` 列表存**结构**（顺序），`relations` 表存 `contains` 关系（**反查**某块在哪些组）。
+- `lock`：锁定后不可增删成员。`owner` / `member`：社区「有限编辑组」预埋（`User` 系统落地前用字符串）。
+  `key`：访问口令，非空则进组要密码（是口令，不是加密）。
+- 组不承载版本；`checksum = body_hash`（body 为空，故组间共享空内容，属预期）。
+
 ---
 
 ## 6. 存储态
@@ -271,6 +284,8 @@ meta(key PK, value)
   - 版本 id = `blake3(canonical({prev, at, sig}))`；`prev` 单亲链，顺序从 head 沿 prev 走，不依赖时间 / 序号。
   - 第一版记根节点（空补丁），此后每次**内容变化**追加一个**反向补丁**（新 → 旧）。
 - 域提供 `Codec`（`digest / diff / apply`）：笔记在 `note/versions.py`（按行 id 锚定 `PUT` / `DROP` / `@order`）。
+- **保存与版本分离**：自动保存只落盘（`Note.persist`）；检查点（`Note.save`）只在**非连续编辑边界**产生——
+  空闲超时（默认 5 分钟）、切换笔记、`Ctrl+S`、退出。避免逐次保存堆出大量微小版本。
 - 保留窗默认 30 天，更新时惰性压实。哲学「笔记残页」：补丁脱离当前块上下文即失效；`fold` 尚未实现。
 - **块本身不承载版本**：版本是领域策略（同一引擎，不同 Codec）。
 
@@ -378,6 +393,7 @@ VersionStore ── 按块 id 的版本链（DB）
 | 画板 canvas | `Canvas` / `CanvasBody` / `Graphic` / `Paint` / `Link` | `cairn.canvas` | `domains/canvas.py` | 数据模型已实现（无编辑 UI） |
 | 资产 asset | `Asset` | `cairn.asset` | `domains/asset.py` | 部分（转码恒等） |
 | 项目 project | `Project` | `cairn.project` | `domains/project/__init__.py` | 部分 |
+| 组 group | `Group` | `cairn.group` | `domains/group.py` | 数据模型已实现（导航树未接） |
 | 关系 relation | `Relation`（DB 行） | — | `domains/relation.py` | 已实现 |
 | 衍生关系 | `ancestors` / `descendants` / `lineage` / `derivatives` | `derived-from` | `domains/provenance.py` | 已实现（由关系派生） |
 | 签名 | `Signature` | — | `domains/signature.py` | 已实现 |
@@ -417,7 +433,7 @@ VersionStore ── 按块 id 的版本链（DB）
 | 画板（diagram / sketch）数据模型 | §5.2 | 数据模型在（`Canvas` / `Graphic`），**无编辑 UI** |
 | 逻辑图自动布局 / 连线走线 | §5.2 | 未实现 |
 | 资产转码（图片 / 音频 / 视频） | §5.3 | 草案（恒等） |
-| 后台 `currentBlocks` 接编辑器 | §5.1 | 后端已备（`Backend.currentBlocks`），QML 未接 |
+| 后台 `currentBlocks` 接编辑器 | §5.1 | **已接**（逐行编辑器首版：行编辑 + 行内样式 + 占位 chip） |
 | 大正文分片（`put_content`）接笔记 | §6.3 | 未实现（桶能力已在） |
 | `fold`（把版本链折成新版本） | §6.5 | 未实现 |
 | pack 压实（收回空洞） | §8 | 未实现 |

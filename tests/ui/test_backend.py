@@ -207,7 +207,7 @@ def test_views_relations_and_history(backend: Backend) -> None:
 def test_restore_version_through_backend(backend: Backend) -> None:
     backend.captureNote("第一版")
     backend.queueSave("第二版")
-    backend.flush()
+    backend.saveNow()  # 检查点：连续编辑的边界才记版本
 
     versions = backend.currentVersions
     assert versions[0]["current"] is True
@@ -290,9 +290,12 @@ def test_current_properties_schema(backend: Backend) -> None:
         "kind",
         "vault",
         "author",
+        "authors",
+        "signature",
         "tags",
         "favorite",
         "archived",
+        "visibility",
         "created",
         "updated",
         "words",
@@ -385,3 +388,209 @@ def test_current_blocks_view(backend: Backend) -> None:
     backend.queueSave("改\n后")
     backend.flush()
     assert [block["text"] for block in backend.currentBlocks] == ["改", "后"]
+
+
+def test_line_edit_slots(backend: Backend) -> None:
+    backend.createNote()
+    first = backend.currentBlocks[0]["id"]
+
+    backend.setLineText(first, "床前明月光")
+    backend.flush()
+    assert backend.currentText == "床前明月光"
+
+    second = backend.splitLine(first, 4)
+    backend.flush()
+    texts = [block["text"] for block in backend.currentBlocks]
+    assert texts == ["床前明月", "光"]
+
+    merged = backend.mergeLine(second)
+    backend.flush()
+    assert merged == first
+    assert backend.currentText == "床前明月光"
+
+    inserted = backend.insertLineAfter(first, "疑是地上霜")
+    backend.flush()
+    assert inserted
+    assert [block["text"] for block in backend.currentBlocks] == ["床前明月光", "疑是地上霜"]
+
+    backend.removeLine(inserted)
+    backend.flush()
+    assert [block["text"] for block in backend.currentBlocks] == ["床前明月光"]
+
+
+def test_autosave_defers_version_until_checkpoint(backend: Backend) -> None:
+    backend.captureNote("v1")
+    assert len(backend.currentVersions) == 1
+
+    lid = backend.currentBlocks[0]["id"]
+    backend.setLineText(lid, "v2")
+    backend.flush()  # 自动保存：只落盘
+    assert len(backend.currentVersions) == 1
+    assert backend.currentText == "v2"
+
+    backend.saveNow()  # 检查点
+    assert len(backend.currentVersions) == 2
+
+
+def test_toggle_line_style_through_backend(backend: Backend) -> None:
+    backend.captureNote("abcdef")
+    lid = backend.currentBlocks[0]["id"]
+
+    backend.toggleLineStyle(lid, 1, 3, "bold")
+    backend.flush()
+
+    styles = backend.currentBlocks[0]["styles"]
+    assert styles == [
+        [
+            1,
+            3,
+            {
+                "bold": True,
+                "italic": False,
+                "underline": False,
+                "strike": False,
+                "font": "",
+                "color": "",
+                "size": 0.0,
+            },
+        ]
+    ]
+
+    backend.toggleLineStyle(lid, 1, 3, "bold")
+    backend.flush()
+    assert backend.currentBlocks[0]["styles"] == []
+
+
+def test_group_tree_membership(backend: Backend) -> None:
+    oid = backend.captureNote("组内笔记")
+    gid = backend.createGroup("工作")
+    backend.addNoteToGroup(oid, gid)
+
+    tree = backend.groupTree
+    work = next(node for node in tree if node["gid"] == gid)
+    assert work["title"] == "工作"
+    assert [child["kind"] for child in work["children"]] == ["note"]
+    assert work["children"][0]["oid"] == oid
+    assert backend.groupChoices == [{"gid": gid, "title": "工作"}]
+
+
+def test_group_nested_and_ungrouped(backend: Backend) -> None:
+    oid = backend.captureNote("自由笔记")
+    parent = backend.createGroup("父")
+    child = backend.createGroup("子", parent)
+
+    tree = backend.groupTree
+    parent_node = next(node for node in tree if node["gid"] == parent)
+    assert [node["gid"] for node in parent_node["children"]] == [child]
+
+    ungrouped = next(node for node in tree if node["title"] == "未分组")
+    assert [node["oid"] for node in ungrouped["children"]] == [oid]
+
+
+def test_group_lock_blocks_membership(backend: Backend) -> None:
+    oid = backend.captureNote("x")
+    gid = backend.createGroup("锁")
+    backend.toggleGroupLock(gid)
+    backend.addNoteToGroup(oid, gid)
+
+    node = next(node for node in backend.groupTree if node["gid"] == gid)
+    assert node["lock"] is True
+    assert node["children"] == []
+
+
+def test_group_lock_blocks_rename(backend: Backend) -> None:
+    gid = backend.createGroup("锁")
+    backend.renameGroup(gid, "改名前")
+    backend.toggleGroupLock(gid)
+    backend.renameGroup(gid, "改名后")
+    assert backend.groupChoices == [{"gid": gid, "title": "改名前"}]
+
+
+def test_group_key_unlock_flow(backend: Backend) -> None:
+    gid = backend.createGroup("密")
+    backend.setGroupKey(gid, "pass123")
+
+    node = next(node for node in backend.groupTree if node["gid"] == gid)
+    assert node["has_key"] is True
+    assert node["unlocked"] is False
+
+    assert backend.unlockGroup(gid, "wrong") is False
+    assert backend.unlockGroup(gid, "pass123") is True
+    node = next(node for node in backend.groupTree if node["gid"] == gid)
+    assert node["unlocked"] is True
+
+    backend.setGroupKey(gid, "newpass")
+    node = next(node for node in backend.groupTree if node["gid"] == gid)
+    assert node["unlocked"] is False
+
+
+def test_move_group_and_cycle_guard(backend: Backend) -> None:
+    a = backend.createGroup("A")
+    b = backend.createGroup("B")
+    backend.moveGroup(b, a)
+
+    node_a = next(node for node in backend.groupTree if node["gid"] == a)
+    assert [node["gid"] for node in node_a["children"]] == [b]
+
+    backend.moveGroup(a, b)  # 会成环，应拒绝
+    roots = [node["gid"] for node in backend.groupTree if node["gid"] != ""]
+    assert a in roots
+    node_a = next(node for node in backend.groupTree if node["gid"] == a)
+    node_b = next(child for child in node_a["children"] if child["gid"] == b)
+    assert node_b["children"] == []
+
+
+def test_reorder_in_group(backend: Backend) -> None:
+    first = backend.captureNote("一")
+    second = backend.captureNote("二")
+    gid = backend.createGroup("组")
+    backend.addNoteToGroup(first, gid)
+    backend.addNoteToGroup(second, gid)
+
+    backend.reorderInGroup(gid, second, -1)
+    node = next(node for node in backend.groupTree if node["gid"] == gid)
+    assert [child["oid"] for child in node["children"]] == [second, first]
+
+
+def test_reorder_root_groups(backend: Backend) -> None:
+    a = backend.createGroup("A")
+    b = backend.createGroup("B")
+    assert [node["gid"] for node in backend.groupTree] == [a, b]
+
+    backend.reorderGroup(b, -1)
+    assert [node["gid"] for node in backend.groupTree] == [b, a]
+
+
+def test_filter_by_group(backend: Backend) -> None:
+    inside = backend.captureNote("组内")
+    backend.captureNote("组外")
+    gid = backend.createGroup("组")
+    backend.addNoteToGroup(inside, gid)
+
+    backend.filterByGroup(gid)
+    assert [node["gid"] for node in backend.groupTree] == [gid]
+
+    backend.clearGroupFilter()
+    assert backend.groupFilter == ""
+    assert len(backend.groupTree) >= 1
+
+
+def test_rename_and_delete_group(backend: Backend) -> None:
+    gid = backend.createGroup("旧")
+    backend.renameGroup(gid, "新")
+    assert backend.groupChoices == [{"gid": gid, "title": "新"}]
+
+    backend.deleteGroup(gid)
+    assert backend.groupChoices == []
+
+
+def test_search_notes_palette(backend: Backend) -> None:
+    backend.captureNote("床前明月光")
+    backend.captureNote("今天是个好天气")
+
+    results = backend.searchNotes("明月")
+    assert len(results) == 1
+    assert results[0]["title"] == "床前明月光"
+    assert results[0]["preview"] != ""
+
+    assert backend.searchNotes("") == []

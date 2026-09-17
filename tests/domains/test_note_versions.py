@@ -41,6 +41,27 @@ def test_metadata_only_change_does_not_version(tmp_path: Path) -> None:
     assert note.history() == before
 
 
+def test_persist_defers_version_until_checkpoint(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    note = Note.create(vault, "v1")
+    assert len(note.history()) == 1
+
+    note.set_text("v2")
+    note.persist()
+    note.set_text("v3")
+    note.persist()
+
+    # 自动保存（persist）只落盘，不进历史。
+    assert len(note.history()) == 1
+    assert Note.load(vault, note.oid).text == "v3"
+
+    note.save()  # 检查点
+    history = note.history()
+    assert len(history) == 2
+    assert [line["v"] for line in note.body_at(history[-1]["id"])] == ["v1"]
+    assert [line["v"] for line in note.body_at(history[0]["id"])] == ["v3"]
+
+
 def test_diff_is_reverse_and_incremental(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     note = Note.create(vault, "hello world")

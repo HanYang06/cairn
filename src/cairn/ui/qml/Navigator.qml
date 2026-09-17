@@ -12,10 +12,19 @@ Rectangle {
     property string mode: "notes"
     signal requestNotes()
     signal noteMenuRequested(string oid, real x, real y)
+    signal groupMenuRequested(string gid, real x, real y)
+    signal groupUnlockRequested(string gid)
 
     // 多选
     property bool selecting: false
     property var selectedOids: ({})
+    // 显示形态
+    property bool dense: false
+    property var collapsedGids: ({})
+    property string editingGid: ""
+    // 拖拽载荷
+    property string dragKind: ""
+    property string dragId: ""
 
     function selectedCount() {
         let n = 0;
@@ -53,6 +62,91 @@ Rectangle {
         nav.selecting = false;
         nav.clearSelection();
     }
+
+    // ===== 分组树 =====
+    function isExpanded(gid) {
+        return gid === "" || nav.collapsedGids[gid] !== true;
+    }
+    function toggleGroup(gid) {
+        const m = Object.assign({}, nav.collapsedGids);
+        if (m[gid])
+            delete m[gid];
+        else
+            m[gid] = true;
+        nav.collapsedGids = m;
+        nav.rebuildRows();
+    }
+    function expandGroup(gid) {
+        const m = Object.assign({}, nav.collapsedGids);
+        delete m[gid];
+        nav.collapsedGids = m;
+        nav.rebuildRows();
+    }
+    function rebuildRows() {
+        groupRowsModel.clear();
+        nav.walk(backend.groupTree, 0);
+    }
+    function walk(nodes, depth) {
+        const hasGroups = backend.groupChoices.length > 0;
+        for (let i = 0; i < nodes.length; ++i) {
+            const node = nodes[i];
+            if (node.kind === "group") {
+                if (node.gid === "" && !hasGroups) {
+                    nav.walk(node.children, depth);
+                    continue;
+                }
+                groupRowsModel.append({
+                    "rowKind": "group",
+                    "gid": node.gid,
+                    "oid": "",
+                    "title": node.title,
+                    "depth": depth,
+                    "count": node.count,
+                    "locked": node.lock,
+                    "hasKey": node.has_key,
+                    "unlocked": node.unlocked,
+                    "updated": "",
+                    "preview": "",
+                    "favorite": false,
+                    "archived": false
+                });
+                if (nav.isExpanded(node.gid))
+                    nav.walk(node.children, depth + 1);
+            } else {
+                groupRowsModel.append({
+                    "rowKind": "note",
+                    "gid": "",
+                    "oid": node.oid,
+                    "title": node.title,
+                    "depth": depth,
+                    "count": 0,
+                    "locked": false,
+                    "hasKey": false,
+                    "unlocked": true,
+                    "updated": node.updated,
+                    "preview": node.preview,
+                    "favorite": node.favorite,
+                    "archived": node.archived
+                });
+            }
+        }
+    }
+
+    ListModel {
+        id: groupRowsModel
+    }
+
+    Connections {
+        target: backend
+        function onGroupsChanged() {
+            nav.rebuildRows();
+        }
+        function onCurrentChanged() {
+            nav.rebuildRows();
+        }
+    }
+
+    Component.onCompleted: nav.rebuildRows()
 
     Rectangle {
         anchors.right: parent.right
@@ -100,6 +194,17 @@ Rectangle {
                     onClicked: backend.createNote()
                 }
                 IconGlyph {
+                    glyph: "\uE8F4"
+                    tip: "新建组"
+                    onClicked: backend.createGroup("新组")
+                }
+                IconGlyph {
+                    glyph: nav.dense ? "\uE8FD" : "\uE8A5"
+                    tip: nav.dense ? "紧凑显示" : "详细显示"
+                    active: nav.dense
+                    onClicked: nav.dense = !nav.dense
+                }
+                IconGlyph {
                     glyph: "\uE7B8"
                     tip: nav.mode === "notes" ? "显示归档" : "归档"
                     active: backend.showArchived
@@ -108,48 +213,49 @@ Rectangle {
             }
         }
 
+        // 组筛选提示条
         Rectangle {
             Layout.fillWidth: true
-            Layout.leftMargin: CairnTheme.spaceMd
-            Layout.rightMargin: CairnTheme.spaceMd
-            Layout.topMargin: CairnTheme.spaceSm
-            Layout.preferredHeight: 30
-            radius: CairnTheme.radiusSm
-            color: CairnTheme.bg
-            border.color: search.activeFocus ? CairnTheme.accent : "transparent"
-            border.width: 1
-            Text {
-                x: 9
-                anchors.verticalCenter: parent.verticalCenter
-                text: "\uE721"
-                font.family: CairnTheme.iconFont
-                font.pixelSize: 12
-                color: CairnTheme.faint
-            }
-            TextInput {
-                id: search
-                x: 28
-                width: parent.width - 36
-                anchors.verticalCenter: parent.verticalCenter
-                clip: true
-                color: CairnTheme.text
-                font.family: CairnTheme.fontFamily
-                font.pixelSize: CairnTheme.fsSmall
-                selectByMouse: true
-                onTextChanged: backend.filterNotes(text)
+            Layout.preferredHeight: 28
+            visible: backend.groupFilter !== ""
+            color: CairnTheme.selection
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: CairnTheme.spaceMd
+                anchors.rightMargin: CairnTheme.spaceSm
+                spacing: CairnTheme.spaceSm
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: search.text === ""
-                    text: "搜索笔记…"
-                    color: CairnTheme.faint
+                    text: "\uE71C"
+                    font.family: CairnTheme.iconFont
+                    font.pixelSize: 11
+                    color: CairnTheme.accent
+                }
+                Text {
+                    text: "只看此组"
+                    color: CairnTheme.text
                     font.family: CairnTheme.fontFamily
-                    font.pixelSize: CairnTheme.fsSmall
+                    font.pixelSize: CairnTheme.fsTiny
+                    Layout.fillWidth: true
+                }
+                Text {
+                    text: "清除"
+                    color: filterClear.containsMouse ? CairnTheme.danger : CairnTheme.muted
+                    font.family: CairnTheme.fontFamily
+                    font.pixelSize: CairnTheme.fsTiny
+                    MouseArea {
+                        id: filterClear
+                        anchors.fill: parent
+                        anchors.margins: -6
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: backend.clearGroupFilter()
+                    }
                 }
             }
         }
 
         Item {
-            Layout.preferredHeight: CairnTheme.spaceMd
+            Layout.preferredHeight: CairnTheme.spaceSm
         }
 
         Text {
@@ -168,7 +274,7 @@ Rectangle {
             Layout.fillHeight: true
             Layout.topMargin: 4
             clip: true
-            model: notesModel
+            model: groupRowsModel
             boundsBehavior: Flickable.StopAtBounds
 
             // 空白处双击＝新建空笔记（不必回到顶部按钮）。
@@ -180,15 +286,31 @@ Rectangle {
             delegate: Item {
                 id: del
                 width: notesList.width
-                height: 62
-                readonly property bool active: model.oid === backend.currentOid
+                height: del.isGroup ? (nav.dense ? 26 : 30) : (nav.dense ? 26 : 62)
+                property bool dropHover: false
+                readonly property bool isGroup: model.rowKind === "group"
+                readonly property bool active: !isGroup && model.oid === backend.currentOid
+                readonly property int indent: CairnTheme.spaceMd + model.depth * 14 + (nav.selecting && !isGroup ? 22 : 0)
+
+                HoverHandler {
+                    id: delHover
+                }
 
                 Rectangle {
                     anchors.fill: parent
-                    color: (del.active || nav.isSelected(model.oid)) ? CairnTheme.selection : (delMa.containsMouse ? CairnTheme.hover : "transparent")
+                    color: (del.active || (!isGroup && nav.isSelected(model.oid))) ? CairnTheme.selection : (delHover.hovered ? CairnTheme.hover : "transparent")
                 }
+
                 Rectangle {
-                    visible: nav.selecting
+                    anchors.fill: parent
+                    visible: del.dropHover
+                    color: "transparent"
+                    border.color: CairnTheme.accent
+                    border.width: 1
+                }
+
+                Rectangle {
+                    visible: nav.selecting && !del.isGroup
                     x: CairnTheme.spaceMd
                     anchors.verticalCenter: parent.verticalCenter
                     width: 16
@@ -206,12 +328,93 @@ Rectangle {
                         color: CairnTheme.accentText
                     }
                 }
+
+                // ===== 组行 =====
+                Row {
+                    visible: del.isGroup
+                    x: del.indent
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 5
+                    Text {
+                        text: nav.isExpanded(model.gid) ? "\uE70D" : "\uE76C"
+                        font.family: CairnTheme.iconFont
+                        font.pixelSize: 9
+                        color: CairnTheme.faint
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: (model.locked || (model.hasKey && !model.unlocked)) ? "\uE72E" : "\uE8B7"
+                        font.family: CairnTheme.iconFont
+                        font.pixelSize: 12
+                        color: CairnTheme.muted
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        visible: nav.editingGid !== model.gid
+                        text: model.title
+                        color: CairnTheme.text
+                        font.family: CairnTheme.fontFamily
+                        font.pixelSize: CairnTheme.fsTiny
+                        font.weight: Font.Medium
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    TextInput {
+                        visible: nav.editingGid === model.gid
+                        text: model.title
+                        width: 120
+                        color: CairnTheme.text
+                        font.family: CairnTheme.fontFamily
+                        font.pixelSize: CairnTheme.fsTiny
+                        selectByMouse: true
+                        onVisibleChanged: {
+                            if (visible) {
+                                forceActiveFocus();
+                                selectAll();
+                            }
+                        }
+                        onEditingFinished: {
+                            backend.renameGroup(model.gid, text);
+                            nav.editingGid = "";
+                        }
+                        Keys.onEscapePressed: nav.editingGid = ""
+                    }
+                    Text {
+                        text: "" + model.count
+                        color: CairnTheme.faint
+                        font.family: CairnTheme.fontFamily
+                        font.pixelSize: CairnTheme.fsTiny
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                // 悬停：把当前笔记加进该组
+                Text {
+                    visible: del.isGroup && model.gid !== "" && (delHover.hovered || addMa.containsMouse) && backend.currentOid !== ""
+                    anchors.right: parent.right
+                    anchors.rightMargin: CairnTheme.spaceSm
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "\uE710"
+                    font.family: CairnTheme.iconFont
+                    font.pixelSize: 11
+                    color: addMa.containsMouse ? CairnTheme.accent : CairnTheme.faint
+                    MouseArea {
+                        id: addMa
+                        anchors.fill: parent
+                        anchors.margins: -6
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: backend.addNoteToGroup(backend.currentOid, model.gid)
+                    }
+                }
+
+                // ===== 笔记行 =====
                 Column {
-                    anchors.fill: parent
-                    anchors.leftMargin: nav.selecting ? CairnTheme.spaceMd + 22 : CairnTheme.spaceMd
+                    visible: !del.isGroup
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: del.indent
                     anchors.rightMargin: CairnTheme.spaceMd
-                    anchors.topMargin: CairnTheme.spaceSm
-                    anchors.bottomMargin: CairnTheme.spaceSm
+                    anchors.verticalCenter: parent.verticalCenter
                     spacing: 3
                     RowLayout {
                         width: parent.width
@@ -241,6 +444,7 @@ Rectangle {
                         }
                     }
                     Text {
+                        visible: !nav.dense
                         width: parent.width
                         text: model.preview !== "" ? model.preview : "空笔记"
                         color: model.archived ? CairnTheme.faint : CairnTheme.muted
@@ -250,19 +454,95 @@ Rectangle {
                         elide: Text.ElideRight
                     }
                 }
+
                 MouseArea {
                     id: delMa
                     anchors.fill: parent
-                    hoverEnabled: true
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    drag.target: dragGhost
+                    drag.threshold: 8
+                    onPressed: {
+                        nav.dragKind = del.isGroup ? "group" : "note";
+                        nav.dragId = del.isGroup ? model.gid : model.oid;
+                    }
+                    onReleased: {
+                        nav.dragKind = "";
+                        nav.dragId = "";
+                    }
+                    onDoubleClicked: function (mouse) {
+                        if (del.isGroup && model.gid !== "" && mouse.button === Qt.LeftButton)
+                            nav.editingGid = model.gid;
+                    }
                     onClicked: function (mouse) {
-                        if (mouse.button === Qt.RightButton) {
+                        if (del.isGroup) {
+                            if (mouse.button === Qt.RightButton) {
+                                if (model.gid === "")
+                                    return;
+                                const gp = delMa.mapToItem(nav, mouse.x, mouse.y);
+                                nav.groupMenuRequested(model.gid, gp.x, gp.y);
+                            } else if (model.hasKey && !model.unlocked) {
+                                nav.groupUnlockRequested(model.gid);
+                            } else {
+                                nav.toggleGroup(model.gid);
+                            }
+                        } else if (mouse.button === Qt.RightButton) {
                             const p = delMa.mapToItem(nav, mouse.x, mouse.y);
                             nav.noteMenuRequested(model.oid, p.x, p.y);
                         } else if (nav.selecting) {
                             nav.toggleSelect(model.oid);
                         } else {
                             backend.openNote(model.oid);
+                        }
+                    }
+                }
+
+                // 拖拽落点：把笔记 / 组拖到组上
+                DropArea {
+                    anchors.fill: parent
+                    enabled: del.isGroup
+                    keys: ["cairn-item"]
+                    onEntered: del.dropHover = true
+                    onExited: del.dropHover = false
+                    onDropped: {
+                        if (nav.dragKind === "note" && nav.dragId !== "") {
+                            if (model.gid === "")
+                                backend.clearNoteGroups(nav.dragId);
+                            else
+                                backend.addNoteToGroup(nav.dragId, model.gid);
+                        } else if (nav.dragKind === "group" && nav.dragId !== "" && nav.dragId !== model.gid) {
+                            backend.moveGroup(nav.dragId, model.gid);
+                        }
+                        nav.dragKind = "";
+                        nav.dragId = "";
+                        del.dropHover = false;
+                    }
+                }
+
+                // 拖拽时跟手的幽灵
+                Item {
+                    id: dragGhost
+                    width: 150
+                    height: 24
+                    z: 300
+                    visible: delMa.drag.active
+                    Drag.active: delMa.drag.active
+                    Drag.keys: ["cairn-item"]
+                    Drag.hotSpot: Qt.point(width / 2, height / 2)
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: CairnTheme.radiusSm
+                        color: CairnTheme.elevated
+                        border.color: CairnTheme.accent
+                        border.width: 1
+                        Text {
+                            anchors.centerIn: parent
+                            width: parent.width - 12
+                            text: model.title
+                            color: CairnTheme.text
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsTiny
+                            elide: Text.ElideRight
+                            horizontalAlignment: Text.AlignHCenter
                         }
                     }
                 }

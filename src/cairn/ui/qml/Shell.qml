@@ -25,6 +25,8 @@ Rectangle {
     property bool focusMode: false
     property bool navOpenBeforeFocus: true
     property bool inspectorOpenBeforeFocus: true
+    property string promptKind: ""
+    property string promptGid: ""
 
     function toggleNav() {
         if (shell.focusMode)
@@ -177,6 +179,15 @@ Rectangle {
                         const p = navPane.mapToItem(shell, x, y);
                         noteMenu.openFor(backend.noteInfo(oid), p.x, p.y);
                     }
+                    onGroupMenuRequested: function (gid, x, y) {
+                        const p = navPane.mapToItem(shell, x, y);
+                        groupMenu.openFor(backend.groupInfo(gid), p.x, p.y);
+                    }
+                    onGroupUnlockRequested: function (gid) {
+                        shell.promptKind = "unlock";
+                        shell.promptGid = gid;
+                        promptBox.ask("输入组密码", "密码");
+                    }
                 }
 
                 EditorArea {
@@ -250,10 +261,12 @@ Rectangle {
         anchors.fill: parent
         anchors.topMargin: CairnTheme.titleBarH
         z: 190
-        visible: noteMenu.open || sharePopover.open
+        visible: noteMenu.open || sharePopover.open || groupMenu.open || promptBox.open
         onClicked: {
             noteMenu.close();
             sharePopover.close();
+            groupMenu.close();
+            promptBox.close();
         }
     }
 
@@ -295,6 +308,57 @@ Rectangle {
     SharePopover {
         id: sharePopover
         objectName: "sharePopover"
+    }
+
+    GroupMenu {
+        id: groupMenu
+        objectName: "groupMenu"
+        onPicked: function (action) {
+            const gid = groupMenu.gid;
+            groupMenu.close();
+            if (action === "add")
+                backend.addNoteToGroup(backend.currentOid, gid);
+            else if (action === "filter")
+                backend.filterByGroup(gid);
+            else if (action === "up")
+                backend.reorderGroup(gid, -1);
+            else if (action === "down")
+                backend.reorderGroup(gid, 1);
+            else if (action === "ungroup")
+                backend.moveGroup(gid, "");
+            else if (action === "key") {
+                shell.promptKind = "setkey";
+                shell.promptGid = gid;
+                promptBox.ask("设置组密码", "留空并确定即清除");
+            } else if (action === "clearkey")
+                backend.setGroupKey(gid, "");
+            else if (action === "lock")
+                backend.toggleGroupLock(gid);
+            else if (action === "delete")
+                backend.deleteGroup(gid);
+        }
+    }
+
+    PromptBox {
+        id: promptBox
+        objectName: "promptBox"
+        anchors.centerIn: parent
+        onSubmitted: function (text) {
+            if (shell.promptKind === "unlock") {
+                if (backend.unlockGroup(shell.promptGid, text)) {
+                    navPane.expandGroup(shell.promptGid);
+                    promptBox.close();
+                } else {
+                    promptBox.showError("密码不对，再试一次");
+                    return;
+                }
+            } else if (shell.promptKind === "setkey") {
+                backend.setGroupKey(shell.promptGid, text);
+                promptBox.close();
+            }
+            shell.promptKind = "";
+            shell.promptGid = "";
+        }
     }
 
     // 全局悬停提示

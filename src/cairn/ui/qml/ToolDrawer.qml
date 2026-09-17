@@ -13,6 +13,8 @@ Item {
     clip: true
     property bool open: false
     property bool editing: false
+    // 搜索命令面板的结果（输入框有内容时展示）
+    property var results: []
     // 鼠标离开后自动回收延迟（毫秒）：太短会误收，太长拖沓。
     property int autoCloseMs: 1500
 
@@ -20,6 +22,15 @@ Item {
     HoverHandler {
         id: rootHover
         onPointChanged: drawer.syncHover()
+    }
+
+    // 关闭时清理搜索态，避免笔记列表停在过滤结果上。
+    onOpenChanged: {
+        if (!open) {
+            capture.text = "";
+            results = [];
+            backend.filterNotes("");
+        }
     }
 
     function syncHover() {
@@ -150,13 +161,18 @@ Item {
         onTriggered: drawer.open = false
     }
 
-    // 打开时，点面板外任意处立即回收。
+    // 打开时，点面板外任意处立即回收；点面板内（含空白）不回收。
     MouseArea {
         id: backdrop
         anchors.fill: parent
         z: 1
         visible: drawer.open
-        onClicked: drawer.open = false
+        onClicked: function (mouse) {
+            const insidePanel = mouse.x >= panel.x && mouse.x <= panel.x + panel.width
+                && mouse.y >= panel.y && mouse.y <= panel.y + panel.height;
+            if (!insidePanel)
+                drawer.open = false;
+        }
     }
 
     // 向下滑出的覆盖面板
@@ -276,14 +292,27 @@ Item {
                     font.family: CairnTheme.fontFamily
                     font.pixelSize: CairnTheme.fsSmall
                     selectByMouse: true
+                    onTextChanged: drawer.results = backend.searchNotes(text)
                     onAccepted: {
-                        backend.captureNote(text);
+                        const query = text.trim();
+                        if (query === "")
+                            return;
+                        if (drawer.results.length > 0)
+                            backend.openNote(drawer.results[0].oid);
+                        else
+                            backend.captureNote(query);
                         text = "";
+                        drawer.results = [];
+                    }
+                    Keys.onEscapePressed: {
+                        capture.text = "";
+                        drawer.results = [];
+                        backend.filterNotes("");
                     }
                     Text {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: capture.text === ""
-                        text: "快速记录，回车入收件箱…"
+                        text: "搜索笔记 / 命令，回车打开；无结果则新建…"
                         color: CairnTheme.faint
                         font.family: CairnTheme.fontFamily
                         font.pixelSize: CairnTheme.fsSmall
@@ -294,6 +323,7 @@ Item {
             GridLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                visible: capture.text === ""
                 columns: 7
                 columnSpacing: CairnTheme.spaceSm
                 rowSpacing: CairnTheme.spaceSm
@@ -359,9 +389,65 @@ Item {
                 }
             }
 
+            ListView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: capture.text !== ""
+                clip: true
+                model: drawer.results
+                spacing: 2
+                boundsBehavior: Flickable.StopAtBounds
+
+                delegate: Rectangle {
+                    id: resultRow
+                    width: ListView.view.width
+                    height: 44
+                    radius: CairnTheme.radiusSm
+                    color: resMa.containsMouse ? CairnTheme.hover : "transparent"
+
+                    Column {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.leftMargin: CairnTheme.spaceSm
+                        anchors.rightMargin: CairnTheme.spaceSm
+                        anchors.verticalCenter: parent.verticalCenter
+                        spacing: 2
+                        Text {
+                            width: parent.width
+                            text: modelData.title
+                            color: CairnTheme.text
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsSmall
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            width: parent.width
+                            text: modelData.preview !== "" ? modelData.preview : "空笔记"
+                            color: CairnTheme.faint
+                            font.family: CairnTheme.fontFamily
+                            font.pixelSize: CairnTheme.fsTiny
+                            elide: Text.ElideRight
+                        }
+                    }
+                    MouseArea {
+                        id: resMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            backend.openNote(modelData.oid);
+                            capture.text = "";
+                            drawer.results = [];
+                            drawer.open = false;
+                        }
+                    }
+                }
+            }
+
             Text {
                 Layout.fillWidth: true
-                text: "单击＝开标签页 · 双击/右键＝临时显示在右侧"
+                visible: text !== ""
+                text: capture.text === "" ? "单击＝开标签页 · 双击/右键＝临时显示在右侧" : (drawer.results.length === 0 ? "无匹配：回车以该文本新建笔记 · Esc 清空" : "")
                 color: CairnTheme.faint
                 font.family: CairnTheme.fontFamily
                 font.pixelSize: CairnTheme.fsTiny

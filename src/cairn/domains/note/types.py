@@ -28,13 +28,22 @@ from .edit import (
     StyleMap,
     apply_text,
     coerce_style,
+    drop_style,
     encode_style,
     flatten_text,
+    insert_line,
     is_marker,
     line_styles,
+    merge_line,
+    merge_style,
     new_id,
     normalize_body,
+    remove_line,
+    set_line_text,
     signature_style,
+    split_line,
+    split_style,
+    toggle_range_style,
 )
 from .model import (
     NOTE_KIND,
@@ -158,6 +167,7 @@ class Note(Block):
         return note
 
     def save(self, *, search_text: str | None = None) -> Self:
+        """落盘并**记一个版本检查点**（内容变了才追加补丁）。"""
         if search_text is None:
             search_text = _search_text(self.title, self.text)
         previous = self._saved_state
@@ -170,6 +180,16 @@ class Note(Block):
             if current != previous:
                 store.commit(self.id, NOTE_CODEC, previous, current)
         self._saved_state = self._state()
+        return self
+
+    def persist(self, *, search_text: str | None = None) -> Self:
+        """只**落盘当前内容**，不记版本（连续编辑中的自动保存用）。
+
+        版本检查点由 ``save()`` 负责；自动保存只更新块内容，历史链头保持不动。
+        """
+        if search_text is None:
+            search_text = _search_text(self.title, self.text)
+        super().save(search_text=search_text)
         return self
 
     @classmethod
@@ -243,6 +263,53 @@ class Note(Block):
         lines = list(self.body.text)
         self.body.text = [lines[index] for index in order]
         self.body.refresh()
+
+    # ---- 行级编辑（编辑器接线用；只改内存，落盘由 save 负责）----
+    def set_line(self, line_id: str, text: str) -> Note:
+        """改写某一行文字（含换行时就地拆行）。"""
+        self.body.text = set_line_text(self.body.text, line_id, text)
+        self.body.refresh()
+        return self
+
+    def insert_line_after(self, line_id: str | None, text: str = "") -> str:
+        """在某行之后插入一行（``None`` 追加末尾），返回新行 id。"""
+        self.body.text, new_lid = insert_line(self.body.text, line_id, text)
+        self.body.refresh()
+        return new_lid
+
+    def remove_line(self, line_id: str) -> Note:
+        """删除一行；其样式一并丢弃。"""
+        self.body.text = remove_line(self.body.text, line_id)
+        self.body.style = drop_style(self.body.style, line_id)
+        self.body.refresh()
+        return self
+
+    def split_line(self, line_id: str, offset: int) -> str:
+        """在某行 ``offset`` 处拆行；样式按位置切开。返回新行 id。"""
+        self.body.text, new_lid, _, _ = split_line(self.body.text, line_id, offset)
+        self.body.style = split_style(self.body.style, line_id, new_lid, int(offset))
+        self.body.refresh()
+        return new_lid
+
+    def merge_line(self, line_id: str) -> str | None:
+        """把某行并入上一行（上一行文字在前）；首行或涉及占位时不合并。
+
+        返回合并后的行 id（未合并返回 ``None``）。调用方可据此把光标移回去。
+        """
+        lines, prev_id, prev_len = merge_line(self.body.text, line_id)
+        if prev_id is None:
+            return None
+        self.body.text = lines
+        self.body.style = merge_style(self.body.style, prev_id, line_id, prev_len)
+        self.body.refresh()
+        return prev_id
+
+    def toggle_style(self, line_id: str, start: int, end: int, key: str) -> Note:
+        """对某行 ``[start, end)`` 切换布尔样式（bold / italic / underline / strike）。"""
+        toggled = toggle_range_style(self.body.style, line_id, start, end, key)
+        self.body.style = coerce_style(toggled, self.body.text)
+        self.body.refresh()
+        return self
 
     # ---- 画板 / 外联资源嵌入 ----
     @property

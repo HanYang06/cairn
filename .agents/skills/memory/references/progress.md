@@ -22,8 +22,13 @@
 
 ## 下阶段（编辑器本体）
 
-- [ ] 后端 `currentBlocks`：把「行 + 行内样式段 + 占位」暴露给 QML（现仅 `currentText` 纯文本）。
-- [ ] 富编辑：行/块级编辑 + 行内样式加撤 + 光标/选区（`note/edit.py` 已备原语）。
+- [x] **逐行编辑器首版**（2026-09-17）：`Note` 行级原语 + 后端 `setLineText`/`splitLine`/`mergeLine`/
+  `removeLine`/`insertLineAfter`/`toggleLineStyle` + QML 逐行渲染（文本行 / 占位 chip / 行内样式 RichText /
+  Ctrl+B/I/U / Enter/Backspace/上下键 / 去抖保存）。**行内样式编辑、光标跨行选区、撤销栈**待迭代。
+- [ ] 富编辑增强：跨行选择、撤销/重做栈、样式工具栏（bold/italic/… 之外的颜色/字号）。
+- [ ] **编辑器顶部两行工具栏**（Word 式）：文字 / 段落工具几十个，需要先预制样式（color/font/size/对齐等）；
+  是富文本编辑器的前置。
+- [ ] **笔记列表形态**：详细 / 紧凑 / 分组树 / 锁定 / 口令 / 拖拽移动 / 筛选均已接。
 - [ ] 画板绘制：`Graphic`/`Canvas` 的交互与渲染（点路径 + 变换 + 连线走线）。
 - [ ] 多媒体拖入：落 `Asset`（转码）→ 正文 `{"access": n}` 占位。
 - [ ] 「捕捉面 vs 编辑面」分离落地（全局热键秒开）。

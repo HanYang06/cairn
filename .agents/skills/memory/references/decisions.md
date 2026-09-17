@@ -22,6 +22,10 @@
 - 已定 · 领域结构**直接继承 `Block`**（无中间层）；通用读写（save/load/list/oid/info）在 `Block`。
 - 已定 · `Attr(item=)` 让列表字段类型化：存储是紧凑数据，取出来是类型化对象。
 - 已定 · `composition` 并入 note（移除独立对象）。
+- 已定 · **组（`cairn.group`）**：独立块；域 ID **`gid`** 与块 `oid` 分开（不改 `Block`）；
+  `group: list[str]` 有序子项（组存 gid、其余存 oid，可无限嵌套）；成员**两套都存**
+  （列表存结构顺序 + `relations` 存 `contains` 反查）；`lock` 锁编辑；`owner` / `member` / `key`
+  为社区「有限编辑组」预埋（`User` 系统落地前用字符串）。
 - 已定 · 关系是**一等 DB 行**（`relations` 表）：`derived-from` / `references` / `contains` 等多类型，
   用于引用拓扑；`provenance` 查表。
 - 已定 · note 正文 = `list`（文字段 + 占位符）；样式等长对齐；画板/多媒体用
@@ -54,7 +58,9 @@
 - 已定 · **body 内容池在桶里**：`checksum = body_hash`（只算 body：文字+样式+占位，剥离行 id），
   `contents(body_hash → 位置)` 即去重池，查找 O(1)；**attrs 随块行存、不参与去重**
   （标题/标签/签名/时间不同不影响同正文去重）。body 与 attrs 分家存储。
-- 已定 · **Body 是容器基类**（`core/store/block.py`）：无 ID、依存于块；自带状态字段 `hash`
+- 已定 · **保存与版本分离**：自动保存只落盘（`Note.persist`）；版本检查点仅在**非连续编辑边界**产生
+  （空闲超时默认 5 分钟 / 切换笔记 / `Ctrl+S` / 退出），避免逐次保存堆出大量微小版本。
+- 已定 · **`Body` 是容器基类**（`core/store/block.py`）：无 ID、依存于块；自带状态字段 `hash`
   （对 `content()` 求摘要，**只含内容字段**，排除自身状态/时间戳）。内容一变就 `refresh()` 重算并缓存。
   旧描述符改名 **`BodyField`**（裸 body 用 `BodyField()`，结构化用 `BodyField(prototype=...)` 每实例一份）。
 - 已定 · **`NoteBody(Body)`**：字段 `text`（行序列）+ `style`（行内样式）；`content()` 剥离行 id，

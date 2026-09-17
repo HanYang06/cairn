@@ -240,13 +240,118 @@ Rectangle {
             }
         }
 
-        function applyContent() {
-            ed.loading = true;
-            titleInput.text = backend.currentTitle;
-            body.text = backend.currentText;
-            ed.loading = false;
-            ed.status = "";
+    function applyContent() {
+        ed.loading = true;
+        titleInput.text = backend.currentTitle;
+        ed.loading = false;
+        ed.status = "";
+        reloadBlocks();
+    }
+
+    // ===== 逐行编辑器 =====
+    property var lineItems: ({})
+
+    ListModel {
+        id: blocksModel
+    }
+
+    function reloadBlocks() {
+        blocksModel.clear();
+        var blocks = backend.currentBlocks;
+        for (var i = 0; i < blocks.length; ++i) {
+            var block = blocks[i];
+            blocksModel.append({
+                lid: block.id,
+                kind: block.kind,
+                text: block.text,
+                markerIndex: block.index
+            });
         }
+    }
+
+    function blockById(lid) {
+        var blocks = backend.currentBlocks;
+        for (var i = 0; i < blocks.length; ++i) {
+            if (blocks[i].id === lid)
+                return blocks[i];
+        }
+        return null;
+    }
+
+    function escapeHtml(value) {
+        return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function styleCss(style) {
+        var css = "";
+        if (style.bold)
+            css += "font-weight:600;";
+        if (style.italic)
+            css += "font-style:italic;";
+        var deco = "";
+        if (style.underline)
+            deco += "underline ";
+        if (style.strike)
+            deco += "line-through ";
+        if (deco !== "")
+            css += "text-decoration:" + deco.trim() + ";";
+        if (style.color)
+            css += "color:" + style.color + ";";
+        return css;
+    }
+
+    function toRich(text, styles) {
+        if (!styles || styles.length === 0)
+            return escapeHtml(text);
+        var sorted = styles.slice().sort(function (a, b) {
+            return a[0] - b[0];
+        });
+        var out = "";
+        var pos = 0;
+        for (var i = 0; i < sorted.length; ++i) {
+            var start = sorted[i][0];
+            var end = sorted[i][1];
+            var style = sorted[i][2];
+            if (start > pos)
+                out += escapeHtml(text.slice(pos, start));
+            out += "<span style=\"" + styleCss(style) + "\">" + escapeHtml(text.slice(start, end)) + "</span>";
+            pos = Math.max(pos, end);
+        }
+        out += escapeHtml(text.slice(pos));
+        return out;
+    }
+
+    // 重新渲染某一行（样式变化后）并把焦点/选区放回去。
+    function focusLine(lid, position, attempt) {
+        var root = ed;
+        var item = root.lineItems[lid];
+        if (!item) {
+            // 新行 delegate 可能还没建好，下一拍重试。
+            if ((attempt || 0) < 3)
+                Qt.callLater(function () { root.focusLine(lid, position, (attempt || 0) + 1); });
+            return;
+        }
+        item.loading = true;
+        item.applyRich();
+        item.loading = false;
+        item.forceActiveFocus();
+        item.cursorPosition = Math.max(0, Math.min(position, item.length));
+        item.select(item.cursorPosition, item.cursorPosition);
+    }
+
+    function refreshLine(lid, start, end) {
+        var item = ed.lineItems[lid];
+        if (!item)
+            return;
+        item.loading = true;
+        item.applyRich();
+        item.loading = false;
+        Qt.callLater(function () {
+            item.select(start, end);
+            item.forceActiveFocus();
+        });
+    }
+
 
         // 极简：换文后一次短淡入，不做位移、不做淡出。
         NumberAnimation {
@@ -409,20 +514,156 @@ Rectangle {
                         opacity: 0.5
                     }
 
-                    TextEdit {
-                        id: body
+                    Column {
+                        id: bodyCol
                         width: parent.width
-                        height: Math.max(contentHeight, 80)
-                        text: backend.currentText
-                        color: CairnTheme.text
-                        font.family: CairnTheme.fontFamily
-                        font.pixelSize: CairnTheme.fsBody
-                        wrapMode: TextEdit.Wrap
-                        selectByMouse: true
-                        onTextChanged: {
-                            if (!ed.loading) {
-                                backend.queueSave(text);
-                                ed.status = "编辑中…";
+                        spacing: 2
+
+                        Repeater {
+                            model: blocksModel
+                            delegate: Item {
+                                id: lineRoot
+                                width: bodyCol.width
+                                height: bodyLine.visible ? bodyLine.height : markerChip.height
+
+                                TextEdit {
+                                    id: bodyLine
+                                    visible: model.kind === "text"
+                                    width: parent.width
+                                    textFormat: TextEdit.RichText
+                                    wrapMode: TextEdit.Wrap
+                                    selectByMouse: true
+                                    color: CairnTheme.text
+                                    font.family: CairnTheme.fontFamily
+                                    font.pixelSize: CairnTheme.fsBody
+                                    height: Math.max(contentHeight, 22)
+
+                                    property bool loading: true
+                                    readonly property string lid: model.lid
+
+                                    function applyRich() {
+                                        var block = ed.blockById(lid);
+                                        if (block)
+                                            text = ed.toRich(block.text, block.styles);
+                                    }
+
+                                    function applyStyle(key) {
+                                        var start = Math.min(selectionStart, selectionEnd);
+                                        var end = Math.max(selectionStart, selectionEnd);
+                                        if (end <= start)
+                                            return;
+                                        backend.toggleLineStyle(lid, start, end, key);
+                                        ed.refreshLine(lid, start, end);
+                                    }
+
+                                    Component.onCompleted: {
+                                        ed.lineItems[lid] = bodyLine;
+                                        loading = true;
+                                        applyRich();
+                                        loading = false;
+                                    }
+                                    Component.onDestruction: {
+                                        if (ed.lineItems[lid] === bodyLine)
+                                            delete ed.lineItems[lid];
+                                    }
+
+                                    onTextChanged: {
+                                        if (loading)
+                                            return;
+                                        backend.setLineText(lid, getText(0, length));
+                                        ed.status = "编辑中…";
+                                    }
+
+                                    Keys.onPressed: function (event) {
+                                        var editor = ed;
+                                        if (event.modifiers & Qt.ControlModifier) {
+                                            if (event.key === Qt.Key_B) {
+                                                event.accepted = true;
+                                                applyStyle("bold");
+                                                return;
+                                            }
+                                            if (event.key === Qt.Key_I) {
+                                                event.accepted = true;
+                                                applyStyle("italic");
+                                                return;
+                                            }
+                                            if (event.key === Qt.Key_U) {
+                                                event.accepted = true;
+                                                applyStyle("underline");
+                                                return;
+                                            }
+                                        }
+                                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                            event.accepted = true;
+                                            var newId = backend.splitLine(lid, cursorPosition);
+                                            editor.reloadBlocks();
+                                            if (newId)
+                                                Qt.callLater(function () { editor.focusLine(newId, 0); });
+                                            return;
+                                        }
+                                        if (event.key === Qt.Key_Backspace
+                                                && cursorPosition === 0
+                                                && selectionStart === selectionEnd) {
+                                            event.accepted = true;
+                                            var keep = getText(0, length).length;
+                                            var merged = backend.mergeLine(lid);
+                                            if (merged) {
+                                                editor.reloadBlocks();
+                                                Qt.callLater(function () {
+                                                    var block = editor.blockById(merged);
+                                                    var pos = block ? Math.max(0, block.text.length - keep) : 0;
+                                                    editor.focusLine(merged, pos);
+                                                });
+                                            }
+                                            return;
+                                        }
+                                        if (event.key === Qt.Key_Down && index < blocksModel.count - 1) {
+                                            event.accepted = true;
+                                            var below = blocksModel.get(index + 1);
+                                            var belowBlock = editor.blockById(below.lid);
+                                            editor.focusLine(below.lid, Math.min(cursorPosition, belowBlock ? belowBlock.text.length : 0));
+                                            return;
+                                        }
+                                        if (event.key === Qt.Key_Up && index > 0) {
+                                            event.accepted = true;
+                                            var above = blocksModel.get(index - 1);
+                                            var aboveBlock = editor.blockById(above.lid);
+                                            editor.focusLine(above.lid, Math.min(cursorPosition, aboveBlock ? aboveBlock.text.length : 0));
+                                            return;
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: markerChip
+                                    visible: model.kind !== "text"
+                                    width: Math.min(parent.width, markerRow.implicitWidth + 24)
+                                    height: 26
+                                    radius: CairnTheme.radiusSm
+                                    color: CairnTheme.elevated
+                                    border.color: CairnTheme.border
+                                    border.width: 1
+                                    Row {
+                                        id: markerRow
+                                        anchors.centerIn: parent
+                                        spacing: 6
+                                        Text {
+                                            text: model.kind === "canvas" ? "\uE790" : "\uE723"
+                                            font.family: CairnTheme.iconFont
+                                            font.pixelSize: 11
+                                            color: CairnTheme.muted
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                        Text {
+                                            text: (model.kind === "canvas" ? "画板" : "附件")
+                                                  + (model.markerIndex >= 0 ? " #" + model.markerIndex : "")
+                                            font.family: CairnTheme.fontFamily
+                                            font.pixelSize: CairnTheme.fsSmall
+                                            color: CairnTheme.muted
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -433,7 +674,7 @@ Rectangle {
         Shortcut {
             sequence: "Ctrl+S"
             onActivated: {
-                backend.flush();
+                backend.saveNow();
                 ed.status = "已保存";
             }
         }

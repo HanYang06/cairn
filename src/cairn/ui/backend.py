@@ -14,8 +14,9 @@ import datetime
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
+from blake3 import blake3
 from PySide6.QtCore import (
     Property,
     QAbstractListModel,
@@ -29,12 +30,16 @@ from PySide6.QtCore import (
 
 from ..core import Vault
 from ..core.store import CATALOG_NAME as _CATALOG_NAME
-from ..domains import Note, Relation, ancestors, descendants
+from ..domains import Group, Note, Relation, ancestors, descendants
+from ..domains.group import GroupError, list_groups
 from ..domains.provenance import DERIVED_FROM
 
 DEV_PASSPHRASE = "cairn-dev"  # noqa: S105 — 开发期固定口令，非生产密钥
 VAULT_LABEL = "个人空间"
 RELATIONS_KEY = "relations"
+# 连续编辑多久没动静才认为是"非连续编辑"，从而记一个版本检查点（毫秒）。
+# 自动保存（900ms 去抖）只落盘、不记版本；版本由检查点统一产生。
+CHECKPOINT_IDLE_MS = 5 * 60 * 1000
 
 
 def _default_vault_root() -> Path:
@@ -85,6 +90,20 @@ def _title_of(vault: Vault, oid: Any) -> str:
 
 def _short_author(hex_key: str) -> str:
     return hex_key[:8] if hex_key else ""
+
+
+def _short_signature(signature: Any) -> str:
+    value = str(getattr(signature, "value", "") or "")
+    if not value:
+        return "—"
+    alg = str(getattr(signature, "alg", "") or "")
+    head = value[:10] + "…"
+    return f"{alg} · {head}" if alg else head
+
+
+def _group_key_hash(password: str) -> str:
+    """组口令的校验哈希（存哈希不存明文；这不是加密）。"""
+    return blake3(password.encode("utf-8")).hexdigest()
 
 
 def _node_meta(vault: Vault, oid: Any) -> dict[str, Any]:
@@ -366,6 +385,7 @@ class Backend(QObject):
     profilesChanged = Signal()
     archivedViewChanged = Signal()
     propsChanged = Signal()
+    groupsChanged = Signal()
 
     def __init__(self, vault: Vault, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -378,12 +398,19 @@ class Backend(QObject):
         self._history_oid = ""
         self._pending_oid: str | None = None
         self._pending_text: str = ""
+        self._pending_note: bool = False
+        self._unlocked: set[str] = set()
+        self._group_filter: str = ""
         self._show_archived = False
         self._show_trash = False
         self._save = QTimer(self)
         self._save.setSingleShot(True)
         self._save.setInterval(900)
         self._save.timeout.connect(self.flush)
+        self._checkpoint = QTimer(self)
+        self._checkpoint.setSingleShot(True)
+        self._checkpoint.setInterval(CHECKPOINT_IDLE_MS)
+        self._checkpoint.timeout.connect(self._checkpoint_now)
         self._ensure_search_index()
 
     def _ensure_search_index(self) -> None:
@@ -481,7 +508,21 @@ class Backend(QObject):
             {
                 "id": "author",
                 "key": "作者",
-                "value": self.currentAuthor,
+                "value": self._current.author or "—",
+                "type": "text",
+                "editable": False,
+            },
+            {
+                "id": "authors",
+                "key": "署名",
+                "value": "、".join(str(name) for name in self._current.authors) or "—",
+                "type": "text",
+                "editable": False,
+            },
+            {
+                "id": "signature",
+                "key": "签名",
+                "value": _short_signature(self._current.signature),
                 "type": "text",
                 "editable": False,
             },
@@ -505,6 +546,13 @@ class Backend(QObject):
                 "value": bool(props.get("archived")),
                 "type": "bool",
                 "editable": True,
+            },
+            {
+                "id": "visibility",
+                "key": "可见性",
+                "value": "私密" if not self._shares() else f"已分享 {len(self._shares())} 处",
+                "type": "text",
+                "editable": False,
             },
             {
                 "id": "created",
@@ -730,6 +778,8 @@ class Backend(QObject):
         self.propsChanged.emit()
 
     def _activate(self, note: Note) -> None:
+        # 切走当前笔记 = 一次非连续编辑的边界：先给旧笔记记检查点。
+        self._checkpoint_now()
         self._set_current(note)
         self._view = "note"
         self.viewChanged.emit()
@@ -738,7 +788,6 @@ class Backend(QObject):
     # ---- 生命周期 ----
     @Slot(result=str)
     def createNote(self) -> str:
-        self.flush()
         note = Note.create(self._vault, "", title="新笔记")
         self._activate(note)
         self.notes.reload()
@@ -746,7 +795,6 @@ class Backend(QObject):
 
     @Slot(str, result=str)
     def captureNote(self, text: str) -> str:
-        self.flush()
         text = text.strip()
         if not text:
             return ""
@@ -761,7 +809,6 @@ class Backend(QObject):
     def openNote(self, oid: str) -> None:
         if not oid or (oid == self._oid() and self._view == "note"):
             return
-        self.flush()
         self._activate(Note.load(self._vault, oid))
 
     @Slot()
@@ -826,6 +873,7 @@ class Backend(QObject):
             return
         keys = self.tabs.tab_keys()
         if not keys:
+            self._checkpoint_now()
             self._view = "note"
             self.viewChanged.emit()
             self._set_current(None)
@@ -1044,15 +1092,44 @@ class Backend(QObject):
         self.propsChanged.emit()
 
     # ---- 编辑 ----
+    def _touch(self) -> None:
+        """标记当前笔记有未落盘的行级改动：自动保存 + 重置检查点空闲计时。"""
+        if self._current is None:
+            return
+        self._pending_note = True
+        self._save.start()
+        self._checkpoint.start()
+
+    def _checkpoint_now(self) -> None:
+        """记一个版本检查点：先落盘，再让笔记相对上次检查点追加版本。"""
+        self.flush()
+        self._checkpoint.stop()
+        note = self._current
+        if note is None:
+            return
+        note.save()
+        self.notes.reload()
+        self.versionsChanged.emit()
+
     @Slot()
     def flush(self) -> None:
+        """只落盘当前内容，不记版本（连续编辑中的自动保存）。"""
+        if self._pending_note:
+            self._pending_note = False
+            note = self._current
+            if note is not None:
+                note.persist()
+                self.notes.reload()
+                self.contentChanged.emit()
+            return
         if self._pending_oid is None:
             return
         oid, text = self._pending_oid, self._pending_text
         self._pending_oid = None
         note = Note.load(self._vault, oid)
         if note.text != text:
-            note.update(text=text)
+            note.set_text(text)
+            note.persist()
             if self._current is not None and str(self._current.oid) == oid:
                 self._current = note
             self.notes.reload()
@@ -1065,6 +1142,64 @@ class Backend(QObject):
         self._pending_oid = str(self._current.oid)
         self._pending_text = text
         self._save.start()
+        self._checkpoint.start()
+
+    @Slot()
+    def saveNow(self) -> None:
+        """显式保存（Ctrl+S）：落盘并立即记一个版本检查点。"""
+        self._checkpoint_now()
+
+    @Slot()
+    def shutdown(self) -> None:
+        """退出前收口：落盘 + 记检查点 + 关库。"""
+        self._checkpoint_now()
+        self._vault.close()
+
+    # ---- 行级编辑（逐行编辑器后端接口）----
+    @Slot(str, str)
+    def setLineText(self, line_id: str, text: str) -> None:
+        if self._current is None:
+            return
+        self._current.set_line(line_id, text)
+        self._touch()
+
+    @Slot(str, str, result=str)
+    def insertLineAfter(self, line_id: str, text: str = "") -> str:
+        if self._current is None:
+            return ""
+        new_id = self._current.insert_line_after(line_id or None, text)
+        self._touch()
+        return new_id
+
+    @Slot(str)
+    def removeLine(self, line_id: str) -> None:
+        if self._current is None:
+            return
+        self._current.remove_line(line_id)
+        self._touch()
+
+    @Slot(str, int, result=str)
+    def splitLine(self, line_id: str, offset: int) -> str:
+        if self._current is None:
+            return ""
+        new_id = self._current.split_line(line_id, int(offset))
+        self._touch()
+        return new_id
+
+    @Slot(str, result=str)
+    def mergeLine(self, line_id: str) -> str:
+        if self._current is None:
+            return ""
+        merged = self._current.merge_line(line_id)
+        self._touch()
+        return merged or ""
+
+    @Slot(str, int, int, str)
+    def toggleLineStyle(self, line_id: str, start: int, end: int, key: str) -> None:
+        if self._current is None or end <= start:
+            return
+        self._current.toggle_style(line_id, int(start), int(end), key)
+        self._touch()
 
     @Slot(str)
     def renameNote(self, title: str) -> None:
@@ -1245,9 +1380,360 @@ class Backend(QObject):
     def filterNotes(self, query: str) -> None:
         self.notes.set_query(query)
 
+    @Slot(str, result=list)
+    def searchNotes(self, query: str) -> list[dict[str, Any]]:
+        """工具册搜索：过滤笔记并返回前若干条（标题 + 摘要）供命令面板展示。"""
+        self.notes.set_query(query)
+        if not query.strip():
+            return []
+        results: list[dict[str, Any]] = []
+        for row in range(self.notes.rowCount()):
+            index = self.notes.index(row, 0)
+            results.append(
+                {
+                    "oid": str(self.notes.data(index, NotesModel.OidRole) or ""),
+                    "title": str(self.notes.data(index, NotesModel.TitleRole) or ""),
+                    "preview": str(self.notes.data(index, NotesModel.PreviewRole) or ""),
+                }
+            )
+            if len(results) >= 8:
+                break
+        return results
+
     @Slot(str)
     def filterByTag(self, tag: str) -> None:
         self.notes.set_tag(tag)
+
+    # ---- 组 ----
+    def _group_by_gid(self, gid: str) -> Group | None:
+        if not gid:
+            return None
+        return Group.by_gid(self._vault, gid)
+
+    def _note_node(self, oid: str) -> dict[str, Any] | None:
+        try:
+            note = Note.load(self._vault, oid)
+        except Exception:
+            return None
+        props = note.props()
+        if props.get("trashed"):
+            return None
+        return {
+            "kind": "note",
+            "oid": oid,
+            "title": note.title or "未命名",
+            "updated": _fmt_time(note.info.updated),
+            "favorite": bool(props.get("favorite")),
+            "archived": bool(props.get("archived")),
+            "preview": note.text.strip().replace("\n", " ")[:90],
+        }
+
+    def _group_unlocked(self, group: Group) -> bool:
+        return not group.key or group.gid in self._unlocked
+
+    def _can_edit_group(self, group: Group | None) -> TypeGuard[Group]:
+        return group is not None and not group.lock and self._group_unlocked(group)
+
+    def _descendant_gids(self, group: Group) -> set[str]:
+        out: set[str] = set()
+        stack = [group]
+        while stack:
+            for child in stack.pop().subgroups(self._vault):
+                if child.gid not in out:
+                    out.add(child.gid)
+                    stack.append(child)
+        return out
+
+    def _root_order(self) -> list[str]:
+        raw = self._vault.bucket.catalog.get_meta("group_root_order") or ""
+        return [item for item in raw.split(",") if item]
+
+    def _set_root_order(self, order: list[str]) -> None:
+        self._vault.bucket.catalog.set_meta("group_root_order", ",".join(order))
+        self._vault.bucket.commit()
+
+    def _group_node(self, group: Group, seen: set[str]) -> dict[str, Any]:
+        unlocked = self._group_unlocked(group)
+        node: dict[str, Any] = {
+            "kind": "group",
+            "gid": group.gid,
+            "oid": str(group.oid),
+            "title": group.title or "未命名组",
+            "lock": bool(group.lock),
+            "has_key": bool(group.key),
+            "unlocked": unlocked,
+            "children": [],
+            "count": 0,
+        }
+        if group.gid in seen or not unlocked:
+            return node
+        seen = {*seen, group.gid}
+        children: list[dict[str, Any]] = []
+        for ref in group.group:
+            child = self._group_by_gid(ref)
+            if child is not None:
+                children.append(self._group_node(child, seen))
+            else:
+                item = self._note_node(ref)
+                if item is not None:
+                    children.append(item)
+        node["children"] = children
+        node["count"] = len(children)
+        return node
+
+    @Property(list, notify=groupsChanged)
+    def groupTree(self) -> list[dict[str, Any]]:
+        """导航树：根组（递归子节点）+ 末尾「未分组」；有筛选时只返回该组子树。"""
+        groups = list(list_groups(self._vault))
+        if self._group_filter:
+            root = self._group_by_gid(self._group_filter)
+            if root is None:
+                self._group_filter = ""
+            else:
+                return [self._group_node(root, set())]
+
+        known = {group.gid for group in groups}
+        contained: set[str] = set()
+        referenced: set[str] = set()
+        for group in groups:
+            contained.update(group.group)
+            referenced.update(ref for ref in group.group if ref not in known)
+
+        roots = [group for group in groups if group.gid not in contained]
+        rank = {gid: index for index, gid in enumerate(self._root_order())}
+        roots.sort(key=lambda group: rank.get(group.gid, len(rank)))
+        tree = [self._group_node(group, set()) for group in roots]
+
+        ungrouped = [
+            item
+            for info in self._vault.iter(type=Note.kind)
+            if str(info.oid) not in referenced
+            if (item := self._note_node(str(info.oid))) is not None
+        ]
+        if ungrouped:
+            tree.append(
+                {
+                    "kind": "group",
+                    "gid": "",
+                    "oid": "",
+                    "title": "未分组",
+                    "lock": False,
+                    "has_key": False,
+                    "unlocked": True,
+                    "count": len(ungrouped),
+                    "children": ungrouped,
+                }
+            )
+        return tree
+
+    def _notify_groups(self) -> None:
+        self.groupsChanged.emit()
+        self.notes.reload()
+
+    @Property(str, notify=groupsChanged)
+    def groupFilter(self) -> str:
+        return self._group_filter
+
+    @Slot(str)
+    def filterByGroup(self, gid: str) -> None:
+        self._group_filter = gid
+        self.groupsChanged.emit()
+
+    @Slot()
+    def clearGroupFilter(self) -> None:
+        self._group_filter = ""
+        self.groupsChanged.emit()
+
+    @Slot(str, str, result=str)
+    def createGroup(self, title: str, parent_gid: str = "") -> str:
+        title = title.strip() or "新组"
+        parent = self._group_by_gid(parent_gid)
+        if parent is not None and not self._can_edit_group(parent):
+            return ""
+        group = Group.create(self._vault, title, parent=parent)
+        self._notify_groups()
+        return group.gid
+
+    @Slot(str, str)
+    def renameGroup(self, gid: str, title: str) -> None:
+        group = self._group_by_gid(gid)
+        if not self._can_edit_group(group):
+            return
+        group.title = title.strip() or "未命名组"
+        group.save()
+        self._notify_groups()
+
+    @Slot(str)
+    def toggleGroupLock(self, gid: str) -> None:
+        group = self._group_by_gid(gid)
+        if group is None or not self._group_unlocked(group):
+            return
+        group.lock = not group.lock
+        group.save()
+        self._notify_groups()
+
+    @Slot(str, str)
+    def setGroupKey(self, gid: str, key: str) -> None:
+        group = self._group_by_gid(gid)
+        if not self._can_edit_group(group):
+            return
+        key = key.strip()
+        group.key = _group_key_hash(key) if key else ""
+        group.save()
+        self._unlocked.discard(gid)
+        self._notify_groups()
+
+    @Slot(str, str, result=bool)
+    def unlockGroup(self, gid: str, password: str) -> bool:
+        group = self._group_by_gid(gid)
+        if group is None:
+            return False
+        if not group.key:
+            self._unlocked.add(gid)
+            self._notify_groups()
+            return True
+        if _group_key_hash(password) != group.key:
+            return False
+        self._unlocked.add(gid)
+        self._notify_groups()
+        return True
+
+    @Slot(str)
+    def deleteGroup(self, gid: str) -> None:
+        group = self._group_by_gid(gid)
+        if not self._can_edit_group(group):
+            return
+        for parent in list(list_groups(self._vault)):
+            if gid in parent.group and self._can_edit_group(parent):
+                parent.remove(group)
+        group.delete()
+        self._unlocked.discard(gid)
+        self._notify_groups()
+
+    @Slot(str, str)
+    def addNoteToGroup(self, oid: str, gid: str) -> None:
+        group = self._group_by_gid(gid)
+        if group is None or not oid or not self._can_edit_group(group):
+            return
+        try:
+            group.add(Note.load(self._vault, oid))
+        except GroupError:
+            return
+        self._notify_groups()
+
+    @Slot(str, str)
+    def removeNoteFromGroup(self, oid: str, gid: str) -> None:
+        group = self._group_by_gid(gid)
+        if group is None or not oid or not self._can_edit_group(group):
+            return
+        try:
+            group.remove(oid)
+        except GroupError:
+            return
+        self._notify_groups()
+
+    @Slot(str)
+    def clearNoteGroups(self, oid: str) -> None:
+        """把某笔记从所有组里移除（拖到「未分组」）。"""
+        if not oid:
+            return
+        changed = False
+        for group in list_groups(self._vault):
+            if oid in group.group and self._can_edit_group(group):
+                group.remove(oid)
+                changed = True
+        if changed:
+            self._notify_groups()
+
+    @Slot(str, str)
+    def moveGroup(self, gid: str, parent_gid: str) -> None:
+        """把组挂到新父组下（``parent_gid`` 为空＝移回根）。"""
+        group = self._group_by_gid(gid)
+        if not self._can_edit_group(group) or gid == parent_gid:
+            return
+        parent = self._group_by_gid(parent_gid)
+        if parent is not None:
+            if not self._can_edit_group(parent):
+                return
+            if parent.gid == group.gid or parent.gid in self._descendant_gids(group):
+                return
+        parents = [item for item in list_groups(self._vault) if gid in item.group]
+        if any(not self._can_edit_group(item) for item in parents):
+            return
+        for item in parents:
+            item.remove(group)
+        if parent is not None:
+            parent.add(group)
+        self._notify_groups()
+
+    @Slot(str, int)
+    def reorderGroup(self, gid: str, offset: int) -> None:
+        """组在其父组内上移/下移（``offset`` = -1 / +1）；根组则改根序。"""
+        group = self._group_by_gid(gid)
+        if not self._can_edit_group(group):
+            return
+        for parent in list_groups(self._vault):
+            if gid not in parent.group:
+                continue
+            if not self._can_edit_group(parent):
+                return
+            order = list(range(len(parent.group)))
+            index = parent.group.index(gid)
+            target = index + offset
+            if 0 <= target < len(order):
+                order[index], order[target] = order[target], order[index]
+                parent.move(order)
+            self._notify_groups()
+            return
+        ids = [item.gid for item in list_groups(self._vault)]
+        roots_now = [item for item in self._root_order() if item in ids]
+        roots_now.extend(item for item in ids if item not in roots_now)
+        index = roots_now.index(gid)
+        target = index + offset
+        if 0 <= target < len(roots_now):
+            roots_now[index], roots_now[target] = roots_now[target], roots_now[index]
+            self._set_root_order(roots_now)
+            self._notify_groups()
+
+    @Slot(str, str, int)
+    def reorderInGroup(self, gid: str, child_id: str, offset: int) -> None:
+        group = self._group_by_gid(gid)
+        if not self._can_edit_group(group) or child_id not in group.group:
+            return
+        order = list(range(len(group.group)))
+        index = group.group.index(child_id)
+        target = index + offset
+        if 0 <= target < len(order):
+            order[index], order[target] = order[target], order[index]
+            group.move(order)
+            self._notify_groups()
+
+    @Property(list, notify=groupsChanged)
+    def groupChoices(self) -> list[dict[str, str]]:
+        """扁平组列表，供「移动到组」菜单使用。"""
+        return [
+            {"gid": group.gid, "title": group.title or "未命名组"}
+            for group in list_groups(self._vault)
+        ]
+
+    @Slot(str, result=dict)
+    def groupInfo(self, gid: str) -> dict[str, Any]:
+        """单个组的操作视图（供组菜单 / 口令框使用）。"""
+        group = self._group_by_gid(gid)
+        if group is None:
+            return {}
+        parent = next(
+            (item.gid for item in list_groups(self._vault) if gid in item.group),
+            "",
+        )
+        return {
+            "gid": gid,
+            "title": group.title or "未命名组",
+            "lock": bool(group.lock),
+            "has_key": bool(group.key),
+            "unlocked": self._group_unlocked(group),
+            "in_group": parent != "",
+        }
 
     # ---- 标签 ----
     @Slot(str)
@@ -1339,6 +1825,16 @@ def seed_demo(backend: Backend) -> None:
             relation=DERIVED_FROM,
             props={"at": str(layout_note.info.seq)},
         )
+    storage_note = next((n for n in created if n.title == "存储层设计笔记"), None)
+    work = Group.create(backend._vault, "工作")
+    design = Group.create(backend._vault, "设计", parent=work)
+    if storage_note is not None:
+        work.add(storage_note)
+    if layout_note is not None:
+        design.add(layout_note)
+    client = Group.create(backend._vault, "客户端")
+    if qml_note is not None:
+        client.add(qml_note)
     backend.notes.reload()
     total = backend.notes.rowCount()
     keys = [

@@ -33,7 +33,7 @@
 
 约定 `cairn.<domain>.<kind>`：
 
-- 官方：`cairn.note`、`cairn.canvas`、`cairn.asset`、`cairn.project`、`cairn.block`（裸块兜底）。
+- 官方：`cairn.note`、`cairn.canvas`、`cairn.asset`、`cairn.project`、`cairn.group`、`cairn.block`（裸块兜底）。
 - 内部：`cairn.part` / `cairn.index`（大内容分片与索引块，见 `storage.md` §8）。
 - 第三方用自有前缀（如 `io.example.*`）；`cairn.*` 保留给官方。
 

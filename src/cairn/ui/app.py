@@ -138,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception:  # noqa: BLE001 — 顶层入口：启动失败统一以退出码 1 结束
         return 1
     backend = Backend(vault)
+    app.aboutToQuit.connect(backend.shutdown)
 
     engine = QQmlApplicationEngine()
     context = engine.rootContext()

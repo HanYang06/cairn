@@ -203,6 +203,146 @@ def coerce_style(value: Any, lines: Sequence[Line]) -> StyleMap:
     return decode_style(value, lines)
 
 
+_BOOL_KEYS = ("bold", "italic", "underline", "strike")
+
+
+def _index_of(lines: Sequence[Line], line_id: str) -> int:
+    for index, line in enumerate(lines):
+        if line["id"] == line_id:
+            return index
+    return -1
+
+
+def _copy_lines(lines: Sequence[Line]) -> list[Line]:
+    return [{"id": line["id"], "v": line["v"]} for line in lines]
+
+
+# ---- 行级编辑原语（返回新序列，不改原值）----
+def set_line_text(lines: Sequence[Line], line_id: str, text: str) -> list[Line]:
+    r"""改写某一行文字；含换行时按 ``\n`` 就地拆成多行（新行另分配 id）。"""
+    parts = str(text).split("\n")
+    out: list[Line] = []
+    for line in lines:
+        if line["id"] != line_id or is_marker(line["v"]):
+            out.append({"id": line["id"], "v": line["v"]})
+            continue
+        out.append({"id": line["id"], "v": parts[0]})
+        out.extend({"id": new_id(), "v": part} for part in parts[1:])
+    return out
+
+
+def insert_line(
+    lines: Sequence[Line], after_id: str | None, value: str = ""
+) -> tuple[list[Line], str]:
+    """在 ``after_id`` 之后插入一行（``None`` 追加到末尾）；返回新行 id。"""
+    out = _copy_lines(lines)
+    lid = new_id()
+    position = len(out) if after_id is None else _index_of(out, after_id) + 1
+    out.insert(max(0, position), {"id": lid, "v": str(value)})
+    return out, lid
+
+
+def remove_line(lines: Sequence[Line], line_id: str) -> list[Line]:
+    """删除一行；删空时保留一个空行，保证正文至少一行。"""
+    out = [{"id": line["id"], "v": line["v"]} for line in lines if line["id"] != line_id]
+    return out or [{"id": new_id(), "v": ""}]
+
+
+def split_line(
+    lines: Sequence[Line], line_id: str, offset: int
+) -> tuple[list[Line], str, str, int]:
+    """在 ``offset`` 处把一行拆成两行；返回 ``(新序列, 新行 id, 原行 id, 原行长度)``。"""
+    out: list[Line] = []
+    new_lid = new_id()
+    old_len = 0
+    for line in lines:
+        if line["id"] != line_id or is_marker(line["v"]):
+            out.append({"id": line["id"], "v": line["v"]})
+            continue
+        text = str(line["v"])
+        old_len = len(text)
+        cut = max(0, min(int(offset), old_len))
+        out.append({"id": line["id"], "v": text[:cut]})
+        out.append({"id": new_lid, "v": text[cut:]})
+    return out, new_lid, line_id, old_len
+
+
+def merge_line(lines: Sequence[Line], line_id: str) -> tuple[list[Line], str | None, int]:
+    """把 ``line_id`` 并入上一行；返回 ``(新序列, 上一行 id, 上一行长度)``。
+
+    已是首行、或涉及嵌入占位时不合并，返回 ``(原序列, None, 0)``。
+    """
+    out = _copy_lines(lines)
+    index = _index_of(out, line_id)
+    if index <= 0:
+        return out, None, 0
+    previous = out[index - 1]
+    current = out[index]
+    if is_marker(previous["v"]) or is_marker(current["v"]):
+        return _copy_lines(lines), None, 0
+    previous_text = str(previous["v"])
+    out[index - 1] = {"id": previous["id"], "v": previous_text + str(current["v"])}
+    del out[index]
+    return out, previous["id"], len(previous_text)
+
+
+def drop_style(smap: StyleMap, line_id: str) -> StyleMap:
+    """去掉某一行的全部样式。"""
+    return {key: value for key, value in smap.items() if key != line_id}
+
+
+def split_style(smap: StyleMap, line_id: str, new_line_id: str, offset: int) -> StyleMap:
+    """拆行时按 ``offset`` 把该行样式切成两段，右段迁到新行并平移。"""
+    layers = smap.get(line_id)
+    if not layers:
+        return smap
+    left: RangeStyle = {}
+    right: RangeStyle = {}
+    for start, end, style in _resolve(layers):
+        if start < offset:
+            left[(start, min(end, offset))] = style
+        if end > offset:
+            right[(max(start, offset) - offset, end - offset)] = style
+    out = {key: value for key, value in smap.items() if key != line_id}
+    if left:
+        out[line_id] = [left]
+    if right:
+        out[new_line_id] = [right]
+    return out
+
+
+def merge_style(smap: StyleMap, first_id: str, second_id: str, first_len: int) -> StyleMap:
+    """合并两行时拼接样式：第二行区间整体右移 ``first_len``。"""
+    merged: RangeStyle = {}
+    for start, end, style in _resolve(smap.get(first_id, [])):
+        merged[(start, end)] = style
+    for start, end, style in _resolve(smap.get(second_id, [])):
+        merged[(start + first_len, end + first_len)] = style
+    out = {key: value for key, value in smap.items() if key not in (first_id, second_id)}
+    if merged:
+        out[first_id] = [merged]
+    return out
+
+
+def _style_at(smap: StyleMap, line_id: str, position: int) -> Style:
+    for start, end, style in _resolve(smap.get(line_id, [])):
+        if start <= position < end:
+            return style
+    return Style()
+
+
+def toggle_range_style(smap: StyleMap, line_id: str, start: int, end: int, key: str) -> StyleMap:
+    """对 ``[start, end)`` 切换一个布尔样式；以区间起点处的当前样式为基准取反。"""
+    if key not in _BOOL_KEYS or end <= start:
+        return smap
+    current = _style_at(smap, line_id, int(start))
+    data = current.to_data()
+    data[key] = not bool(getattr(current, key))
+    toggled = Style.from_data(data)
+    layer: RangeStyle = {(int(start), int(end)): toggled}
+    return {**smap, line_id: [*smap.get(line_id, []), layer]}
+
+
 def line_styles(smap: StyleMap, line: Line) -> list[tuple[int, int, Style]]:
     """某一行解析后的样式区间（已按当前行长度裁剪）。"""
     text = line["v"]
@@ -252,11 +392,20 @@ __all__ = [
     "coerce_style",
     "content_signature",
     "decode_style",
+    "drop_style",
     "encode_style",
     "flatten_text",
+    "insert_line",
     "is_marker",
     "line_styles",
+    "merge_line",
+    "merge_style",
     "new_id",
     "normalize_body",
+    "remove_line",
+    "set_line_text",
     "signature_style",
+    "split_line",
+    "split_style",
+    "toggle_range_style",
 ]

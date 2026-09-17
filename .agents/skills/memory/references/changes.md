@@ -58,3 +58,28 @@
   `data-model.md` 重写为 v0.4（桶 / 块 / 内容池 / 目录 / 通用版本引擎）；`note-model.md` 修 §2/§3/§9/§10；
   `kernel.md`（事件目录 / 配置）、`access.md`、`network.md`、`ecosystem.md`、`README.md`、`AGENTS.md` 同步；
   `ui-theme.md` 色板 / 字体 / 圆角更新为 QML 现状（GitHub Primer + 等宽字体链）。
+- 2026-09-17 · 已定 · **逐行编辑器首版**：`note/edit.py` 新增行级原语（改字/插入/删除/拆分/合并 + 区间样式切换，
+  拆合时样式按位置迁移）；`Note` 暴露 `set_line`/`insert_line_after`/`remove_line`/`split_line`/`merge_line`/`toggle_style`；
+  `Backend` 加行级 Slot 与 `_touch` 去抖保存；`EditorArea.qml` 正文由单一 `TextEdit` 改为消费 `currentBlocks`
+  的逐行编辑器（RichText 行内样式、占位 chip、Ctrl+B/I/U、Enter/Backspace/上下键）。ruff/mypy/151 测试全绿，`--smoke` 通过。
+- 2026-09-17 · 已定 · **保存 ≠ 版本**：`Note` 拆出 `persist()`（只落盘）与 `save()`（落盘 + 版本检查点）；
+  自动保存走 `persist`，检查点在四类「非连续编辑」边界产生——空闲 `CHECKPOINT_IDLE_MS`（默认 5 分钟）、
+  切换笔记、`Ctrl+S`（`Backend.saveNow`）、退出（`Backend.shutdown` ← `aboutToQuit`）。
+  修掉逐次自动保存堆出一长串微小版本的问题。ruff/mypy/153 测试全绿，`--smoke` 通过。
+- 2026-09-17 · 已定 · **快赢三件套**：① 工具册点击回收修好（`backdrop` 仅在点面板外时关闭）；
+  ② 属性栏补 `署名` / `签名` / `可见性`，并把 `作者` 改取笔记 `author`（原误用当前档案名）；
+  ③ 去掉笔记侧栏搜索框，工具册输入框升级为搜索 / 命令面板（`Backend.searchNotes`：输入即筛、
+  回车打开首条、无结果以该文本新建、Esc 清空、关闭复位过滤）。ruff/mypy/154 测试全绿，`--smoke` 通过。
+- 2026-09-17 · 已定 · **新增组块 `cairn.group`**（`domains/group.py`）：域身份 **`gid`**（≠ 块 `oid`）；
+  `group: list[str]` 有序子项（组存 gid、其余存 oid，可无限嵌套）；`title` / `lock` / `owner` / `member` / `key`
+  （社区化预埋；`User` 系统落地前用字符串）；成员**两套都存**（列表存结构 + `relations` 存 `contains` 反查）。
+  导航树未接。ruff/mypy/160 测试全绿。
+- 2026-09-17 · 已定 · **后端组 API + 导航分组树**：`Backend` 加 `groupTree` / `groupChoices` /
+  `createGroup` / `renameGroup` / `toggleGroupLock` / `setGroupKey` / `deleteGroup` / `addNoteToGroup` /
+  `removeNoteFromGroup`；`Navigator` 笔记区改为**分组树**（组可折叠、双击改名、悬停＋当前笔记；
+  无组时平铺 + 「未分组」兜底），并加**详细 / 紧凑**显示形态切换。ruff/mypy/164 测试全绿，`--smoke` 通过。
+- 2026-09-17 · 已定 · **组功能补全**：锁定（锁后改名/删除/增删/移动一律拒绝）、口令（`key` 存 BLAKE3 校验哈希，
+  `unlockGroup` 解锁当前会话；未解锁不暴露子项）、移动/重排（`moveGroup` 防环、`reorderGroup` 含根序、
+  `reorderInGroup`）、筛选（`filterByGroup` / `clearGroupFilter` / `groupFilter`）、`clearNoteGroups`（拖回未分组）。
+  UI：`GroupMenu.qml` 组右键菜单、`PromptBox.qml` 口令输入、`Navigator` 拖拽（笔记/组拖到组上增删与移动）。
+  ruff/mypy/170 测试全绿，`--smoke` 通过。
