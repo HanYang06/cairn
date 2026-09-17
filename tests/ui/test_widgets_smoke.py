@@ -13,10 +13,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-_SCRIPT = (
-    "import sys; from cairn.ui.app import main; "
-    "raise SystemExit(main(['cairn', '--widgets', '--smoke']))"
-)
+_SCRIPT = "import sys; from cairn.ui.app import main; raise SystemExit(main(['cairn', '--smoke']))"
 
 
 def test_widgets_smoke(tmp_path: Path) -> None:

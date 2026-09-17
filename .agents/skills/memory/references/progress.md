@@ -50,15 +50,13 @@
 - [x] **组件层起步**（2026-09-18）：`Component` 继承注册表 + `STYLABLE` / `STATES`
   （抽象基类不入册）；原子 `Label` / `Button` / `IconButton` / `Field` / `Section`；
   `theme/schema.py` 由注册表自动派生点分路径 + `validate_path`。
-- [ ] **P1 导航 + 检查器**：`Session`（身份缓存 + 投影）+ 类型化行 + `QTreeView/QListView` 模型 +
-  `Inspector`（`QFormLayout` 或属性模型）。
-  - [x] 笔记**列表**已接（`App.notes` 模型 + `ListPanel`，自动刷新）；**检查器**已接（`PropertyRow`
-    投影 + `InspectorPanel` + 当前笔记联动）；**分组树**未做。
-- [ ] **P2 编辑器**：`QTextEdit`/`QTextDocument`（block ↔ 行映射）+ `QUndoStack`；
-  替换 QML 逐行 `TextEdit`；解决跨行选区与撤销/重做。
-- [ ] **P3 视图与对话框**：关系 / 历史页，菜单 / 弹层 / 命令面板。
-- [ ] **P4 QML 岛**：画板、关系拓扑等按边界规则接入。
-- [ ] 删除 QML 主界面与 `ui/theme` 旧暖色令牌；同步/生成 `CairnTheme.qml`（若仍留 QML 岛）。
+- [x] **P1 导航 + 检查器**：笔记列表 / 分组树 / 检查器均已接。
+- [x] **P2 编辑器**：`NoteDocument` + `NoteEditor`（`QTextEdit`，原生 undo/跨行选区）；格式工具栏接编辑器。
+- [x] **P3 视图与对话框**：关系 / 历史页、标签 / 搜索页、命令面板、标题栏 / 状态栏。
+- [x] **入口切 Widgets 并删 QML 主界面**（`backend.py` / `qml/` / `ui/tools.py` / `ui/views/` 已删）。
+- [ ] **剩余小件**：分享 / 档案 / 口令弹层、多选批量、拖拽。
+- [ ] **视觉对齐**：行委托 + 逐组件主题规则 + 度量令牌（对照 `build/qml.png` 参考）。
+- [ ] **P4 QML 岛**：画板、关系拓扑等按边界规则接入（`QmlView` 承载器已备）。
 
 ## 远期
 

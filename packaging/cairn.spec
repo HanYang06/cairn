@@ -6,17 +6,17 @@
 
     uv run python tools/build.py
 
-- QML 是数据文件，必须显式随包携带（见 datas），否则运行期加载会失败。
+- 主题配置（``config/theme``）是数据文件，必须显式随包携带（见 datas）。
 - 版本号由构建脚本经环境变量 ``CAIRN_VERSION`` 注入，仅用于展示信息。
 """
 
 from pathlib import Path
 
 root = Path(SPECPATH).resolve().parent
-qml_dir = root / "src" / "cairn" / "ui" / "qml"
+config_dir = root / "config"
 icon = root / "assets" / "logo" / "cairn.ico"
 
-datas = [(str(qml_dir), "cairn/ui/qml")]
+datas = [(str(config_dir), "config")]
 
 # 未使用的 Qt 大模块不打包，控制体积；按需增删。
 excludes = [
