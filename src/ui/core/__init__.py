@@ -1,22 +1,26 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""UI 内核：与通信主干的接入点、声明树基元与组合根（Qt-free）。"""
+"""UI 内核：接入点、声明树基元、词汇表与编译管线（Qt-free）。"""
 
 from __future__ import annotations
 
 from .app import App, SuperLayout
 from .bind import Bind, Binding
+from .compile import Compiler, Translator
 from .conf import Conf, ConfGroup
 from .errors import LayoutError, UiError
 from .facet import Facet
-from .node import Node, Placed
+from .node import Node, Placed, registered_kinds
+from .registry import kinds, vocabulary
 from .session import Session
+from .signal import UiSignal
 
 __all__ = [
     "App",
     "Bind",
     "Binding",
+    "Compiler",
     "Conf",
     "ConfGroup",
     "Facet",
@@ -25,5 +29,10 @@ __all__ = [
     "Placed",
     "Session",
     "SuperLayout",
+    "Translator",
     "UiError",
+    "UiSignal",
+    "kinds",
+    "registered_kinds",
+    "vocabulary",
 ]

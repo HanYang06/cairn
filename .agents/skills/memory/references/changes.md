@@ -300,6 +300,12 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 内核底层（通用机制）**：`Node` 加 **kind 注册表**（`__init_subclass__` 自动登记，
+  冲突报错）、**词汇元数据** `STYLABLE`/`STATES`、**父子链与点分路径**（`parent`/`path()`/`walk()`）；
+  新增 `ui/core/registry.py`（`kinds` / `vocabulary`）、`ui/core/signal.py`（`UiSignal`：UI 侧信号代理占位）、
+  `ui/core/compile.py`（`Translator` 协议 + `Compiler` 注册表，深度优先单向编译）。新增 `tests/ui/test_kernel.py`。
+  此后布局 / 页面 / 组件只是"声明 `kind` + 元数据"，配置 / 编译 / 绑定机制通用。
+  ruff / format / mypy / pytest 全绿，179 通过。
 - 2026-09-19 · 已定 · **UI 内核骨架 · Facet 声明层（Qt-free）**：`src/ui/` 新增——
   `ui/core/errors.py`、`conf.py`（`Conf`：`theme` 封闭 / `attr` 开放，`set` / `add`）、`bind.py`（`Bind` 登记处）、
   `node.py`（`Node`：名称 + 配置 + 子件 + **能力声明** `addable` / `capacity` / `stretch` / `variable` / `actions`）、
