@@ -41,15 +41,18 @@
 - [ ] 多媒体拖入：落 `Asset`（转码）→ 正文 `{"access": n}` 占位。
 - [ ] 「捕捉面 vs 编辑面」分离落地（全局热键秒开）。
 
-## UI 重建（2026-09-19 归零）
+## UI 重建（2026-09-19，方向已定）
 
-> UI 源码（原 Widgets 迁移成果 + `cairn.ui.decl` 描述层）已随目录重定**整体删除**，
-> 对应测试 `tests/ui/**` 与专用工具（`preview_widgets` / `gen_theme_schema`）一并移除。
-> 原实现记录留在 `changes.md` 作历史；方向性决策见 `decisions.md`（均标「已废弃 / 待重新立项」）。
+> 设计总纲：`docs/architecture/ui-kernel.md`（草案 v0.1）。
+> 技术路线：Widgets 宿主 + QML 岛；直通经内核信号代理 + 投影 + 命令。方向见 `decisions.md`「UI 内核」。
+> UI 源码（原 Widgets 迁移成果 + `decl` 描述层）已随目录重定删除，记录留 `changes.md` 作历史。
 
-- [ ] **UI 从零设计**：在 `src/ui/` 下重新立项（技术路线未定）。
-  - 前置：note 的 body / bucket 底层先稳。
-- [ ] 桌面入口 `ui.app:main`、`packaging/cairn.spec`（入口已指向 `src/ui/__main__.py`）与构建脚本随 UI 恢复。
+- [ ] **M0 地基**：信号代理 → Qt 桥；字段内省 API + 字段 traits；投影 / 模型；Config 加载与校验。
+- [ ] **M1 外壳**：App / MainWindow / Component / Panel / Page + 布局组织器 + 描述编译。
+- [ ] **M2 生成**：对象驱动生成器 + Note 特化模板（列表 / 编辑器 / 检查器）。
+- [ ] **M3 扩展**：Project / Canvas + QML 岛。
+- [ ] 数据内核配合：字段内省、traits、`batch` 事件、facade 收口（见下「内核小账」）。
+- [ ] 桌面入口 `ui.app:main`、`packaging/cairn.spec` 与构建脚本随 UI 恢复。
 
 ## 远期
 
@@ -78,6 +81,4 @@
   （`note/types.py`），但 UI 全程读写 `attrs["props"]`（`backend.py`）→ 类型字段实际是死的。二选一收口。
 - [ ] **`Vault` 死 API**：`put` / `put_meta` / `versions` / `read_version` / `restore_version`
   （旧单版本占位）与 `VersionStore` 并存，误导人。清理或明确标注废弃。
-- [ ] **`Vault.put_block` 不发 `ObjectPut`**：领域 `save()` 走它，导致 UI 收不到内核变更事件；
-  补发以建立单一变更通路（`events.py` 已声明「提交后发出」）。
 - [ ] **pack 压实**：`gc` 空实现、`compact` 只压版本；事务回滚会留孤儿 pack 字节。需压实/回收策略。

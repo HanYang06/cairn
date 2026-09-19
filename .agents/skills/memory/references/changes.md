@@ -236,3 +236,19 @@
   `pyproject`（wheel 包 / isort / per-file-ignore / 覆盖率目标）、README / AGENTS / 架构文档同步。
   UI 源码删除后连带删除 `tests/ui/**` 与引用 UI 的工具（`preview_widgets` / `gen_theme_schema`）。
   内核 ruff/mypy 全绿，149 测试通过、覆盖率 87%。
+- 2026-09-19 · 已定 · **UI 内核设计总纲立项**：新增 `docs/architecture/ui-kernel.md`（草案 v0.1）——
+  确立「数据内核 / UI 内核」两套体系；UI 内核 = 数据直通 + 对象驱动生成 + 事件绑定 + 统一 Config；
+  技术路线 Widgets 宿主 + QML 岛；直通经内核信号原语（预埋目录 `src/core/signal/`，`EventBus` 为过渡）
+  + 投影 + 命令，单向数据流。核心约束：**各司其职 = 领域契约 `fields`/`actions`/`signals`**；
+  **Bucket/Block 与 UI 正交**（UI 不 import `core.storage`/`feature`，契约不长在 `Block` 上，经中立
+  `FieldSpec` 投影）；验收指标「加字段 UI 改 0~1 处」。
+  记入 `decisions.md`「UI 内核（2026-09-19，重定）」；`progress.md`「UI 重建」改为 M0–M3 分期，
+  并清掉已修复的过期条目（`Vault.put_block` 不发 `ObjectPut`）。
+- 2026-09-19 · 已定 · **UI 内核：交付单元 `Facet` + `Bind` 模型定稿**（写入 `ui-kernel.md` §4/§5）：
+  生成器由 `Page` 定名 **`Facet`**（`Page` 退为内层页面层）；`Facet.__init__` 只声明**属性配置 + 绑定**；
+  `Bind(self).add(UI 信号, 领域 Signal | 本类方法)`，**编译期校验**；Qt 物理 / 控件事件统一包成 `Signal`；
+  交付 = 直接交 App（组合根）编译挂载。总目标定为「更便捷、更快、更轻量、更少工作量」。
+- 2026-09-19 · 已定 · **UI 内核：信号 / Facet 自包含 / Config 定稿**（`ui-kernel.md` §3.1/§4/§6）：
+  `core/signal` = 现有 `EventBus` 升级（存储事件 + 语义信号两层，域间不 import）；`Facet` 自包含
+  主题等、不自包含布局 / 部件，`set`（设形态）/ `add`（加持有）语义不可混；产物 = 对象本身直接交 App
+  （不序列化）；Config = JSON，App 认识所有 Facet → 自动生成 schema，含布局参数（拖布局 = 改文件）。
