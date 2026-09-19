@@ -58,6 +58,22 @@
 - [ ] **视觉对齐**：行委托 + 逐组件主题规则 + 度量令牌（对照 `build/qml.png` 参考）。
 - [ ] **P4 QML 岛**：画板、关系拓扑等按边界规则接入（`QmlView` 承载器已备）。
 
+## 声明式描述层 decl（2026-09-19）
+
+> 方向见 `decisions.md`「声明式描述层 decl」。这是 UI 的「设计 v2」：从类型语法往下收。
+
+- [x] **语法层 + 交替规则 + 意图边**：`Node/Layout/Display/Page/Component`（`ui/decl/node.py`）。
+- [x] **配置层**：`UiConfAttribute`（默认/覆盖/重定向/失效）+ `Theme` 令牌引用（禁硬编码）+ `Scope`。
+- [x] **编译层**：translator 注册表 + `Compiler`（单向一次，无 reconciler）+ `Raw` 逃生舱。
+- [x] **词汇起步**：布局 `VBox/HBox/Grid/Table/Stack`；组件 `Label/Button`。
+- [x] **组合根 + 示例**：`decl.App` + `build_demo`（标签页示例）；入口 `--decl`（离屏冒烟已入测试）。
+- [x] **页面宿主 / 路由 / 生命周期**：`PageRegistry`（route → Page 工厂）+ `PageHost`（`PageHostWidget` =
+  `QTabBar` + `QStackedWidget`）；**懒构建**（首次显示才建控件）；`Page.on_enter/on_leave` 生命周期；
+  单页自动隐藏标签栏。`tests/ui/decl/test_host.py` 覆盖。
+- [ ] **`Placement.FLOAT` / overlay**：现只记录属性，浮起未实装（预留）。
+- [ ] **领域接入契约**：`BlockView`（投影 / 检查器 / 动作）与视图原型（List/Detail/Board）——待做。
+- [ ] **真实笔记页重表达**：用 decl 改写现有笔记页，验证「加页面不改外壳」。
+
 ## 远期
 
 - [ ] **Project（重）**：复杂度远高于 note，全部建立在 block / body / bucket 之上。

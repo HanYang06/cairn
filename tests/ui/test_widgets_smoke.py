@@ -14,18 +14,31 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 _SCRIPT = "import sys; from cairn.ui.app import main; raise SystemExit(main(['cairn', '--smoke']))"
+_DECL_SCRIPT = (
+    "import sys; from cairn.ui.app import main; "
+    "raise SystemExit(main(['cairn', '--decl', '--smoke']))"
+)
 
 
-def test_widgets_smoke(tmp_path: Path) -> None:
+def _run(script: str, tmp_path: Path) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["CAIRN_VAULT"] = str(tmp_path / "vault")
-    result = subprocess.run(
-        [sys.executable, "-c", _SCRIPT],
+    return subprocess.run(
+        [sys.executable, "-c", script],
         env=env,
         capture_output=True,
         text=True,
         timeout=180,
         check=False,
     )
+
+
+def test_widgets_smoke(tmp_path: Path) -> None:
+    result = _run(_SCRIPT, tmp_path)
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+
+def test_decl_smoke(tmp_path: Path) -> None:
+    result = _run(_DECL_SCRIPT, tmp_path)
     assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"

@@ -125,3 +125,25 @@
 - 已定 · 组件建造四规则：**联动在控制器**（compound components，不控件互连）、
   **布局靠 `VBox/HBox/Grid/Split` 嵌套组合**（不新增原语）、**增长只在原子与页面**、
   **主题 = 点分配置 → QSS 编译 + 有限 Qt 侧增强**。细则见 `rules/references/ui-boundary.md` §6。
+
+## 声明式描述层 decl（2026-09-19，新增）
+
+- 已定 · **`cairn.ui.decl` 是 UI 描述层**：语法层 `Node / Layout / Display / Page / Component`；
+  **交替规则**——`Layout` 只排列（子件只能是显示节点）、`Display` 只承载 `Layout`/`Component`、
+  `Page` 只能挂在 `Layout` 下且必含一个 `Layout`。信号**不是类型**，是所有节点内置的意图边
+  （`on` / `emit`）。
+- 已定 · **配置分两类**：`Theme`（**封闭词表**，外观唯一真源，样式只写 `token.*` 引用、禁硬编码）
+  与 `UiConfAttribute`（**开放词表**，随组件继承生长，支持新增 / 覆盖 / 重定向 / 失效）。
+  两者重叠用「**属性设状态、样式选状态**」的伪状态桥缝合。
+- 已定 · **重定向 ≠ 失效**：重定向（改名 + 兼容别名）安全；失效会破坏「子类可当父类用」，
+  慎用。防配置爆炸靠**组合 > 深继承**。
+- 已定 · **`Scope` 是隔离边界**（主题 / 绑定 / 撤销 / 焦点），可派生子作用域并继承主题；
+  `App` 只是最外层的 Scope + 根布局。
+- 已定 · **编译层单向一次性**：描述树 → Qt 树，扩展只加 translator（注册表）；
+  `Raw` 是一等逃生舱。**不造 reconciler / 不搬响应式**——响应仍走内核 → `Session` → 模型。
+  旧规则「不要造绑定框架」继续有效：decl 只做描述 + 编译，无绑定框架。
+- 已定 · `Layout`（排列机制）与 `Page`（语义目的地）是两类，**不可合并**；两者的子类
+  即「词汇层」（`VBox/Grid/Table…`、`ListPage/DetailPage…`）。
+- 已定 · **路由 / 宿主 / 生命周期**：`PageRegistry`（route → Page 工厂，注册顺序即标签序）+
+  `PageHost`（即 **Tab 槽**，`QTabBar` + `QStackedWidget`）。页面控件**首次显示才构建**（懒加载）；
+  切换时触发 `Page.on_enter/on_leave`。加页面 = 注册一行，不动外壳。

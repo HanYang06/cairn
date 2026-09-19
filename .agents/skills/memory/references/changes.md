@@ -215,6 +215,17 @@
   chip 菜单、右键分享子菜单、`_on_node_dropped`；`config/theme/github-*.json` 加容器 `style` 规则
   （标题栏 / 状态栏 / 导航 / 检查器 / 标签条 / 格式栏背景）。修 `UniformRowHeights` 与标题栏撑开。
   ruff/mypy/235 测试全绿（覆盖率 82%）。
+- 2026-09-19 · 已定 · **声明式 UI 描述层首版（`cairn.ui.decl`）**：新增 `src/cairn/ui/decl/`——
+  语法层 `Node/Layout/Display/Page/Component`（交替规则校验 + 意图边 `on/emit`）；
+  配置层 `UiConfAttribute`（默认 / 覆盖 / 重定向 / 失效）与 `Theme` 令牌引用（`token.*`，禁硬编码）；
+  `Scope` 隔离；translator 注册表 + `Compiler`（描述树 → Qt 树，**单向一次**，无 reconciler）；
+  布局词汇 `VBox/HBox/Grid/Table/Stack`、组件词汇 `Label/Button`、逃生舱 `Raw`；
+  组合根 `decl.App` 与最小示例 `build_demo`；入口加 `--decl`（含离屏冒烟）。
+  ruff/mypy/286 测试全绿，覆盖率 83%（decl 包 100%）。
+- 2026-09-19 · 已定 · **decl 路由 / 页面宿主 / 生命周期**：新增 `decl/router.py`（`PageRegistry`，
+  route → Page 工厂）与 `decl/host.py`（`PageHost` + `PageHostWidget`：`QTabBar` + `QStackedWidget`，
+  **懒构建**——首次显示才建控件，切换触发 `Page.on_enter/on_leave`，单页隐藏标签栏）；`Page` 加
+  生命周期钩子；`build_demo` 改为标签页示例。ruff/mypy/303 测试全绿，覆盖率 83%。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是
