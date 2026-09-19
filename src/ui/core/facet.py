@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
+"""`Facet`：一个域的整套 UI 定义（声明层）。
+
+- 构造收**注入的领域对象**（不碰总线、不自取）。
+- `page(page, route_signal)` 注册页面 + 路由；`navigate` 反查。
+- `set` / `add` 作用于默认页（`root`）；`bind` / `conf` 为声明入口。
+- 浅分析暂缺（待领域侧统一规范），当前只执行显式声明。
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from ..page import Page
+from .bind import Bind
+from .conf import Conf
+from .errors import UiError
+
+if TYPE_CHECKING:
+    from ..layout import Layout
+
+
+class Facet:
+    """域 UI 交付单元（分析器 / 组织器 / 包装器三合一的声明半）。"""
+
+    kind = "facet"
+
+    def __init__(self, domain: object, *, name: str = "") -> None:
+        self.domain = domain
+        self.name = name or type(domain).__name__
+        self.conf = Conf()
+        self.bind = Bind(self)
+        self.root = Page("root")
+        self._pages: dict[Page, object] = {}
+        self._routes: dict[object, Page] = {}
+
+    def set(self, layout: type[Layout], **opts: Any) -> Layout:
+        """设定默认页的根布局形态。"""
+        return self.root.set(layout, **opts)
+
+    def add(self, component: object, *, at: object | None = None) -> object:
+        """往默认页添加部件。"""
+        return self.root.add(component, at=at)
+
+    def page(self, page: Page, route: object) -> Page:
+        """注册一个页面及其路由信号（重复注册以最后一次为准）。"""
+        self._pages[page] = route
+        self._routes[route] = page
+        return page
+
+    def pages(self) -> dict[Page, object]:
+        """已注册页面：`Page → 路由信号`。"""
+        return dict(self._pages)
+
+    def navigate(self, route: object) -> Page:
+        """按路由信号反查页面。"""
+        page = self._routes.get(route)
+        if page is None:
+            raise UiError(f"未注册的路由: {route!r}")
+        return page
+
+    def __repr__(self) -> str:
+        return f"Facet({self.name!r}, pages={len(self._pages)})"
+
+
+__all__ = ["Facet"]

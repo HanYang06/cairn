@@ -300,6 +300,13 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 内核骨架 · Facet 声明层（Qt-free）**：`src/ui/` 新增——
+  `ui/core/errors.py`、`conf.py`（`Conf`：`theme` 封闭 / `attr` 开放，`set` / `add`）、`bind.py`（`Bind` 登记处）、
+  `node.py`（`Node`：名称 + 配置 + 子件 + **能力声明** `addable` / `capacity` / `stretch` / `variable` / `actions`）、
+  `facet.py`（`Facet`：`page(page, route)` 路由表 + 反表、`set`/`add` 默认页、`bind` / `conf`）、
+  `app.py`（`App`：根壳 `SuperLayout` 命名区域 + `mount(facet, slot)` + `navigate`）；
+  `ui/layout/layout.py`（`Layout` + `VBox`/`HBox`/`Grid`/`Split`/`Stack`）、`ui/component/component.py`（`Component`）、
+  `ui/page/page.py`（`Page`）。新增 `tests/ui/test_facet.py`（7 例）。ruff / format / mypy / pytest 全绿，173 通过。
 - 2026-09-19 · 已定 · **UI 目录骨架**：`src/ui/` 分 `core`（内核：`Session` / `App`）/ `layout` / `page` /
   `component` / `qml` 五个子包（后四个先建空壳，SPDX 头齐全）；`ui/core/session.py` 改从 `core.signal` 导入；
   测试 `tests/ui/test_session.py` 改 `ui.core.session`。 ruff / format / mypy / pytest 全绿，166 通过。

@@ -55,7 +55,8 @@
 > 技术路线：Widgets 宿主 + QML 岛；直通经内核信号代理 + 投影 + 命令。方向见 `decisions.md`「UI 内核」。
 > UI 源码（原 Widgets 迁移成果 + `decl` 描述层）已随目录重定删除，记录留 `changes.md` 作历史。
 
-- [ ] **M0 地基**：信号代理 → Qt 桥；字段内省 API + 字段 traits；投影 / 模型；Config 加载与校验。
+- [~] **M0 地基**：`Facet` 声明层骨架（`Conf` / `Bind` / `Node` / `Facet` / `App` + 布局 / 组件 / 页面）已落地（Qt-free）；
+  待做：Qt 桥（`Session` 观察者 → Qt 信号）、投影 / 模型、Config 加载与校验、真编译（M1）。
 - [ ] **M1 外壳**：App / MainWindow / Component / Panel / Page + 布局组织器 + 描述编译。
 - [ ] **M2 生成**：对象驱动生成器 + Note 特化模板（列表 / 编辑器 / 检查器）。
 - [ ] **M3 扩展**：Project / Canvas + QML 岛。

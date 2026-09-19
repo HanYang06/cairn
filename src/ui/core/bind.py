@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
+"""绑定登记处：UI 信号 → 领域动作 / 本类方法。
+
+`self.bind` 是 Facet（或页面）持有的**登记处对象**，随其生命周期释放；只声明、不即时连接，
+真正连接在编译 / 挂载阶段。
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Binding:
+    """一条绑定：`source` → `target`。"""
+
+    source: object
+    target: object
+
+
+class Bind:
+    """绑定登记处（作用域 = 持有者）。"""
+
+    def __init__(self, owner: object) -> None:
+        self._owner = owner
+        self._items: list[Binding] = []
+
+    def add(self, source: object, target: object) -> Binding:
+        """登记一条绑定：`source` = UI 信号，`target` = 领域动作或本类方法。"""
+        binding = Binding(source=source, target=target)
+        self._items.append(binding)
+        return binding
+
+    def items(self) -> list[Binding]:
+        """全部绑定（按登记顺序）。"""
+        return list(self._items)
+
+    def clear(self) -> None:
+        """清空绑定。"""
+        self._items.clear()
+
+    def __repr__(self) -> str:
+        return f"Bind({len(self._items)})"
+
+
+__all__ = ["Bind", "Binding"]
