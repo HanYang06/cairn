@@ -19,6 +19,14 @@
 - [ ] 属性 KV 化推广到**项目 / 社区**（现只有笔记是 KV）。
 - [ ] 分享目标接真实数据（社区 / 成员现为 demo）。
 - [ ] 主题系统「主题文件系统」另行设计（现为单主题令牌）。
+- [ ] 架构文档待回写：`kernel.md` / `ui-kernel.md` §3.1.1（取代「通知非命令」）、
+  `domains.md`（note 拆数据/服务）；`ui-kernel.md` §10 待定项 1（合并方式）应关闭。
+- [ ] 其余领域按 note 口径拆「域服务 + 数据」（Project / Canvas / Group / Asset / Relation）。
+- [ ] **数据库重构**（口径见 `decisions.md`「数据库重构」）：**切片 1、2、3 已完成**
+  （表/列改名 + 载体随机命名；`type` 整数码表 + `block.data` 收口；去 `version_heads`、`relation` 加 `domain`、
+  领域枚举走 `block.type` 索引）。**不建 `note`/`project`/`group_index`**（理由见 decisions）。
+  待做：`search` 混合搜索（后续）；`Group` 的 `list`/`by_gid`/`roots` 可确认已走类型索引。
+- [ ] **目录迁移机制**：`catalog_version` 目前只标记、无迁移；正式发布前补「检测旧版本 → 迁移或拒绝打开」。
 
 ## 下阶段（编辑器本体）
 

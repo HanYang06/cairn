@@ -252,3 +252,58 @@
   `core/signal` = 现有 `EventBus` 升级（存储事件 + 语义信号两层，域间不 import）；`Facet` 自包含
   主题等、不自包含布局 / 部件，`set`（设形态）/ `add`（加持有）语义不可混；产物 = 对象本身直接交 App
   （不序列化）；Config = JSON，App 认识所有 Facet → 自动生成 schema，含布局参数（拖布局 = 改文件）。
+- 2026-09-19 · 已定 · **移除旧字符串命名信号层**：删 `core/signal/bus.py`（`SignalBus` / `Signal` /
+  `SignalEvent` / `check_name` / `Handler` / `SignalData`）与 `Vault.signals` 接线、`tests/core/test_signal.py`；
+  `core/signal/` 留空壳作新「统一调用主干」预留目录。理由：字符串命名与「零字符串静态地址树」设计冲突，
+  先清地面（删其 11 个用例，全量 149 通过；ruff / mypy / pytest 全绿）。
+- 2026-09-19 · 已定 · **通信主干落地（`core/signal`）**：新增 `Signal`（主干 + 地址树 `core`/`feature`）、
+  `Domain`（域服务基类）、`@action`（单播动作描述符）、`Topic`（多播信号描述符）、`Action` / `BoundTopic`。
+  零字符串寻址 `signal.feature.Note.save(...)`；单播经 `invoke`（**异常透传**）、多播复用 `EventBus`
+  （**异常隔离**）；未注册域动作退回直调、多播 `emit` 丢弃 / `subscribe` 报错；每 `Signal` 一作用域。
+  新增 `tests/core/test_signal.py`（9 例）。ruff / mypy / pytest 全绿。
+- 2026-09-19 · 已定 · **Note 拆「数据 + 域服务」**：`feature/note/types.py` 原 `Note(Block)` 改为
+  `NoteData(Block)`（字段 + 纯内容操作），新增 `Note(Domain)` 域服务（`create` / `load` / `list_notes` /
+  `save` / `persist` / `update` / `history` / `body_at` / `restore` / `link` / `add_canvas` / `add_access` +
+  `changed` 多播）；`tools.py` 类型改 `NoteData`；`feature` / `note` 导出同步；迁移 `tests/feature/*`
+  既有用例；新增 `tests/feature/test_note_bus.py`（域服务挂主干 + 多播 + 异常透传，5 例）。
+  ruff / format / mypy / pytest 全绿，163 通过、覆盖率 88%。注意：`core/signal` 包此前未纳入 git。
+- 2026-09-19 · 已定 · **数据库重构切片 1（命名 + 载体随机命名）**：`core/storage/catalog.py` 表/列改单数直白名——
+  `contents → body`（键 `checksum → body_id`）、`blocks → block`（键 `id → oid`）；`packs` 加 `name` 列，
+  载体文件改**随机哈希命名**（`[0-9a-z]` 32 位，`_random_pack_name`），废 `000001.pack`；目录版本 `1 → 2`。
+  Catalog 方法改名：`find_content/find_body`、`add_content/add_body`、`count_contents/count_bodies`、
+  `block_checksum/block_body_id`、新增 `pack_name`；`bucket._pack_path` 按名取载体。测试同步。
+  未动：`type` 仍 TEXT、`author/config/meta` 仍在块表、`versions/version_heads/search/relations` 未碰。
+  ruff / format / mypy / pytest 全绿，163 通过、覆盖率 88%。
+- 2026-09-19 · 已定 · **数据库重构切片 2（整数类型 + 块 data 收口）**：
+  - 新增 `block_type(code, name)` 码表，`block.type` 从 TEXT 改为 **INTEGER**；core 预置
+    `0=block / 1=part / 2=index`，其余类型在写入时自动登记（`Catalog.type_code` / `type_name`，稳定不复用）。
+  - `block` 表去 `author` / `config` / `meta`，合并为单个 **`data` BLOB**（`{attrs, config, author}`）；
+    `Bucket._save_block` / `_get` 相应改写（类型码转换、data 编解码）。
+  - 未动领域类（仍字符串 `type`，仅存取层转码）；`versions/version_heads/search/relations` 未碰。
+  - 记录：`catalog_version` 只标记、**无迁移逻辑**；改已有表须显式迁移。pre-1.0 + dev 库可弃，正式发布前补迁移。
+  ruff / format / mypy / pytest 全绿，163 通过、覆盖率 88%。
+- 2026-09-19 · 已定 · **数据库重构切片 3（版本去冗余 + 边表 + 领域枚举走索引）**：
+  - `core/storage/version.py`：删 `version_heads` 表；head / count 改为从 `version` 表**推导**
+    （head = 不被任何 `prev` 指向者）；表名 `versions → version`。
+  - `feature/relation.py`：表名 `relations → relation`，新增 **`domain`** 字段（边归属领域）；
+    `Note.link` 传 `domain="note"`、`Group._link_relation` 传 `domain="group"`。
+  - `catalog.py` 加 `idx_block_type` 索引与 `find_type_code`；`Vault.iter(type=…)` 改走
+    `block WHERE type=code`（**不再逐块解码全库**）。
+  - **推翻「每域一张表」**：不建 `note` / `project` / `group_index`——`block.type` 整数码即领域枚举索引，
+    关系走 `relation`、分组走 `cairn.group` 块；建域表只会复制块内数据。理由见 `decisions.md`。
+  ruff / format / mypy / pytest 全绿，163 通过、覆盖率 88%。
+- 2026-09-19 · 已定 · **总线收成一根主干**：`Vault` 不再自建 `EventBus`，改持 `Signal`；
+  `Vault.signal` 为唯一主干，`Vault.events` 即 `signal.events`（投递器）。存储事件
+  （`ObjectPut` / `ObjectDeleted`）与领域信号自此**同一条总线**，域服务经 `vault.signal.register(...)` 挂载。
+  ruff / format / mypy / pytest 全绿，163 通过。
+- 2026-09-19 · 已定 · **`EventBus` 并入 `core/signal`**：`src/core/events.py` → `src/core/signal/events.py`
+  （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
+  `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
+  `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 目录骨架**：`src/ui/` 分 `core`（内核：`Session` / `App`）/ `layout` / `page` /
+  `component` / `qml` 五个子包（后四个先建空壳，SPDX 头齐全）；`ui/core/session.py` 改从 `core.signal` 导入；
+  测试 `tests/ui/test_session.py` 改 `ui.core.session`。 ruff / format / mypy / pytest 全绿，166 通过。
+- 2026-09-19 · 已定 · **UI 内核重建 · 接入点骨架（Qt-free）**：新建 `src/ui/`——
+  `Session`（消费主干：订阅 `Signal.events`，维护投影缓存，变更即整体失效并通知观察者；`watch` 返回取消函数；
+  `close` 收订阅）与 `App`（组合根，持 `Session`）。**不 import `feature`、不碰 `Vault`**，只吃 `Signal`；
+  不带 Qt。新增 `tests/ui/test_session.py`（3 例）。ruff / format / mypy / pytest 全绿，166 通过。
