@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cairn.core import ObjectNotFoundError, Vault
+from core import ObjectNotFoundError, Vault
 
 if TYPE_CHECKING:
     from pathlib import Path

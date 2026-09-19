@@ -16,7 +16,8 @@
 
 ## 现状
 
-早期开发阶段，**尚未发布**。桶 / 块存储（L0）与 QML 界面外壳已可运行，笔记内核（行身份 + 区间样式 + 版本）已落地，领域功能在逐步接入。
+早期开发阶段，**尚未发布**。桶 / 块存储（L0）与笔记内核（行身份 + 区间样式 + 版本）已落地，
+领域功能在逐步接入；界面层（PySide6）当前**整体移除、待重建**，仓库处于内核态。
 详细进度、决策与待办见 `.agents/skills/memory/references/`。
 
 ## 快速开始
@@ -25,9 +26,7 @@
 
 ```powershell
 uv sync                    # 安装/同步依赖
-uv run cairn               # 启动桌面应用
-uv run cairn --watch       # 开发：QML 热重载
-uv run cairn --smoke       # 冒烟：0.8s 后自动退出
+uv run pytest              # 跑内核测试（桌面入口待 UI 重建后恢复）
 ```
 
 - 开发库默认放在 `<repo>/vault/`（已 gitignore），可用环境变量 `CAIRN_VAULT` 覆盖。
@@ -36,7 +35,7 @@ uv run cairn --smoke       # 冒烟：0.8s 后自动退出
 ## 技术栈
 
 - **语言**：Python 3.13。
-- **界面**：PySide6 **Qt Quick / QML**（不是 Qt Widgets）。
+- **界面**：PySide6（当前整体移除、待重建于 `src/ui/`；内核 Qt-free）。
 - **环境与构建**：`uv`（`uv.lock`）+ hatchling；PyPI 走阿里云镜像（见 `pyproject.toml`）。
 - **原生扩展**：预留 Rust（PyO3 + maturin），仅在性能热点被证实后启用；**不写 C++**。
 - **许可**：Apache-2.0，**禁止引入 GPL/AGPL 依赖**。
@@ -45,10 +44,13 @@ uv run cairn --smoke       # 冒烟：0.8s 后自动退出
 
 | 目录 | 职责 |
 |---|---|
-| `src/cairn/core/` | L0 桶 / 块存储，公共底座；**Qt-free、传输无关** |
-| `src/cairn/domains/` | 领域对象（note / canvas / asset / project / relation） |
-| `src/cairn/ui/` | `backend.py` 做「内核 ↔ Qt」翻译；`qml/` 界面与主题令牌 |
-| `src/comm/`、`src/server/` | P2P / 服务端**实验顶层包**，不在 wheel 中 |
+| `src/core/` | L0 桶 / 块存储，公共底座；**Qt-free、传输无关**（原语在 `core/storage/`，类型在 `core/types/`） |
+| `src/feature/` | 领域对象（note / canvas / asset / project / relation） |
+| `src/conf/` | 配置与常量 |
+| `src/ui/` | 界面层，当前整体移除、待重建 |
+| `src/net/`、`src/server/` | P2P / 服务端**实验顶层包**，不在 wheel 中 |
+
+顶层包一律去 `cairn.` 前缀（如 `from core.storage import Bucket`）。
 
 设计事实来源见 `docs/architecture/*.md`（`storage.md` 为 L0 唯一事实来源）；**有冲突以代码为准**。
 
@@ -58,9 +60,6 @@ uv run cairn --smoke       # 冒烟：0.8s 后自动退出
 uv run pytest                 # 全部测试（无需外部服务，全部用临时本地库）
 uv run ruff check .           # lint（--fix 自动修）
 uv run mypy src tools         # 类型检查（strict）
-
-# 离屏渲染 QML 为 PNG（设计评审用）
-uv run python tools/preview_qml.py Shell.qml build/x.png 1440 900
 ```
 
 提交前顺序：`ruff -> mypy -> pytest`。

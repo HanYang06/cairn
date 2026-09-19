@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
-from cairn.core import Audience, ShareKind
-from cairn.core.policy import is_private, target_audience, visible_to
+from core import Audience, ShareKind
+from core.policy import is_private, target_audience, visible_to
 
 _HOMEPAGE = {"kind": "homepage", "name": ""}
 _COMMUNITY = {"kind": "community", "name": "Cairn 中文"}

@@ -13,7 +13,7 @@
 - 公共**模块 / 类 / 函数**必须有 docstring（pydocstyle，google 约定）。
 - 不强制每个方法 / 魔法方法 / `__init__`（豁免 `D102` / `D105` / `D107`）。
 - 中文 docstring 以「。」结尾，`D415` 不认全角句号 → 豁免 `D415`。
-- 测试、工具脚本、实验包（`tests/` `tools/` `src/comm/` `src/server/`）整体豁免 `D` 系。
+- 测试、工具脚本、实验包（`tests/` `tools/` `src/net/` `src/server/`）整体豁免 `D` 系。
 
 ### 2. 代码风格：有规范
 

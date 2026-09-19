@@ -35,7 +35,8 @@ excludes = [
 ]
 
 a = Analysis(  # noqa: F821
-    [str(root / "src" / "cairn" / "__main__.py")],
+    # UI 重建后入口恢复为 `ui.__main__` / `ui.app:main`；当前内核态无桌面入口。
+    [str(root / "src" / "ui" / "__main__.py")],
     pathex=[str(root / "src")],
     binaries=[],
     datas=datas,

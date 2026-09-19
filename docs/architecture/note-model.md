@@ -47,7 +47,7 @@ Composition 组装 —— 一种角色：正文里放节点引用的 note → �
 
 - 节点身份 = 稳定 **OID**（ULID，创建即锁死），作为块存进桶（[`storage.md`](./storage.md)）。
 - **本地不加密**：落盘明文，加密只用于传输 / 服务端（见 [`access.md`](./access.md)）。
-- **创作签名**：`Signature{alg, author, created, subject, prev, value}`（`domains/signature.py`），
+- **创作签名**：`Signature{alg, author, created, subject, prev, value}`（`feature/signature.py`），
   创建时锁在当时的 `body.hash` 上；当前 `alg="b3"` 是自包含的哈希链（改任一字段 `value` 即对不上），
   日后换 `ed25519` 不破格式。它证明"原始结构可找回 / 未被改写"，不是网络身份。
 - **不可篡改性由内容寻址保证**：`checksum = body.hash`，读回重算校验。

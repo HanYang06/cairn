@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from cairn.core import Event, ObjectDeleted, ObjectPut, Vault
-from cairn.core.store import Block
+from core import Event, ObjectDeleted, ObjectPut, Vault
+from core.storage import Block
 
 if TYPE_CHECKING:
     from pathlib import Path

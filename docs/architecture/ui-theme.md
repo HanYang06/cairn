@@ -217,7 +217,7 @@ QML 侧走 **Qt Quick Controls 自定义 Style + 令牌单例**，不引入第�
 ### 7.14 格式工具栏（两行）
 
 标签页下方两行：**第一行字级、第二行段级**（`FormatToolbar.qml`）。布局由 `backend.toolLayout`
-（`domains/note/tools.py` 的 `PRESET_LAYOUT`）驱动，**位置不写死**，将来可用户自定义。
+（`feature/note/tools.py` 的 `PRESET_LAYOUT`）驱动，**位置不写死**，将来可用户自定义。
 
 - **工具注册表**：`Tool` 基类 + 参数化实例（`ToggleStyleTool("bold")`、`SetParagraphTool({"align":"center"})`…）；
   `group` 只作描述字段，**分组/位置是数据**，不进继承链。

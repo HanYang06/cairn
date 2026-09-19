@@ -7,7 +7,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from cairn.core.types import (
+from core.types import (
     Cid,
     InvalidIdError,
     ObjectInfo,

@@ -48,7 +48,7 @@
 
 ### 3.2 信任根
 
-- 每个块的创作 `Signature`（当前 `b3` 哈希链，见 `domains/signature.py`）承诺其 `body.hash`；
+- 每个块的创作 `Signature`（当前 `b3` 哈希链，见 `feature/signature.py`）承诺其 `body.hash`；
   版本链由 `VersionStore` 的 `prev` 维护。
 - 传输身份用 **Ed25519**（签名）+ **X25519**（协商）——**未来接入 P2P 时引入**，本地不需要。
 - 对端同步时：**验签 → 验链 → 才应用**。任一不通过即拒收该版本。

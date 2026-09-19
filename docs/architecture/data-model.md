@@ -91,7 +91,7 @@ graph TD
 | 区间样式 | range style | 行内 `[start, end)` 的样式覆盖层 |
 | 分片 / 索引块 | part / index | 大内容切成的块 + 聚合成一个可引用 id 的索引块 |
 
-> 术语以代码为准：块 = `core/store/block.py` 的 `Block`；桶 = `core/store/bucket.py` 的 `Bucket`。
+> 术语以代码为准：块 = `core/storage/block.py` 的 `Block`；桶 = `core/storage/bucket.py` 的 `Bucket`。
 
 ---
 
@@ -184,7 +184,7 @@ style = { 行id: [ {区间(tuple): Style} ] }
 
 ### 5.2 画板（Canvas）= 数值序列
 
-> 数据模型在（`domains/canvas.py`），**编辑 UI 未实现**。
+> 数据模型在（`feature/canvas.py`），**编辑 UI 未实现**。
 
 ```
 CanvasBody = { "m": mode, "g": [图形序列...], "l": [连线序列...] }
@@ -219,7 +219,7 @@ CanvasBody = { "m": mode, "g": [图形序列...], "l": [连线序列...] }
 
 ### 5.6 组（Group）
 
-> **已实现（数据模型，2026-09-17）**：`domains/group.py`（`cairn.group`）；导航树未接。
+> **已实现（数据模型，2026-09-17）**：`feature/group.py`（`cairn.group`）；导航树未接。
 
 - **组是块**：有自己的稳定域 ID **`gid`**（与块的存储身份 `oid` **分开**）与 `title` / `lock`。
 - **`group: list[str]`**：有序子项 ID 列表，装笔记 / 项目 / **组**——组存 `gid`，其余存 `oid`；
@@ -282,7 +282,7 @@ meta(key PK, value)
 
 ### 6.5 版本（通用引擎 `VersionStore`）
 
-- 引擎在 `core/store/version.py`，**block 亲和**：以块 id 为键，只管链、顺序、回放、压实，不认识领域语义。
+- 引擎在 `core/storage/version.py`，**block 亲和**：以块 id 为键，只管链、顺序、回放、压实，不认识领域语义。
 - 表 `versions(id PK, oid, prev, at, payload)` + `version_heads(oid PK, head, count)`：
   - 版本 id = `blake3(canonical({prev, at, sig}))`；`prev` 单亲链，顺序从 head 沿 prev 走，不依赖时间 / 序号。
   - 第一版记根节点（空补丁），此后每次**内容变化**追加一个**反向补丁**（新 → 旧）。
@@ -375,14 +375,14 @@ VersionStore ── 按块 id 的版本链（DB）
 
 | 术语 | 代码对象 / 常量 | 文件 | 状态 |
 |---|---|---|---|
-| 桶（载体 + 目录 + 内容池） | `Bucket` / `BucketConfig` | `core/store/bucket.py` | 已实现 |
-| 块 | `Block` | `core/store/block.py` | 已实现 |
-| 属性 / 数据字段 | `Attr` / `Data` | `core/store/block.py` | 已实现 |
-| 主体容器 | `Body` / `BodyField` | `core/store/block.py` | 已实现 |
-| 目录 | `Catalog` / `BlockLocation` | `core/store/catalog.py` | 已实现 |
-| 业务表句柄 | `Table` | `core/store/table.py` | 已实现 |
-| 确定性 CBOR | `canonical` / `decode_canonical` | `core/store/block.py` | 已实现 |
-| 版本引擎 | `VersionStore` / `Codec` / `version_id` | `core/store/version.py` | 已实现 |
+| 桶（载体 + 目录 + 内容池） | `Bucket` / `BucketConfig` | `core/storage/bucket.py` | 已实现 |
+| 块 | `Block` | `core/storage/block.py` | 已实现 |
+| 属性 / 数据字段 | `Attr` / `Data` | `core/storage/block.py` | 已实现 |
+| 主体容器 | `Body` / `BodyField` | `core/storage/block.py` | 已实现 |
+| 目录 | `Catalog` / `BlockLocation` | `core/storage/catalog.py` | 已实现 |
+| 业务表句柄 | `Table` | `core/storage/table.py` | 已实现 |
+| 确定性 CBOR | `canonical` / `decode_canonical` | `core/storage/block.py` | 已实现 |
+| 版本引擎 | `VersionStore` / `Codec` / `version_id` | `core/storage/version.py` | 已实现 |
 | 门面 | `Vault` | `core/vault.py` | 已实现 |
 | 元数据视图 / 版本视图 / 巡检 | `ObjectInfo` / `VersionInfo` / `VerifyReport` | `core/types/objects.py` | 已实现 |
 | 事件 | `Event` / `ObjectPut` / `ObjectDeleted` | `core/events.py` | 已实现 |
@@ -392,15 +392,15 @@ VersionStore ── 按块 id 的版本链（DB）
 
 | 术语 / 角色 | 代码对象 | `type` | 文件 | 状态 |
 |---|---|---|---|---|
-| 笔记 note | `Note` / `NoteBody` | `cairn.note` | `domains/note/types.py` | 已实现（编辑 UI 未接） |
-| 画板 canvas | `Canvas` / `CanvasBody` / `Graphic` / `Paint` / `Link` | `cairn.canvas` | `domains/canvas.py` | 数据模型已实现（无编辑 UI） |
-| 资产 asset | `Asset` | `cairn.asset` | `domains/asset.py` | 部分（转码恒等） |
-| 项目 project | `Project` | `cairn.project` | `domains/project/__init__.py` | 部分 |
-| 组 group | `Group` | `cairn.group` | `domains/group.py` | 数据模型已实现（导航树未接） |
-| 关系 relation | `Relation`（DB 行） | — | `domains/relation.py` | 已实现 |
-| 衍生关系 | `ancestors` / `descendants` / `lineage` / `derivatives` | `derived-from` | `domains/provenance.py` | 已实现（由关系派生） |
-| 签名 | `Signature` | — | `domains/signature.py` | 已实现 |
-| 图形集 | `Form` / `build` | — | `domains/note/shapes.py` + `config/shapes.json` | 已实现 |
+| 笔记 note | `Note` / `NoteBody` | `cairn.note` | `feature/note/types.py` | 已实现（编辑 UI 未接） |
+| 画板 canvas | `Canvas` / `CanvasBody` / `Graphic` / `Paint` / `Link` | `cairn.canvas` | `feature/canvas.py` | 数据模型已实现（无编辑 UI） |
+| 资产 asset | `Asset` | `cairn.asset` | `feature/asset.py` | 部分（转码恒等） |
+| 项目 project | `Project` | `cairn.project` | `feature/project/__init__.py` | 部分 |
+| 组 group | `Group` | `cairn.group` | `feature/group.py` | 数据模型已实现（导航树未接） |
+| 关系 relation | `Relation`（DB 行） | — | `feature/relation.py` | 已实现 |
+| 衍生关系 | `ancestors` / `descendants` / `lineage` / `derivatives` | `derived-from` | `feature/provenance.py` | 已实现（由关系派生） |
+| 签名 | `Signature` | — | `feature/signature.py` | 已实现 |
+| 图形集 | `Form` / `build` | — | `feature/note/shapes.py` + `config/shapes.json` | 已实现 |
 
 > `type` 命名空间约定：`cairn.<domain>.<kind>`（见 [`domains.md`](./domains.md) §2）。
 
@@ -417,7 +417,7 @@ VersionStore ── 按块 id 的版本链（DB）
 
 | 术语 | 代码 | 文件 | 状态 |
 |---|---|---|---|
-| P2P / 通信 | `comm/` | `src/comm/` | 实验（待随新存储重做） |
+| P2P / 通信 | `net/` | `src/net/` | 实验（待随新存储重做） |
 | 服务端 | `server/` | `src/server/` | 占位 |
 
 ---
@@ -427,11 +427,11 @@ VersionStore ── 按块 id 的版本链（DB）
 | 术语 | 归属 | 状态 |
 |---|---|---|
 | 行序列 + 行内区间样式 | §5.1 | **已实现**（`note/types.py` / `edit.py` / `model.py`） |
-| 关系落 DB（`relations` 表，一等行） | §4.3 | **已实现**（`domains/relation.py`） |
-| 通用版本引擎 `VersionStore`（prev 链 + 反向补丁） | §6.5 | **已实现**（`core/store/version.py` + `note/versions.py`） |
-| 桶 / 块 / 目录（`Bucket` / `Block` / `catalog.db`） | §6 | **已实现**（`core/store/`） |
-| `Attr` / `Data` 字段描述符 + `Body` 基类 | §4.4 | **已实现**（`core/store/block.py`） |
-| 复合签名 `Signature` | §5 | **已实现**（`domains/signature.py`） |
+| 关系落 DB（`relations` 表，一等行） | §4.3 | **已实现**（`feature/relation.py`） |
+| 通用版本引擎 `VersionStore`（prev 链 + 反向补丁） | §6.5 | **已实现**（`core/storage/version.py` + `note/versions.py`） |
+| 桶 / 块 / 目录（`Bucket` / `Block` / `catalog.db`） | §6 | **已实现**（`core/storage/`） |
+| `Attr` / `Data` 字段描述符 + `Body` 基类 | §4.4 | **已实现**（`core/storage/block.py`） |
+| 复合签名 `Signature` | §5 | **已实现**（`feature/signature.py`） |
 | 外置图形集 `Form` + 生成器 | §5.5 | 已实现（`note/shapes.py` + `config/shapes.json`） |
 | 画板（diagram / sketch）数据模型 | §5.2 | 数据模型在（`Canvas` / `Graphic`），**无编辑 UI** |
 | 逻辑图自动布局 / 连线走线 | §5.2 | 未实现 |

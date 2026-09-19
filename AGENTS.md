@@ -3,7 +3,7 @@
 
 # AGENTS.md
 
-Cairn（巨石堆）：本地优先的内容寻址对象池 / 笔记·资产·项目工作台。Python 3.13 + PySide6 **Qt Quick / QML**；用 `uv` 管理；Apache-2.0。
+Cairn（巨石堆）：本地优先的内容寻址对象池 / 笔记·资产·项目工作台。Python 3.13；内核 Qt-free；UI（PySide6）当前整体移除、待重建于 `src/ui/`；用 `uv` 管理；Apache-2.0。
 
 ## 开工前 SOP（每个任务都先做）
 
@@ -17,9 +17,6 @@ Cairn（巨石堆）：本地优先的内容寻址对象池 / 笔记·资产·�
 
 ```powershell
 uv sync                                   # 安装/同步依赖
-uv run cairn                              # 启动桌面应用
-uv run cairn --watch                      # 开发：QML 热重载
-uv run cairn --smoke                      # 冒烟：0.8s 后自动退出
 
 uv run pytest                             # 全部测试（含覆盖率；CI 用 --cov-fail-under=80）
 uv run pytest tests/core/test_vault.py::test_put_open_roundtrip   # 单个测试
@@ -27,10 +24,9 @@ uv run ruff check .                       # lint（--fix 自动修）
 uv run ruff format .                      # 格式化（提交前用 --check）
 uv run mypy src tools                     # 类型检查（strict）
 uv run pre-commit run --all-files         # 提交前全量门禁（ruff -> mypy）
-
-# 离屏渲染 QML 为 PNG（设计评审用），默认写 build/ui_preview.png
-uv run python tools/preview_qml.py Shell.qml build/x.png 1440 900 navMode=projects
 ```
+
+> 桌面入口 `uv run cairn` 与打包在 UI 重建后恢复。
 
 提交前顺序：`ruff -> mypy -> pytest`。质量口径见 `.agents/skills/rules/references/quality.md`
 （企业级-ε：mypy strict、ruff ALL、warning 零容忍、覆盖率 ≥80%）。**只有用户明确要求才 commit。**
@@ -46,32 +42,31 @@ uv run python tools/preview_qml.py Shell.qml build/x.png 1440 900 navMode=projec
 
 ## 架构分层（别越界）
 
-- `src/cairn/core/`（L0 桶 / 块存储）是公共底座：**必须 Qt-free、传输无关**。
-- `src/cairn/domains/`（L3 note/canvas/asset/project/relation）只依赖 core 公共 API；
+- 顶层包在 `src/` 下、**一律去 `cairn.` 前缀**（`from core.storage import …`）：
+  `conf` / `core` / `feature` / `ui`（+ 实验 `net` / `server`）。
+- `src/core/`（L0 桶 / 块存储）是公共底座：**必须 Qt-free、传输无关**；
+  存储原语在 `core/storage/`（桶 / 块 / 目录 / 表 / 版本引擎），基础类型在 `core/types/`。
+- `src/feature/`（L3 note/canvas/asset/project/relation）只依赖 core 公共 API；
   领域之间互不依赖；领域结构**直接继承 `Block`**，不得改 `Block` 顶层字段，
   扩展只走子类字段（`Attr` / `Data` / `Body`）、新 `type` 或新关系 `kind`；
   `type` 命名空间为 `cairn.<domain>.<kind>`。
-- `src/cairn/ui/`：`backend.py` 只做「内核 ↔ Qt」翻译，不放业务规则/界面；
-  `qml/` 是界面，`qml/theme/` 是令牌（`CairnTheme`）；旧的 `ui/theme/`（Widgets+QSS 时代）待删。
-- `src/comm/`、`src/server/` 是 P2P / 服务端**实验顶层包**，不在 hatch wheel 中
-  （仅靠 pytest 的 `pythonpath=["src"]` 可导入）。新内核代码放 `src/cairn`。
+- `src/ui/`：界面层，当前**整体移除、待重建**；重建后只经 facade / Session 消费内核，
+  不 import `feature`、不碰 `Vault`。
+- `src/conf/`：配置与常量。
+- `src/net/`、`src/server/` 是 P2P / 服务端**实验顶层包**，不在 hatch wheel 中
+  （仅靠 pytest 的 `pythonpath=["src"]` 可导入）。新内核代码放 `src/core` 或 `src/feature`。
 - `docs/architecture/*.md` 是设计事实来源（`storage.md` 为 L0 唯一事实来源，
   `data-model.md` 为数据结构总纲），状态均为「草案」，部分未实现。
   **有冲突以代码为准，改实现后回写文档。**
 - 内部时间统一 unix 毫秒 int；ID 用 ULID（Oid），内容哈希用 BLAKE3 十六进制（`checksum`）。
 
-## 测试与 Qt 冒烟
+## 测试
 
-- pytest：`testpaths=["tests"]`、`pythonpath=["src"]`，无需安装即可 `import cairn`。
-- UI 冒烟是子进程启动 Qt，离屏需 `QT_QPA_PLATFORM=offscreen` 且
-  `QSG_RHI_BACKEND=software`；预览脚本可用 `CAIRN_PREVIEW_OFFSCREEN=1`。
+- pytest：`testpaths=["tests"]`、`pythonpath=["src"]`，无需安装即可 `import core`。
 - 测试无外部服务/数据库，全部用临时本地库。
-- `src/cairn/ui/backend.py` 有 ruff per-file 豁免（`N802/N815/B008`）：
-  该文件遵守 Qt 驼峰命名，勿按 Python 风格「修正」。
 
 ## 环境与坑
 
-- **README 过时**：写的是 "Qt Widgets"，实际是 Qt Quick / QML。
 - 开发库默认 `<repo>/vault/`（已 gitignore），可用 `CAIRN_VAULT` 覆盖；
   口令 `CAIRN_DEV_PASSPHRASE`（默认 `cairn-dev`）。
 - Python 3.13；`uv.lock` + 阿里云 PyPI 镜像（`pyproject.toml` 的 `[[tool.uv.index]]`）。

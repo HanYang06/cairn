@@ -147,7 +147,7 @@ meta(key PK, value)
 
 ## 9. 版本（通用引擎 `VersionStore`）
 
-- 引擎在 `core/store/version.py`，**block 亲和**：以块 id 为键，只管链、顺序、回放、压实，
+- 引擎在 `core/storage/version.py`，**block 亲和**：以块 id 为键，只管链、顺序、回放、压实，
   不认识领域语义；域提供 `Codec`（`digest / diff / apply`）。
 - 表 `versions(id PK, oid, prev, at, payload)` + `version_heads(oid PK, head, count)`：
   - **版本 id = `blake3(canonical({prev, at, sig}))`**：哈希身份 + `prev` 单亲链；顺序从 `head`

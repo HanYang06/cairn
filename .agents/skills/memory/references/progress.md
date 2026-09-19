@@ -41,38 +41,15 @@
 - [ ] 多媒体拖入：落 `Asset`（转码）→ 正文 `{"access": n}` 占位。
 - [ ] 「捕捉面 vs 编辑面」分离落地（全局热键秒开）。
 
-## UI 重建（Widgets 宿主 + QML 岛，2026-09-18）
+## UI 重建（2026-09-19 归零）
 
-> 方向见 `decisions.md`；规则见 `rules/references/ui-boundary.md`。现有 QML 逐块迁到 Widgets。
+> UI 源码（原 Widgets 迁移成果 + `cairn.ui.decl` 描述层）已随目录重定**整体删除**，
+> 对应测试 `tests/ui/**` 与专用工具（`preview_widgets` / `gen_theme_schema`）一并移除。
+> 原实现记录留在 `changes.md` 作历史；方向性决策见 `decisions.md`（均标「已废弃 / 待重新立项」）。
 
-- [x] **P0 骨架**（2026-09-18）：`App` 组合根 + `MainWindow/Shell` + `Component/Panel/Page` 基类
-  + 主题令牌统一为 GitHub 色板（`ui/theme` 单一真源）+ `--widgets` 入口 + 离屏冒烟。
-- [x] **组件层起步**（2026-09-18）：`Component` 继承注册表 + `STYLABLE` / `STATES`
-  （抽象基类不入册）；原子 `Label` / `Button` / `IconButton` / `Field` / `Section`；
-  `theme/schema.py` 由注册表自动派生点分路径 + `validate_path`。
-- [x] **P1 导航 + 检查器**：笔记列表 / 分组树 / 检查器均已接。
-- [x] **P2 编辑器**：`NoteDocument` + `NoteEditor`（`QTextEdit`，原生 undo/跨行选区）；格式工具栏接编辑器。
-- [x] **P3 视图与对话框**：关系 / 历史页、标签 / 搜索页、命令面板、标题栏 / 状态栏。
-- [x] **入口切 Widgets 并删 QML 主界面**（`backend.py` / `qml/` / `ui/tools.py` / `ui/views/` 已删）。
-- [ ] **剩余小件**：分享 / 档案 / 口令弹层、多选批量、拖拽。
-- [ ] **视觉对齐**：行委托 + 逐组件主题规则 + 度量令牌（对照 `build/qml.png` 参考）。
-- [ ] **P4 QML 岛**：画板、关系拓扑等按边界规则接入（`QmlView` 承载器已备）。
-
-## 声明式描述层 decl（2026-09-19）
-
-> 方向见 `decisions.md`「声明式描述层 decl」。这是 UI 的「设计 v2」：从类型语法往下收。
-
-- [x] **语法层 + 交替规则 + 意图边**：`Node/Layout/Display/Page/Component`（`ui/decl/node.py`）。
-- [x] **配置层**：`UiConfAttribute`（默认/覆盖/重定向/失效）+ `Theme` 令牌引用（禁硬编码）+ `Scope`。
-- [x] **编译层**：translator 注册表 + `Compiler`（单向一次，无 reconciler）+ `Raw` 逃生舱。
-- [x] **词汇起步**：布局 `VBox/HBox/Grid/Table/Stack`；组件 `Label/Button`。
-- [x] **组合根 + 示例**：`decl.App` + `build_demo`（标签页示例）；入口 `--decl`（离屏冒烟已入测试）。
-- [x] **页面宿主 / 路由 / 生命周期**：`PageRegistry`（route → Page 工厂）+ `PageHost`（`PageHostWidget` =
-  `QTabBar` + `QStackedWidget`）；**懒构建**（首次显示才建控件）；`Page.on_enter/on_leave` 生命周期；
-  单页自动隐藏标签栏。`tests/ui/decl/test_host.py` 覆盖。
-- [ ] **`Placement.FLOAT` / overlay**：现只记录属性，浮起未实装（预留）。
-- [ ] **领域接入契约**：`BlockView`（投影 / 检查器 / 动作）与视图原型（List/Detail/Board）——待做。
-- [ ] **真实笔记页重表达**：用 decl 改写现有笔记页，验证「加页面不改外壳」。
+- [ ] **UI 从零设计**：在 `src/ui/` 下重新立项（技术路线未定）。
+  - 前置：note 的 body / bucket 底层先稳。
+- [ ] 桌面入口 `ui.app:main`、`packaging/cairn.spec`（入口已指向 `src/ui/__main__.py`）与构建脚本随 UI 恢复。
 
 ## 远期
 
@@ -84,13 +61,13 @@
     （不是数标签，而是像测试标靶一样验证代码确实满足功能，框架兼 APP 自身）。
   - 前置：先把 note 的底层（body/bucket）打磨稳，project 不再被底层问题牵扯。
 - [ ] 任务与进度、应用上下文 / 配置。
-- [ ] P2P / 服务端（`src/comm`、`src/server` 实验顶层包）。
+- [ ] P2P / 服务端（`src/net`、`src/server` 实验顶层包）。
 - [ ] 真实成员 / 社区发现与信任启动（见 `access.md`）。
 - [ ] 正式解锁 / 传输加密流程（本地已不加密）。
 
 ## 工程债
 
-- [ ] `src/comm/framing.py` 仍引用 `Block` 时代的字节流；P2P 层待随新模型重做。
+- [ ] `src/net/framing.py` 仍引用 `Block` 时代的字节流；P2P 层待随新模型重做。
 - [ ] 包体偏大（onedir 约 206MB）：未剔除未用的 Qt 模块。
 - [ ] 可复现构建、代码签名（Authenticode）未做。
 - [ ] Linux 服务端 / CLI 入口与 Docker：待 `src/server` 成熟；macOS 暂缓。

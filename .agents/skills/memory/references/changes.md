@@ -228,5 +228,11 @@
   生命周期钩子；`build_demo` 改为标签页示例。ruff/mypy/303 测试全绿，覆盖率 83%。
 - 2026-09-17 · 已定 · **格式工具栏溢出抽屉改造**：由贴边 `Rectangle`（被正文压住、无动画）改为
   QtQuick.Controls `Popup` 覆盖层（不压正文、点外部/Esc 自动回收），内容改按类别分组的紧凑工具格
-  （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是
-  方法 `open()`、属性是 `opened`（只读），不能用 `open: bool` 绑定。`--smoke` 与离屏预览通过。
+   （`DrawerTile`：图标/文本 + 标签），加 `enter`/`exit` 淡入淡出。附：Qt 6 的 `Popup` 打开是
+   方法 `open()`、属性是 `opened`（只读），不能用 `open: bool` 绑定。`--smoke` 与离屏预览通过。
+- 2026-09-19 · 已定 · **目录结构重定（去 `cairn.` 前缀）**：内核迁为 `src/` 下顶层包
+  `conf` / `core` / `feature`（+ 实验 `net` / `server`）；`core/store → core/storage`、
+  `domains → feature`、`comm → net`，`cairn/types` 并入 `core/types`；`mypy_plugin` 全名、
+  `pyproject`（wheel 包 / isort / per-file-ignore / 覆盖率目标）、README / AGENTS / 架构文档同步。
+  UI 源码删除后连带删除 `tests/ui/**` 与引用 UI 的工具（`preview_widgets` / `gen_theme_schema`）。
+  内核 ruff/mypy 全绿，149 测试通过、覆盖率 87%。

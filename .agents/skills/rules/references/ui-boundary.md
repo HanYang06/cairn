@@ -28,7 +28,7 @@
 
 1. **显式依赖注入**：`def __init__(self, app: App, parent=None)`；不用全局单例 / context property。
 2. **部件只发意图信号**（`noteActivated(str)`、`renameRequested(str)`），业务由装配层转给 facade。
-3. **UI 不 import `domains` / 不碰 `Vault`**，只经 facade / Session。
+3. **UI 不 import `feature` / 不碰 `Vault`**，只经 facade / Session。
 4. **样式只来自令牌**：`ui/theme` 是唯一真源，由 `tokens → QSS` 全局应用；
    组件内禁止硬编码颜色 / 间距 / 圆角。
 5. **`objectName` 必填**，QSS 按它选；一文件一主类，文件名 `snake_case`、类名 `PascalCase`。

@@ -95,8 +95,6 @@
 ## 工程 / 产品
 
 - 2026-09-14 · 已定 · skill 放 `.agents/skills/`；根 `AGENTS.md` 只做索引；`rules`=约束、`memory`=现状。
-- 2026-09-17 · 已定 · **代码是唯一事实，文档随代码回写**；旧概念（manifest / space / chunk / 基板 substrate /
-  keyed CID）不再复活，架构文档与 `README.md` / `AGENTS.md` 已同步。
 - 2026-09-14 · 已定 · 布局契约：三栏 SplitView，属性栏默认收起；列表交互照 VS Code、不做过渡动画。
 - 2026-09-14 · 已定 · 删除先入回收站；**版本只记内容变化**（元数据不产生历史）。
 - 2026-09-14 · 已定 · 分发：源码与 Windows 桌面 P0（PyInstaller onedir + Inno）；macOS 暂缓。
@@ -107,8 +105,22 @@
   ruff `select=ALL` + 逐条有理由的 ignore、`ruff format` 强制、warning 零容忍、覆盖率行+分支 ≥80%。
   中文项目现实豁免：中文标点（RUF001-003/D415）、方法级 docstring（D102/105/107）、领域词汇 id/type/hash（A002/A003）。
   标准见 `rules/references/quality.md`，配置事实源在 `pyproject.toml`。
+- 2026-09-17 · 已定 · **代码是唯一事实，文档随代码回写**；旧概念（manifest / space / chunk / 基板 substrate /
+  keyed CID）不再复活，架构文档与 `README.md` / `AGENTS.md` 已同步。
 
-## UI 技术路线（2026-09-18，重定）
+## 目录结构（2026-09-19，重定）
+
+- 已定 · **取消 `cairn.` 前缀**：`src/` 下直接放顶层包 `conf` / `core` / `feature` / `ui`
+  （+ 实验 `net` / `server`）；导入形如 `from core.storage import Bucket`。
+- 已定 · **重命名**：`core/store → core/storage`、`domains → feature`、`comm → net`；
+  `cairn/types` 与 `cairn/core/types` 合并为 `core/types`。
+- 已定 · **UI 源码整体移除、待重建**：其实现、测试与专用工具一并删除；`src/ui/` 暂留空壳，
+  技术路线（Widgets / decl）作废、待重新立项。桌面入口 `ui.app:main` 与打包待 UI 恢复。
+- 已定 · 实验顶层包 `net` / `server` 不进 hatch wheel。
+
+## UI 技术路线（2026-09-18；2026-09-19 源码删除 / 待重新立项）
+
+> 已废弃（2026-09-19）：以下 Widgets 宿主 + QML 岛的实现已随重定删除，仅作历史与重估参考。
 
 - 已定 · **Widgets 宿主 + QML 岛**：工作台外壳、列表/树、检查器、编辑器、菜单/对话框全部走
   QtWidgets（Python 对象组合）；QML 只保留给**画布 / 大规模关系图 / 特殊视觉**这类自包含「岛」。
@@ -126,7 +138,9 @@
   **布局靠 `VBox/HBox/Grid/Split` 嵌套组合**（不新增原语）、**增长只在原子与页面**、
   **主题 = 点分配置 → QSS 编译 + 有限 Qt 侧增强**。细则见 `rules/references/ui-boundary.md` §6。
 
-## 声明式描述层 decl（2026-09-19，新增）
+## 声明式描述层 decl（2026-09-19，新增；同日源码删除 / 已废弃）
+
+> 已废弃（2026-09-19）：`cairn.ui.decl` 实现已随 UI 删除，仅作历史与重估参考。
 
 - 已定 · **`cairn.ui.decl` 是 UI 描述层**：语法层 `Node / Layout / Display / Page / Component`；
   **交替规则**——`Layout` 只排列（子件只能是显示节点）、`Display` 只承载 `Layout`/`Component`、

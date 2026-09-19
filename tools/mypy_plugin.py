@@ -3,7 +3,7 @@
 
 """Cairn 的 mypy 插件：把 ``field: Attr[T] = 值`` 的字段可见类型识别为 ``T``。
 
-框架在运行时把裸值自动包成 ``Attr`` 描述符（见 ``core/store/block.py`` 的
+框架在运行时把裸值自动包成 ``Attr`` 描述符（见 ``core/storage/block.py`` 的
 ``__init_subclass__``），但 mypy 看不到这层包装，于是会把 ``str`` 赋给 ``Attr[str]``
 判为类型错误（`assignment`）。本插件在类的语义分析阶段把这类字段的**可见类型**改写成
 类型参数 ``T``：于是 ``note.title`` 是 ``str``、赋值也合法——与 dataclasses / attrs
@@ -26,8 +26,8 @@ from mypy.types import Instance
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-BLOCK_FULLNAME = "cairn.core.store.block.Block"
-ATTR_FULLNAME = "cairn.core.store.block.Attr"
+BLOCK_FULLNAME = "core.storage.block.Block"
+ATTR_FULLNAME = "core.storage.block.Attr"
 
 
 def _is_descriptor_rhs(expr: object) -> bool:

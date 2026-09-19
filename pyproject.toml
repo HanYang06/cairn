@@ -26,8 +26,7 @@ dependencies = [
     "tomli-w>=1.2.0",
 ]
 
-[project.scripts]
-cairn = "cairn.ui.app:main"
+# 桌面入口（`cairn = "ui.app:main"`）待 UI 重建后恢复。
 
 [dependency-groups]
 dev = [
@@ -48,7 +47,8 @@ url = "https://mirrors.aliyun.com/pypi/simple/"
 default = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/cairn"]
+# 内核与工作台；`src/net`、`src/server` 是实验顶层包，不进 wheel。
+packages = ["src/conf", "src/core", "src/feature"]
 
 [tool.ruff]
 target-version = "py313"
@@ -92,20 +92,18 @@ ignore = [
 notice-rgx = "SPDX-FileCopyrightText: 2026 HanYang06"
 
 [tool.ruff.lint.isort]
-known-first-party = ["cairn"]
+known-first-party = ["conf", "core", "feature", "net", "server", "ui"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-# Qt 模型覆写方法（roleNames）必须保持驼峰；默认参数用 QModelIndex() 是 Qt 约定。
-"src/cairn/ui/models.py" = ["N802", "B008"]
 # 表名/列名来自内部领域自描述并经 _quote 转义，值全部参数化（无注入面）。
-"src/cairn/core/store/table.py" = ["S608"]
+"src/core/storage/table.py" = ["S608"]
 # 测试与工具脚本：断言、注解、docstring、魔法数、打印等不按产品代码要求
 "tests/**" = ["ANN", "D", "S101", "S105", "S603", "PLR2004", "SLF001", "INP001"]
 "tools/**" = ["ANN", "D", "S101", "S603", "C901", "PLR2004", "T201", "INP001", "ERA001"]
-"src/comm/**" = ["ANN", "D", "S101", "T201", "INP001"]
+"src/net/**" = ["ANN", "D", "S101", "T201", "INP001"]
 "src/server/**" = ["ANN", "D", "S101", "T201", "INP001"]
 
 [tool.mypy]
@@ -121,7 +119,8 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
-    "--cov=cairn",
+    "--cov=core",
+    "--cov=feature",
     "--cov-branch",
     "--cov-report=term-missing:skip-covered",
 ]

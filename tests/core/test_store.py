@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cairn.core.store import INDEX_TYPE, Attr, Block, BodyField, Bucket, BucketConfig
-from cairn.types import CairnError, CorruptObjectError, ObjectNotFoundError
+from core.storage import INDEX_TYPE, Attr, Block, BodyField, Bucket, BucketConfig
+from core.types import CairnError, CorruptObjectError, ObjectNotFoundError
 
 if TYPE_CHECKING:
     from pathlib import Path

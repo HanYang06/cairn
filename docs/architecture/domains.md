@@ -14,7 +14,7 @@
 
 | | 载体 | 关系 |
 |---|---|---|
-| 结构基座 | `Block`（`core/store/block.py`） | **固定**，领域不新增顶层字段 |
+| 结构基座 | `Block`（`core/storage/block.py`） | **固定**，领域不新增顶层字段 |
 | 领域结构 | 子类用 `Attr` / `Data` / `Body` 重新描述字段 | **可继承**，注册表按 `type` 分发 |
 
 - 领域类**没有中间层**，`Note` / `Asset` / `Project` / `Canvas` 都直接 `class X(Block)`。
@@ -62,7 +62,7 @@ class Note(Block):
 
 - `Attr(item=Type)`：列表 / 值字段类型化——存储是紧凑数据，取出来是类型化对象（需 `to_data` / `from_data`）。
 - `schema`：领域自己的结构版本（int），读取到未知版本应拒绝而非静默降级。
-- 字详细则（注解即类型、`coerce`、`Data` 免标记）见 [`storage.md`](./storage.md) §4 与 `core/store/block.py`。
+- 字详细则（注解即类型、`coerce`、`Data` 免标记）见 [`storage.md`](./storage.md) §4 与 `core/storage/block.py`。
 
 ### 2.3 内容 vs 描述 vs 结构
 
@@ -96,7 +96,7 @@ class Block:
 - **业务表**：领域用 `tables()` 声明表结构，桶用 `Bucket.mount()` 幂等创建；
   通用查询用 `Bucket.table()`，复杂 SQL 走 `Bucket.execute()` / `query()`——**上层不 import sqlite**。
 - 领域之间**互不依赖**，只依赖 core 公共 API（跨域引用走 `Relation` 或延迟导入，如 `note.link`）。
-- 关系领域（`domains/relation.py`）特殊：它是**一等 DB 行**，不是 `Block` 子类；
+- 关系领域（`feature/relation.py`）特殊：它是**一等 DB 行**，不是 `Block` 子类；
   `src` / `dst` / `kind` / `at` / `attrs` 直接落 `relations` 表（见 `storage.md` §10）。
 
 ---
@@ -125,15 +125,16 @@ class Block:
 - 命名空间天然分层、天然隔离：
 
 ```
-cairn
-  ├─ core                     # L0
-  ├─ domains.note             # 各领域独立
-  ├─ domains.project
-  └─ ui
+core
+  └─ storage                  # L0
+feature
+  ├─ note                     # 各领域独立
+  └─ project
+ui
 ```
 
 - **配置在应用层**（UI 启动时）：按命名空间把各域路由到各自的 handler / 文件，互不混杂。库自身不设默认输出。
-- 默认策略建议：`cairn` 根 WARNING；开发用 DEBUG / INFO。
+- 默认策略建议：`core` / `feature` 根 WARNING；开发用 DEBUG / INFO。
 
 ### 6.2 活动 / 审计日志（领域自有，持久化）
 
