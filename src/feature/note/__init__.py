@@ -33,7 +33,7 @@ from .model import (
     Line as LineKind,
 )
 from .shapes import ShapeSet, ShapeSpec, build_vertices, graphic_from, load_shape_set
-from .types import Note, NoteBody, access_ref, canvas_ref
+from .types import Note, NoteBody, NoteData, access_ref, canvas_ref
 from .versions import NOTE_CODEC
 
 __all__ = [
@@ -51,6 +51,7 @@ __all__ = [
     "Marker",
     "Note",
     "NoteBody",
+    "NoteData",
     "Paint",
     "Segment",
     "ShapeSet",

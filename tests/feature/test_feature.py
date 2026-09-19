@@ -32,23 +32,25 @@ def test_registry_has_builtin_kinds() -> None:
 
 def test_note_roundtrip(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    note = Note.create(vault, "hello world", title="Hi", tags=["a", "b"])
+    notes = Note(vault)
+    note = notes.create("hello world", title="Hi", tags=["a", "b"])
 
     assert note.text == "hello world"
     assert note.title == "Hi"
     assert note.tags == {"a": None, "b": None}
     assert note.info.type == "cairn.note"
 
-    loaded = Note.load(vault, note.oid)
+    loaded = notes.load(note.oid)
     assert loaded.text == "hello world"
 
 
 def test_note_update_preserves_created_meta(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    note = Note.create(vault, "v1", title="t1", props={"color": "red"})
+    notes = Note(vault)
+    note = notes.create("v1", title="t1", props={"color": "red"})
     before = vault.info(note.oid)
 
-    note.update(text="v2")
+    notes.update(note, text="v2")
 
     assert note.text == "v2"
     assert note.title == "t1"
@@ -61,18 +63,19 @@ def test_note_update_preserves_created_meta(tmp_path: Path) -> None:
 
 def test_note_list_and_delete(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    first = Note.create(vault, "a")
-    second = Note.create(vault, "b")
+    notes = Note(vault)
+    first = notes.create("a")
+    second = notes.create("b")
 
-    assert {note.oid for note in Note.list(vault)} == {first.oid, second.oid}
+    assert {note.oid for note in notes.list_notes()} == {first.oid, second.oid}
 
     first.delete()
-    assert {note.oid for note in Note.list(vault)} == {second.oid}
+    assert {note.oid for note in notes.list_notes()} == {second.oid}
 
 
 def test_kind_mismatch(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    note = Note.create(vault, "x")
+    note = Note(vault).create("x")
 
     with pytest.raises(KindMismatchError):
         Relation.load(vault, note.oid)
@@ -80,12 +83,13 @@ def test_kind_mismatch(tmp_path: Path) -> None:
 
 def test_note_authors_and_dict_tags(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    note = Note.create(vault, "x", tags={"作者": "韩", "草稿": None})
+    notes = Note(vault)
+    note = notes.create("x", tags={"作者": "韩", "草稿": None})
     note.author = "韩"
     note.authors = ["韩", {"name": "石"}]
-    note.save()
+    notes.save(note)
 
-    loaded = Note.load(vault, note.oid)
+    loaded = notes.load(note.oid)
     assert loaded.tags == {"作者": "韩", "草稿": None}
     assert loaded.author == "韩"
     assert loaded.authors == ["韩", {"name": "石"}]
@@ -96,17 +100,19 @@ def test_note_authors_and_dict_tags(tmp_path: Path) -> None:
 
 def test_body_pool_dedupes_across_attrs(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    first = Note.create(vault, "same body", title="A")
-    second = Note.create(vault, "same body", title="B")
+    notes = Note(vault)
+    first = notes.create("same body", title="A")
+    second = notes.create("same body", title="B")
 
     assert first.body.hash == second.body.hash
-    assert vault.bucket.catalog.count_contents() == 1  # body 内容池里只有一份
+    assert vault.bucket.catalog.count_bodies() == 1  # body 内容池里只有一份
     assert vault.bucket.catalog.count_blocks() == 2  # 属性各自独立
 
 
 def test_note_creation_signature_is_composite(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    note = Note.create(vault, "正文", title="T")
+    notes = Note(vault)
+    note = notes.create("正文", title="T")
 
     signature = note.signature
     assert isinstance(signature, Signature)
@@ -114,7 +120,7 @@ def test_note_creation_signature_is_composite(tmp_path: Path) -> None:
     assert signature.subject == note.body.hash
     assert signature.encoded().startswith("cn1.")
 
-    loaded = Note.load(vault, note.oid)
+    loaded = notes.load(note.oid)
     assert isinstance(loaded.signature, Signature)
     assert loaded.signature.verify()
     assert loaded.signature.value == signature.value
@@ -130,8 +136,9 @@ def test_signature_tamper_is_detected() -> None:
 
 def test_relation_backlinks_and_outbound(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    source = Note.create(vault, "source")
-    target = Note.create(vault, "target")
+    notes = Note(vault)
+    source = notes.create("source")
+    target = notes.create("target")
 
     relation = Relation.create(vault, source.oid, target.oid, relation="annotates")
     assert relation.source == source.oid

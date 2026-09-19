@@ -36,7 +36,7 @@ def test_create_assigns_gid_separate_from_oid(tmp_path: Path) -> None:
 def test_add_note_stores_oid_and_relation(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     group = Group.create(vault, "收集")
-    note = Note.create(vault, "一条笔记")
+    note = Note(vault).create("一条笔记")
 
     group.add(note)
 
@@ -59,7 +59,7 @@ def test_nested_groups_store_gid_and_roots(tmp_path: Path) -> None:
 def test_lock_blocks_editing(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     group = Group.create(vault, "锁定")
-    note = Note.create(vault, "x")
+    note = Note(vault).create("x")
     group.lock = True
     group.save()
 
@@ -72,8 +72,9 @@ def test_lock_blocks_editing(tmp_path: Path) -> None:
 def test_move_reorders_children(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     group = Group.create(vault, "排序")
-    first = Note.create(vault, "一")
-    second = Note.create(vault, "二")
+    notes = Note(vault)
+    first = notes.create("一")
+    second = notes.create("二")
     group.add(first)
     group.add(second)
 
@@ -85,7 +86,7 @@ def test_move_reorders_children(tmp_path: Path) -> None:
 def test_roundtrip(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     group = Group.create(vault, "持久", key="k")
-    note = Note.create(vault, "内容")
+    note = Note(vault).create("内容")
     group.add(note)
 
     vault.close()

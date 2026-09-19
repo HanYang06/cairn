@@ -11,7 +11,7 @@ from feature.note.types import (
     Graphic,
     Line,
     Link,
-    Note,
+    NoteData,
     Paint,
     Style,
     access_ref,
@@ -26,7 +26,7 @@ def _graphic(**overrides: object) -> Graphic:
     return Graphic(**values)  # type: ignore[arg-type]
 
 
-def _texts(note: Note) -> list[str]:
+def _texts(note: NoteData) -> list[str]:
     return [line["v"] for line in note.body]  # type: ignore[misc]
 
 
@@ -84,7 +84,7 @@ def test_canvas_body_roundtrips_graphics_and_links() -> None:
 
 
 def test_body_is_lines_with_stable_ids() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["第一行\n第二行"]
     assert _texts(note) == ["第一行", "第二行"]
     ids = [line["id"] for line in note.body]
@@ -94,14 +94,14 @@ def test_body_is_lines_with_stable_ids() -> None:
 
 
 def test_empty_line_is_kept() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["甲", "", "乙"]
     assert _texts(note) == ["甲", "", "乙"]
     assert note.text == "甲\n\n乙"
 
 
 def test_markers_are_own_lines() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["文字", canvas_ref(0), access_ref(1), "尾"]
     assert [line["v"] for line in note.body] == [
         "文字",
@@ -113,7 +113,7 @@ def test_markers_are_own_lines() -> None:
 
 
 def test_line_style_range_roundtrip() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["床前明月光"]
     lid = note.body[0]["id"]
     note.style = {lid: [{(2, 4): Style(bold=True)}]}
@@ -122,7 +122,7 @@ def test_line_style_range_roundtrip() -> None:
 
 
 def test_style_overlay_later_wins() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["abcdef"]
     lid = note.body[0]["id"]
     note.style = {lid: [{(0, 4): Style(bold=True)}, {(2, 6): Style(italic=True)}]}
@@ -132,7 +132,7 @@ def test_style_overlay_later_wins() -> None:
 
 def test_note_typed_canvas_and_marker() -> None:
     canvas = Canvas(graphics=[_graphic()])
-    note = Note()
+    note = NoteData()
     note.body = ["床前明月光，", canvas_ref(0), "低头思故乡"]
     note.canvas = [str(canvas.oid)]
 
@@ -144,7 +144,7 @@ def test_note_typed_canvas_and_marker() -> None:
 
 def test_note_typed_access_and_marker() -> None:
     oid = str(Oid.new())
-    note = Note()
+    note = NoteData()
     note.body = ["图：", access_ref(0)]
     note.access = [oid]
 
@@ -154,17 +154,18 @@ def test_note_typed_access_and_marker() -> None:
 
 
 def test_add_access_embeds_into_body() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["看图"]
     note.access = []
-    entry = note.add_access(str(Oid.new()), mime="video/mp4", name="clip.mp4")
-    assert entry
+    entry = str(Oid.new())
+    note.access = [*note.access, entry]
+    note._append_marker(access_ref(0))
     assert note.body[-1]["v"] == {"access": 0}
     assert note.access[0] == entry
 
 
 def test_reorder_keeps_style_by_line_id() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["a", "b", "c"]
     ids = [line["id"] for line in note.body]
     note.style = {ids[0]: [{(0, 1): Style(bold=True)}], ids[2]: [{(0, 1): Style(italic=True)}]}
@@ -177,7 +178,7 @@ def test_reorder_keeps_style_by_line_id() -> None:
 
 
 def test_set_text_preserves_line_ids_and_markers() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["前面", {"access": 0}, "后面"]
     note.access = [str(Oid.new())]
     marker_id = note.body[1]["id"]
@@ -190,9 +191,9 @@ def test_set_text_preserves_line_ids_and_markers() -> None:
 
 
 def test_body_hash_is_content_only() -> None:
-    left = Note()
+    left = NoteData()
     left.body = ["hello", "world"]
-    right = Note()
+    right = NoteData()
     right.body = ["hello", "world"]  # 行 id 不同
 
     assert left.body.hash == right.body.hash
@@ -207,9 +208,9 @@ def test_body_hash_is_content_only() -> None:
 
 
 def test_body_hash_tracks_style() -> None:
-    left = Note()
+    left = NoteData()
     left.body = ["hello"]
-    right = Note()
+    right = NoteData()
     right.body = ["hello"]
     lid = right.body[0]["id"]
     right.style = {lid: [{(0, 3): Style(bold=True)}]}

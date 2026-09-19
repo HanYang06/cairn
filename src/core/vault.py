@@ -18,12 +18,13 @@ from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from .events import (
+from .signal import (
     Event,
     EventBus,
     Handler,
     ObjectDeleted,
     ObjectPut,
+    Signal,
     Subscription,
 )
 from .storage import Block, Bucket
@@ -45,7 +46,7 @@ class Vault:
     def __init__(self, root: Path | str, bucket: Bucket) -> None:
         self.root = Path(root)
         self.bucket = bucket
-        self._events = EventBus()
+        self._signal = Signal()
         self._search = bucket.table("search", oid="TEXT PRIMARY KEY", body="TEXT")
 
     # ---- 生命周期 ----
@@ -76,9 +77,19 @@ class Vault:
     def close(self) -> None:
         self.bucket.close()
 
-    # ---- 事件 ----
+    # ---- 通信主干（存储事件 + 领域信号共用一条总线）----
+    @property
+    def signal(self) -> Signal:
+        """通信主干：域服务在其上注册，存储事件与语义信号共用同一条总线。"""
+        return self._signal
+
+    @property
+    def events(self) -> EventBus:
+        """底层事件总线（块级事实通知）；即主干的投递器。"""
+        return self._signal.events
+
     def subscribe(self, handler: Handler, event_type: type[Event] = Event) -> Subscription:
-        return self._events.subscribe(handler, event_type)
+        return self._signal.events.subscribe(handler, event_type)
 
     # ---- 写 ----
     def put(  # noqa: PLR0913 — 写接口的显式参数面，均有默认值
@@ -111,7 +122,7 @@ class Vault:
         self.bucket.put(block)
         self._set_search(block.id, search_text)
         result = Oid.parse(block.id)
-        self._events.emit(
+        self._signal.events.emit(
             ObjectPut(
                 oid=result,
                 type=type,
@@ -144,7 +155,7 @@ class Vault:
         created = not self.bucket.has(block.id)
         self.bucket.put(block)
         self._set_search(block.id, search_text)
-        self._events.emit(
+        self._signal.events.emit(
             ObjectPut(
                 oid=Oid.parse(block.id),
                 type=block.type,
@@ -160,7 +171,7 @@ class Vault:
         if self.bucket.delete(target):
             self._search.delete(oid=target)
             self.bucket.commit()
-            self._events.emit(ObjectDeleted(oid=Oid.parse(target)))
+            self._signal.events.emit(ObjectDeleted(oid=Oid.parse(target)))
 
     # ---- 读 ----
     def open(self, oid: Oid | str) -> io.BytesIO:
@@ -182,7 +193,7 @@ class Vault:
         tags: Iterable[str] | Mapping[str, Any] | None = None,
     ) -> Iterator[ObjectInfo]:
         wanted = _wanted_tags(tags)
-        for block_id in self.bucket.iter_block_ids():
+        for block_id in self._block_ids(type):
             block = self.bucket.get(Block, block_id)
             if type is not None and block.type != type:
                 continue
@@ -190,6 +201,16 @@ class Vault:
             if wanted and not _matches_tags(info.tags, wanted):
                 continue
             yield info
+
+    def _block_ids(self, type_name: str | None) -> Iterable[str]:
+        """按类型取块 id：走 ``block.type`` 整数码索引，不扫全表。"""
+        if type_name is None:
+            return self.bucket.iter_block_ids()
+        code = self.bucket.catalog.find_type_code(type_name)
+        if code is None:
+            return ()
+        rows = self.bucket.query("SELECT oid FROM block WHERE type = ? ORDER BY oid", (code,))
+        return [str(row["oid"]) for row in rows]
 
     def iter_object_ids(self) -> Iterator[Oid]:
         for block_id in self.bucket.iter_block_ids():

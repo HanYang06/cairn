@@ -4,19 +4,19 @@
 from __future__ import annotations
 
 from feature.note.edit import OVERLONG_WEIGHT, line_styles, text_weight
-from feature.note.types import Note, Style, access_ref
+from feature.note.types import NoteData, Style, access_ref
 
 
-def _texts(note: Note) -> list[str]:
+def _texts(note: NoteData) -> list[str]:
     return [line["v"] for line in note.body]  # type: ignore[misc]
 
 
-def _ids(note: Note) -> list[str]:
+def _ids(note: NoteData) -> list[str]:
     return [line["id"] for line in note.body]  # type: ignore[misc]
 
 
 def test_set_line_keeps_other_ids() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["甲", "乙", "丙"]
     ids = _ids(note)
 
@@ -27,7 +27,7 @@ def test_set_line_keeps_other_ids() -> None:
 
 
 def test_set_line_with_newline_splits_in_place() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["前", "后"]
     ids = _ids(note)
 
@@ -38,7 +38,7 @@ def test_set_line_with_newline_splits_in_place() -> None:
 
 
 def test_insert_line_after_places_and_returns_id() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["甲", "乙"]
     first = _ids(note)[0]
 
@@ -49,7 +49,7 @@ def test_insert_line_after_places_and_returns_id() -> None:
 
 
 def test_remove_line_drops_text_and_style() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["甲", "乙"]
     ids = _ids(note)
     note.toggle_style(ids[1], 0, 1, "bold")
@@ -61,7 +61,7 @@ def test_remove_line_drops_text_and_style() -> None:
 
 
 def test_remove_last_line_keeps_one_empty() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["只有一行"]
 
     note.remove_line(_ids(note)[0])
@@ -70,7 +70,7 @@ def test_remove_last_line_keeps_one_empty() -> None:
 
 
 def test_split_line_carries_style_to_right() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["abcdef"]
     lid = _ids(note)[0]
     note.toggle_style(lid, 3, 6, "bold")
@@ -84,7 +84,7 @@ def test_split_line_carries_style_to_right() -> None:
 
 
 def test_merge_line_concatenates_and_shifts_style() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["abc", "def"]
     ids = _ids(note)
     note.toggle_style(ids[1], 0, 3, "italic")
@@ -98,7 +98,7 @@ def test_merge_line_concatenates_and_shifts_style() -> None:
 
 
 def test_merge_first_line_is_noop() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["abc", "def"]
 
     assert note.merge_line(_ids(note)[0]) is None
@@ -106,7 +106,7 @@ def test_merge_first_line_is_noop() -> None:
 
 
 def test_merge_marker_line_is_noop() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["abc", access_ref(0)]
     marker_id = _ids(note)[1]
 
@@ -115,7 +115,7 @@ def test_merge_marker_line_is_noop() -> None:
 
 
 def test_toggle_style_on_and_off() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["abcdef"]
     lid = _ids(note)[0]
 
@@ -127,7 +127,7 @@ def test_toggle_style_on_and_off() -> None:
 
 
 def test_toggle_style_range_inside_existing() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["abcdef"]
     lid = _ids(note)[0]
     note.toggle_style(lid, 0, 6, "bold")
@@ -142,7 +142,7 @@ def test_toggle_style_range_inside_existing() -> None:
 
 
 def test_toggle_style_updates_body_hash() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["abcdef"]
     lid = _ids(note)[0]
     before = note.body.hash
@@ -153,10 +153,10 @@ def test_toggle_style_updates_body_hash() -> None:
 
 
 def test_paragraph_roundtrip_and_hash() -> None:
-    left = Note()
+    left = NoteData()
     left.body = ["标题"]
     lid = _ids(left)[0]
-    right = Note()
+    right = NoteData()
     right.body = ["标题"]
 
     left.set_paragraph(lid, {"heading": 1})
@@ -166,7 +166,7 @@ def test_paragraph_roundtrip_and_hash() -> None:
 
 
 def test_set_paragraph_merges_and_deletes() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["x"]
     lid = _ids(note)[0]
 
@@ -180,7 +180,7 @@ def test_set_paragraph_merges_and_deletes() -> None:
 
 
 def test_split_and_merge_preserve_paragraph() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["abcdef"]
     lid = _ids(note)[0]
     note.set_paragraph(lid, {"list": "bullet"})
@@ -194,7 +194,7 @@ def test_split_and_merge_preserve_paragraph() -> None:
 
 
 def test_blocks_expose_para_and_weight() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["标题"]
     lid = _ids(note)[0]
     note.set_paragraph(lid, {"heading": 1})
@@ -206,7 +206,7 @@ def test_blocks_expose_para_and_weight() -> None:
 
 
 def test_overlong_flag_at_threshold() -> None:
-    note = Note()
+    note = NoteData()
     note.body = ["字" * 301]
     assert note.blocks()[0]["overlong"] is True
 

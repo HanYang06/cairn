@@ -13,16 +13,16 @@ from feature.note.tools import (
     run_tool,
     tool_info,
 )
-from feature.note.types import Note, Style
+from feature.note.types import NoteData, Style
 
 
-def _note(text: str = "abcdef") -> Note:
-    note = Note()
+def _note(text: str = "abcdef") -> NoteData:
+    note = NoteData()
     note.body = [text]
     return note
 
 
-def _ctx(note: Note, start: int = 0, end: int = 0) -> ToolContext:
+def _ctx(note: NoteData, start: int = 0, end: int = 0) -> ToolContext:
     line = note.body[0]  # type: ignore[index]
     return ToolContext(
         line_id=line["id"],

@@ -8,13 +8,13 @@
 
 from __future__ import annotations
 
-from .events import (
+from .policy import Audience, ShareKind, is_private, target_audience, visible_to
+from .signal import (
     Event,
     ObjectDeleted,
     ObjectPut,
     Subscription,
 )
-from .policy import Audience, ShareKind, is_private, target_audience, visible_to
 from .types import (
     CairnError,
     CorruptObjectError,

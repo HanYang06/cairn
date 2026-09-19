@@ -85,7 +85,7 @@ def test_same_content_dedupes_physically(tmp_path: Path) -> None:
     bucket.put(second)
     assert first.id != second.id
     assert bucket.catalog.count_blocks() == 2
-    assert bucket.catalog.count_contents() == 1
+    assert bucket.catalog.count_bodies() == 1
 
 
 def test_unknown_type_falls_back_to_base(tmp_path: Path) -> None:
@@ -181,11 +181,11 @@ def test_corruption_is_detected(tmp_path: Path) -> None:
     bucket = _bucket(tmp_path)
     note = Note(body=["good"])
     bucket.put(note)
-    checksum = bucket.catalog.block_checksum(note.id)
+    checksum = bucket.catalog.block_body_id(note.id)
     assert checksum is not None
-    location = bucket.catalog.find_content(checksum)
+    location = bucket.catalog.find_body(checksum)
     assert location is not None
-    path = bucket.packs_dir / f"{location.pack_id:06d}.pack"
+    path = bucket.packs_dir / bucket.catalog.pack_name(location.pack_id)
     with path.open("r+b") as handle:
         handle.seek(location.offset)
         handle.write(b"\xff")

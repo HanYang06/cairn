@@ -116,7 +116,7 @@ class Group(Block):
         if self._vault is None:
             return
         target = str(child.oid) if isinstance(child, Block) else str(child)
-        Relation.create(self._vault, self.oid, target, relation=_CONTAINS)
+        Relation.create(self._vault, self.oid, target, relation=_CONTAINS, domain="group")
 
     def subgroups(self, vault: Any) -> list[Group]:
         """按 ``gid`` 解析出子组（引用不到的忽略），保持列表顺序。"""

@@ -14,6 +14,7 @@
   顺序从 head 沿 ``prev`` 走，不依赖时间。
 - 当前版本永远在块里；历史只存反向补丁（残页），从 head 反向回放。
 - 保留窗默认 30 天，更新时惰性压实（丢链尾）。
+- **不设 head 表**：head / count 由 ``version`` 表直接推导（谁不被任何 ``prev`` 指向即 head）。
 """
 
 from __future__ import annotations
@@ -28,19 +29,13 @@ from .block import canonical, decode_canonical
 
 RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
-_TABLE = "versions"
+_TABLE = "version"
 _COLUMNS = {
     "id": "TEXT PRIMARY KEY",
     "oid": "TEXT NOT NULL",
     "prev": "TEXT",
     "at": "INTEGER NOT NULL",
     "payload": "BLOB",
-}
-_HEADS = "version_heads"
-_HEAD_COLUMNS = {
-    "oid": "TEXT PRIMARY KEY",
-    "head": "TEXT",
-    "count": "INTEGER NOT NULL",
 }
 
 
@@ -65,7 +60,6 @@ class VersionStore:
     def __init__(self, bucket: Any) -> None:
         self._bucket = bucket
         self._table = bucket.table(_TABLE, **_COLUMNS)
-        self._heads = bucket.table(_HEADS, **_HEAD_COLUMNS)
 
     # ---- 写 ----
     def root(self, oid: Any, codec: Codec, state: Any, *, at: int | None = None) -> str | None:
@@ -77,7 +71,6 @@ class VersionStore:
         self._table.insert(
             {"id": vid, "oid": str(oid), "prev": None, "at": moment, "payload": canonical({})}
         )
-        self._heads.upsert({"oid": str(oid), "head": vid, "count": 1})
         self._bucket.commit()
         return vid
 
@@ -100,22 +93,23 @@ class VersionStore:
         self._table.insert(
             {"id": vid, "oid": str(oid), "prev": prev, "at": moment, "payload": payload}
         )
-        row = self._heads.select(oid=str(oid))
-        count = (int(row[0]["count"]) + 1) if row else 1
-        self._heads.upsert({"oid": str(oid), "head": vid, "count": count})
         self._bucket.commit()
         return vid
 
     # ---- 读 ----
     def head(self, oid: Any) -> str | None:
-        row = self._heads.select(oid=str(oid))
-        if not row:
+        """链头 = 不被任何 ``prev`` 指向的那条；从表中推导，不另存。"""
+        rows = self._table.select(oid=str(oid))
+        if not rows:
             return None
-        return str(row[0]["head"]) or None
+        referenced = {str(row["prev"]) for row in rows if row["prev"]}
+        for row in rows:
+            if str(row["id"]) not in referenced:
+                return str(row["id"])
+        return None
 
     def count(self, oid: Any) -> int:
-        row = self._heads.select(oid=str(oid))
-        return 0 if not row else int(row[0]["count"])
+        return len(self._table.select(oid=str(oid)))
 
     def history(self, oid: Any) -> list[dict[str, Any]]:
         """最新在前：``[{id, prev, at}]``。"""

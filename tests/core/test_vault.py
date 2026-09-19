@@ -64,9 +64,9 @@ def test_identical_content_dedupes(tmp_path: Path) -> None:
     vault = _create(tmp_path)
     data = b"same bytes " * 50_000
     vault.put(data)
-    before = vault.bucket.catalog.count_contents()
+    before = vault.bucket.catalog.count_bodies()
     vault.put(data)
-    after = vault.bucket.catalog.count_contents()
+    after = vault.bucket.catalog.count_bodies()
     assert before == after
 
 

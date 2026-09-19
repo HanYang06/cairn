@@ -175,14 +175,14 @@ class Bucket:
     # ---- body 去重池（O(1) 判重）----
     def body_exists(self, body_hash: str) -> bool:
         """该 body 是否已在池里（命中即可复用，不必再存）。"""
-        return self.catalog.find_content(str(body_hash)) is not None
+        return self.catalog.find_body(str(body_hash)) is not None
 
     @property
     def body_index(self) -> dict[str, list[str]]:
         """``{body_hash: [块 id, ...]}``——同 body 的块都在这；判重直接看 key。"""
         index: dict[str, list[str]] = {}
-        for row in self.query("SELECT checksum, id FROM blocks"):
-            index.setdefault(str(row["checksum"]), []).append(str(row["id"]))
+        for row in self.query("SELECT body_id, oid FROM block"):
+            index.setdefault(str(row["body_id"]), []).append(str(row["oid"]))
         return index
 
     def iter_block_ids(self) -> Iterator[str]:
@@ -247,14 +247,13 @@ class Bucket:
         block.updated = now
         block.size = block.content_size()
         block.checksum = checksum
+        data = canonical({"attrs": block.attrs, "config": block.config, "author": block.author})
         self.catalog.save_block(
             block.id,
-            checksum=checksum,
-            type=block.type,
+            body_id=checksum,
+            type=self.catalog.type_code(block.type),
             size=block.size,
-            author=block.author,
-            config=canonical(block.config),
-            meta=canonical(block.attrs),
+            data=data,
             created=block.created,
             updated=block.updated,
         )
@@ -263,27 +262,34 @@ class Bucket:
         row = self.catalog.block_row(block_id)
         if row is None:
             raise ObjectNotFoundError(block_id)
-        checksum = str(row["checksum"])
-        location = self.catalog.find_content(checksum)
+        checksum = str(row["body_id"])
+        location = self.catalog.find_body(checksum)
         if location is None:
             raise CorruptObjectError(f"内容缺失: {checksum}")
         payload = self._read_pack(location)
-        attrs = decode_canonical(bytes(row["meta"])) if row["meta"] else {}
-        block = Block.decode(payload, id=block_id, attrs=attrs, type=str(row["type"]))
+        raw = decode_canonical(bytes(row["data"])) if row["data"] else {}
+        params = raw if isinstance(raw, dict) else {}
+        type_name = self.catalog.type_name(int(row["type"]))
+        block = Block.decode(
+            payload,
+            id=block_id,
+            attrs=dict(params.get("attrs") or {}),
+            type=type_name,
+        )
         if not block.verify():
             raise CorruptObjectError(f"块校验失败: {block_id}")
         block.size = int(row["size"])
-        block.author = str(row["author"])
+        block.author = str(params.get("author") or "")
+        block.config = dict(params.get("config") or {})
         block.created = int(row["created"])
         block.updated = int(row["updated"])
-        block.config = decode_canonical(bytes(row["config"])) if row["config"] else {}
         return block
 
     def _store_content(self, block: Block, checksum: str, payload: bytes) -> BlockLocation:
         isolated = bool(block.config.get("isolated"))
         pack_id, offset = self._append(payload, isolated=isolated)
         location = BlockLocation(pack_id=pack_id, offset=offset, length=len(payload))
-        self.catalog.add_content(checksum, location)
+        self.catalog.add_body(checksum, location)
         return location
 
     def _read_pack(self, location: BlockLocation) -> bytes:
@@ -306,7 +312,7 @@ class Bucket:
             return BucketConfig()
 
     def _pack_path(self, pack_id: int) -> Path:
-        return self.packs_dir / f"{pack_id:06d}.pack"
+        return self.packs_dir / self.catalog.pack_name(pack_id)
 
     def _new_pack(self) -> int:
         pack_id = self.catalog.open_pack(now_ms())

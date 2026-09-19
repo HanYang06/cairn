@@ -27,12 +27,13 @@ DERIVED_FROM = "derived-from"
 REFERENCES = "references"
 CONTAINS = "contains"
 
-_TABLE = "relations"
+_TABLE = "relation"
 _COLUMNS = {
     "id": "TEXT PRIMARY KEY",
     "src": "TEXT NOT NULL",
     "dst": "TEXT NOT NULL",
     "kind": "TEXT NOT NULL",
+    "domain": "TEXT NOT NULL DEFAULT ''",
     "at": "TEXT",
     "attrs": "BLOB",
     "created": "INTEGER NOT NULL",
@@ -55,6 +56,7 @@ class Relation:
         src: str,
         dst: str,
         kind: str,
+        domain: str = "",
         at: str | None = None,
         attrs: dict[str, Any] | None = None,
         created: int = 0,
@@ -64,6 +66,7 @@ class Relation:
         self._src = src
         self._dst = dst
         self._kind = kind
+        self._domain = domain
         self._at = at
         self._attrs = dict(attrs or {})
         self.created = created
@@ -86,6 +89,11 @@ class Relation:
         return self._kind
 
     @property
+    def domain(self) -> str:
+        """该边归属的领域类型（note / project / group …）。"""
+        return self._domain
+
+    @property
     def at(self) -> str | None:
         """该边所钉的被派生版本；无则 None。"""
         return self._at
@@ -105,6 +113,7 @@ class Relation:
         target: Oid | str,
         relation: str = REFERENCES,
         *,
+        domain: str = "",
         tags: Iterable[str] | Mapping[str, Any] | None = None,
         props: dict[str, Any] | None = None,
     ) -> Relation:
@@ -123,6 +132,7 @@ class Relation:
                 "src": str(source),
                 "dst": str(target),
                 "kind": str(relation),
+                "domain": str(domain),
                 "at": None if at is None else str(at),
                 "attrs": canonical(attrs),
                 "created": now_ms(),
@@ -149,6 +159,7 @@ class Relation:
             str(row["src"]),
             str(row["dst"]),
             str(row["kind"]),
+            str(row["domain"] or ""),
             row["at"],
             attrs,
             int(row["created"]),

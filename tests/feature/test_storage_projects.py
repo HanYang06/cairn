@@ -74,11 +74,12 @@ def test_asset_from_path(tmp_path: Path) -> None:
 def test_note_embed_and_link(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     image = Asset.create(vault, b"img", name="a.png")
-    other = Note.create(vault, "target")
+    notes = Note(vault)
+    other = notes.create("target")
 
-    note = Note.create(vault, "see this")
-    note.add_access(image.oid, mime="image/png", name="a.png")
-    note.link(other.oid, relation="references")
+    note = notes.create("see this")
+    notes.add_access(note, image.oid, mime="image/png", name="a.png")
+    notes.link(note, other.oid, relation="references")
 
     assert note.references == (image.oid,)
     assert note.access[0] == str(image.oid)
@@ -91,8 +92,9 @@ def test_note_embed_and_link(tmp_path: Path) -> None:
 def test_project_members(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     project = Project.create(vault, "Cairn", description="工作台")
-    first = Note.create(vault, "a")
-    second = Note.create(vault, "b")
+    notes = Note(vault)
+    first = notes.create("a")
+    second = notes.create("b")
 
     project.add_member(first.oid)
     project.add_member(second.oid)
@@ -104,9 +106,10 @@ def test_project_members(tmp_path: Path) -> None:
 
 def test_provenance_lineage(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    original = Note.create(vault, "original")
-    remix = Note.create(vault, "remix")
-    again = Note.create(vault, "again")
+    notes = Note(vault)
+    original = notes.create("original")
+    remix = notes.create("remix")
+    again = notes.create("again")
 
     Relation.create(vault, remix.oid, original.oid, relation="derived-from")
     Relation.create(vault, again.oid, remix.oid, relation="derived-from")

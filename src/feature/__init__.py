@@ -19,7 +19,7 @@ from .base import (
 )
 from .canvas import Canvas, CanvasBody, Form, Graphic, Line, Link, Paint
 from .group import Group, GroupError, all_gids, list_groups, roots
-from .note import Note
+from .note import Note, NoteData
 from .project import Project
 from .provenance import ancestors, derivatives, descendants, lineage
 from .relation import Relation
@@ -38,6 +38,7 @@ __all__ = [
     "Line",
     "Link",
     "Note",
+    "NoteData",
     "Paint",
     "Project",
     "Relation",

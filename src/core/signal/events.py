@@ -16,7 +16,7 @@ from threading import Lock
 from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
-    from .types import Oid
+    from ..types import Oid
 
 _logger = logging.getLogger(__name__)
 
