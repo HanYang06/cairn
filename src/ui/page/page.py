@@ -25,10 +25,13 @@ class Page(Node):
         self.title = title
         self.bind = Bind(self)
         self.layout: Layout = VBox()
+        super().add(self.layout)  # 布局作为结构子节点，编译树才连得上
 
     def set(self, layout: type[Layout], **opts: Any) -> Layout:
         """设定根布局形态（`set` = 设形态）。"""
+        self.clear()
         self.layout = layout(**opts)
+        super().add(self.layout)
         return self.layout
 
     def add(self, component: object, *, at: object | None = None) -> object:

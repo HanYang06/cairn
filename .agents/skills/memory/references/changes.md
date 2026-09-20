@@ -300,6 +300,11 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 内核 · Qt 桥 + 最小翻译器**：新增 `ui/core/bridge.py`（`Bridge(QObject)`：
+  `Session` 变更 → Qt `changed` 信号）与 `ui/core/qt.py`（`build_compiler`：`page`/`layout`/`vbox`/`hbox`/
+  `grid`/`split`/`stack`/`component` → QWidget 树）。`Translator` 由 `Protocol` 改 **`Callable` 类型别名**；
+  `Page` 的布局改为**结构子节点**（编译树连通）。`ui.core` **不 eager 导入** Qt 模块（未装 Qt 仍可导入内核）。
+  新增 `tests/ui/conftest.py`（offscreen `QApplication`）+ `tests/ui/test_qt.py`。ruff / format / mypy / pytest 全绿，197 通过。
 - 2026-09-19 · 已定 · **UI 内核底层 · 配置加载**：新增 `ui/core/config.py` `apply_config(schema, data, group)`——
   `{路径: {项: 值}}`，路径可**从领域起写**、经 schema 校验后写进节点 `Conf`（`attr` / `theme`）；
   不可寻址 / 未知组即报错。`Schema` 增记路径 → 节点（`node()`）；`Facet.node_paths()`、`App.schema()` 带节点。

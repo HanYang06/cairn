@@ -9,16 +9,16 @@ Qt 翻译器在 M1 接上，这里只给通用管线（可先注册记录型翻�
 
 from __future__ import annotations
 
-from typing import Protocol, Self
+from typing import TYPE_CHECKING, Self
 
 from .errors import UiError
 from .node import Node
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
-class Translator(Protocol):
-    """把一个节点 + 已编译子件翻成目标对象。"""
-
-    def __call__(self, node: Node, children: list[object]) -> object: ...
+type Translator = Callable[[Node, list[object]], object]
+"""翻译器：把一个节点 + 已编译子件翻成目标对象。"""
 
 
 class Compiler:
