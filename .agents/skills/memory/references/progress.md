@@ -57,8 +57,9 @@
 
 - [~] **M0 地基**：`Facet` 声明层骨架 + 内核通用机制（`Node` 注册表 / 元数据 / 路径、`registry` / `signal` /
   `compile`、配置 `Schema` + `apply_config`、绑定 `compile`、`Model`）已落地；**Qt 桥 + 最小 Widgets 翻译器**
-  已跑通（`ui/core/bridge.py` / `qt.py`，offscreen 测试）。待做：M1 外壳（MainWindow/Panel/Page 宿主 + 布局
-  组织器落地）、主题（token → QSS）、类型化投影行、真页面路由宿主、Qt 翻译器词汇扩充。
+  已跑通（`ui/core/bridge.py` / `qt.py`，offscreen 测试）。命令 / 主题 / 列表 / 绑定 / 路由宿主均已落地并测通。
+  待做（底层盘全）：多页 Tab 宿主、配置 item 词表校验、主题文件系统（`config/theme/*.json`）、QML 岛承载器；
+  稳定代理 / 自动推导**不做**（领域少，组合根硬标注；插件时代再上契约）。
 - [ ] **M1 外壳**：App / MainWindow / Component / Panel / Page + 布局组织器 + 描述编译。
 - [ ] **M2 生成**：对象驱动生成器 + Note 特化模板（列表 / 编辑器 / 检查器）。
 - [ ] **M3 扩展**：Project / Canvas + QML 岛。

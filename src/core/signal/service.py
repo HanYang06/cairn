@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, ClassVar, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Self, overload
 
 from core.types import CairnError
 
@@ -62,7 +62,6 @@ class Action:
 class Domain:
     """域服务基类：单例处理器；对外只暴露 ``@action`` 动作与 ``Topic`` 信号。"""
 
-    namespace: ClassVar[str] = "feature"
     name: ClassVar[str] = ""
 
     _signal: Signal | None = None
@@ -72,11 +71,16 @@ class Domain:
         if not cls.__dict__.get("name"):
             cls.name = cls.__name__.removesuffix("Service")
 
+    def bind(self, signal: Signal) -> Self:
+        """绑定通信主干（组合根显式调用；非字符串注册）。"""
+        self._signal = signal
+        return self
+
     @property
     def bus(self) -> Signal:
-        """所属通信主干；未注册即抛错。"""
+        """所属通信主干；未绑定即抛错。"""
         if self._signal is None:
-            raise SignalError(f"域未注册：{type(self).__name__}")
+            raise SignalError(f"域未绑定总线：{type(self).__name__}")
         return self._signal
 
 

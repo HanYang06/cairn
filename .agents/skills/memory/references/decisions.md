@@ -252,8 +252,11 @@
 - `core/signal`：`Signal`（主干 + 地址树）/ `Domain`（域服务基类）/ `@action`（单播动作描述符）/
   `Topic`（多播信号描述符）/ `Action` / `BoundTopic`。单播经 `invoke`（异常透传），多播复用
   `EventBus`（异常隔离）。零字符串：`signal.feature.Note.save(...)`。
-- **未注册的域**：动作退回直接调用（便于单测与内部自调用），多播 `emit` 丢弃、`subscribe` 报错。
-- 作用域每 `Signal` 一实例；命名空间用 `setattr` 挂域。
+- **不做动态注册 / 内省**：域容器由**组合根静态声明**（`class Feature: Note: Note`），`signal.feature = feature`
+  普通赋值挂上；`Domain.bind(signal)` 显式绑总线。删掉了 `Namespace.__getattr__` / `Signal.register` / 字符串 setattr
+  ——动态注册**无人受益**（所有使用方都静态知道领域名），属过早泛化。
+- **未绑定的域**：动作退回直接调用（便于单测与内部自调用）；`bus` 属性报「未绑定总线」。
+- 作用域每 `Signal` 一实例；域容器按层静态挂载（`core` / `feature`）。
 
 ## 领域服务 / 数据分离（2026-09-19，方向定 + 已落地）
 
@@ -346,6 +349,11 @@
   建议改名 `when` / `state`；状态样式需 repolish，按 `ui-boundary`「逐条加、可测、有边界」推进。
 - 已定 · 字段不写死：由**内核提供中立内省**（对象结构 → 中性视图；UI 不 import `core.storage`），
   `Facet` 读它生成；`label` / `group` / `display` / `editable` 只是可选显示提示槽位。
+- 已定 · **领域在组合根硬标注，不做运行时推导 / 稳定代理**：领域数量少（≤10）且确定，不像插件那样不可预知，
+  直接在组合根显式 `signal.register(Note)`、写死 `note` / `project` 即可。`Signal` 的命名空间机制保持通用，
+  但**不做内省 / 推导**；**领域契约 / 从插件推导 UI 只在未来引入插件系统时再上**（届时基于本底层）。
+- 可选 · **地址树静态声明**（IDE 友好）：`signal.feature.Note` 目前是动态 `__getattr__`，IDE 不补全；
+  若需要，可在组合根层**静态声明**命名空间属性 + 类型（领域少、代价低）。非必须。
 - 已定 · **红线不动**：`Facet` 收的是**注入进来的领域对象**，自己不创建，故**无需 import `feature`**
   （类型提示可选，`object` / 鸭子类型即可）；"UI 不 import `feature` / 不碰 `Vault`" 继续有效。
   真正认识领域的只有**组合根**（创建服务并注入），不在 UI 内。

@@ -20,9 +20,17 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.usefixtures("qapp")
 
 
+class _Feature:
+    Note: object
+
+    def __init__(self, note: object) -> None:
+        self.Note = note
+
+
 def test_note_facet_builds_window(tmp_path: Path) -> None:
     vault = Vault.create(tmp_path / "vault")
-    notes = vault.signal.register(Note(vault))
+    notes = Note(vault).bind(vault.signal)
+    vault.signal.feature = _Feature(notes)
     notes.create("hello world", title="Hi")
 
     session = Session(vault.signal)
@@ -34,6 +42,6 @@ def test_note_facet_builds_window(tmp_path: Path) -> None:
 
     assert isinstance(window, QMainWindow)
     assert facet.name == "note"
-    # 域服务注册在主干的地址树上，Facet 拿到的是同一个对象
+    # 域服务静态挂在主干容器上，Facet 拿到的是同一个对象
     assert vault.signal.feature.Note is notes
     vault.close()

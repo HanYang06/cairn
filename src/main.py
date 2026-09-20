@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import QApplication
 
@@ -19,14 +20,26 @@ from ui.core import App, Session
 from ui.core.qt import build_window
 from ui.note import NoteFacet
 
+if TYPE_CHECKING:
+    from core.signal import Signal
+
+
+class Feature:
+    """静态声明的领域容器（IDE 可识别；无字符串注册 / 无内省）。"""
+
+    Note: Note
+
+    def __init__(self, vault: Vault, signal: Signal) -> None:
+        self.Note = Note(vault).bind(signal)
+
 
 def build(vault: Vault) -> App:
     """由一个库组装 UI 组合根。"""
-    vault.signal.register(Note(vault))
-    note = vault.signal.feature.Note  # 从地址树取（今天是同一对象；代理落地后亦然）
+    feature = Feature(vault, vault.signal)
+    vault.signal.feature = feature  # 挂到主干（普通属性赋值）
     session = Session(vault.signal)
     app = App(session)
-    app.mount(NoteFacet(note, session))
+    app.mount(NoteFacet(feature.Note, session))
     return app
 
 

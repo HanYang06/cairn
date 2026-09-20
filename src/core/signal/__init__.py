@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from .bus import Namespace, Signal
+from .bus import Signal
 from .events import (
     Event,
     EventBus,
@@ -35,7 +35,6 @@ __all__ = [
     "Event",
     "EventBus",
     "Handler",
-    "Namespace",
     "ObjectDeleted",
     "ObjectPut",
     "Signal",

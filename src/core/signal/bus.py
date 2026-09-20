@@ -1,23 +1,23 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""通信主干（统一调用总线 / 对象寻址空间）：``Signal`` + 命名空间。
+"""通信主干：事件 / 多播投递 + 域对象树。
 
-- **单播**：``signal.feature.Note.save(...)`` 经 ``invoke`` 派发，异常原样透传。
-- **多播**：``topic.emit(data)`` / ``topic.subscribe(handler)``，订阅者异常隔离。
-- **作用域**：每个 App / Vault 一个 ``Signal`` 实例，非全局单例。
+- `Signal` 是总线本体：`events` 投递器、`emit` / `subscribe` 多播、`invoke` 单播。
+- `core` / `feature` 是由组合根**静态挂载**的域容器（普通赋值，无注册 / 无 `__getattr__`）。
 
-地址树形如 ``signal.<命名空间>.<域>.<动作|信号>``；命名空间与域节点是对象、
-动作与信号是句柄，全程零字符串。
+域数量少且确定，故不提供运行时注册 / 内省；插件化（契约推导）留待未来。
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .events import Event, EventBus, Subscription
-from .service import Action, BoundTopic, Domain, SignalError, SignalHandler
+
+if TYPE_CHECKING:
+    from .service import Action, BoundTopic, SignalHandler
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,55 +28,21 @@ class _TopicEvent(Event):
     data: Any = None
 
 
-class Namespace:
-    """地址树上的命名空间节点（``core`` / ``feature``）。"""
-
-    def __init__(self) -> None:
-        self._domains: dict[str, Domain] = {}
-
-    def _add(self, name: str, domain: Domain) -> None:
-        self._domains[name] = domain
-        setattr(self, name, domain)
-
-    def domains(self) -> dict[str, Domain]:
-        """本命名空间下已注册的域（名字 → 服务）。"""
-        return dict(self._domains)
-
-    def __getattr__(self, name: str) -> Any:
-        raise AttributeError(f"未注册的域：{name!r}")
-
-    def __repr__(self) -> str:
-        return f"Namespace({sorted(self._domains)})"
-
-
 class Signal:
-    """进程内统一调用主干：对象寻址 + 单播 / 多播。"""
+    """进程内通信主干：事件 / 多播投递 + 单播派发。
+
+    `core` / `feature` 由组合根赋值为域容器实例（静态声明，IDE 可识别）。
+    """
 
     def __init__(self) -> None:
-        self.core = Namespace()
-        self.feature = Namespace()
         self._events = EventBus()
-        self._domains: dict[str, Domain] = {}
-
-    def register(self, domain: Domain, *, namespace: str | None = None) -> Domain:
-        """把域服务挂到地址树上（默认用域的 ``namespace``）。"""
-        target = namespace or domain.namespace
-        space = getattr(self, target, None)
-        if not isinstance(space, Namespace):
-            raise SignalError(f"未知命名空间：{target!r}")
-        domain._signal = self  # noqa: SLF001 — 注册即绑定总线，域与主干同包强耦合
-        space._add(domain.name, domain)  # noqa: SLF001 — 同上
-        self._domains[domain.name] = domain
-        return domain
+        self.core: object | None = None
+        self.feature: object | None = None
 
     @property
     def events(self) -> EventBus:
-        """底层事件总线（多播投递复用其同步、隔离语义）。"""
+        """底层事件总线（块级事实通知）。"""
         return self._events
-
-    def domains(self) -> dict[str, Domain]:
-        """已注册的域（名字 → 服务）。"""
-        return dict(self._domains)
 
     def invoke(self, action: Action, *args: Any, **kwargs: Any) -> Any:
         """单播：执行动作，异常原样透传。"""
@@ -97,10 +63,7 @@ class Signal:
         return self._events.subscribe(dispatch, _TopicEvent)
 
     def __repr__(self) -> str:
-        return f"Signal(domains={sorted(self._domains)})"
+        return f"Signal(core={self.core is not None}, feature={self.feature is not None})"
 
 
-__all__ = [
-    "Namespace",
-    "Signal",
-]
+__all__ = ["Signal"]

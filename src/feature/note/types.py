@@ -372,7 +372,6 @@ class Note(Domain):
     数据（``NoteData``）由本服务与 Bucket 共同管理：Bucket 管存储，本服务管语义。
     """
 
-    namespace = "feature"
     name = "Note"
 
     changed = Topic()

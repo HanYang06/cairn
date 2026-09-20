@@ -300,6 +300,10 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **去掉动态注册，改静态挂载**：删 `core/signal` 的 `Namespace` / `Signal.register` /
+  `_domains` / `domains()` / `Domain.namespace`；`Signal` 暴露 `core` / `feature` 属性（组合根普通赋值）；
+  `Domain` 加 `bind(signal)` 显式绑总线。组合根 `src/main.py` 用静态 `Feature` 容器（`Note: Note` + 构造赋值）。
+  多个测试改为静态挂载 / `bind`。ruff / format / mypy / pytest 全绿，211 通过。理由：动态注册无人受益（见 decisions）。
 - 2026-09-19 · 已定 · **UI 列表 + 模型桥 + 变更自动刷新**：`Session.model(loader)` 建类型化模型（主干一变即重算并通知）；
   `ui/component/atoms.py` 加 `List` 原子（持 `Model` + `row` 行文本）；新增 `ui/core/qtmodel.py` `QtListModel`
   （`Model[T]` → `QAbstractListModel`，变更整表 reset）；`ui/core/qt.py` 加 `list` 翻译器（`QListView`）。

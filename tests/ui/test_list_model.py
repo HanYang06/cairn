@@ -23,7 +23,7 @@ pytestmark = pytest.mark.usefixtures("qapp")
 
 def test_list_refreshes_on_change(tmp_path: Path) -> None:
     vault = Vault.create(tmp_path / "vault")
-    notes = vault.signal.register(Note(vault))
+    notes = Note(vault).bind(vault.signal)
     notes.create("a", title="A")
 
     session = Session(vault.signal)

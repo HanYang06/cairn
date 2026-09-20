@@ -5,12 +5,11 @@ from __future__ import annotations
 
 import pytest
 
-from core.signal import Action, Domain, Signal, SignalError, Topic, action
+from core.signal import Domain, Signal, SignalError, Topic, action
 
 
 class Counter(Domain):
     name = "Counter"
-    namespace = "core"
 
     def __init__(self) -> None:
         self.value = 0
@@ -36,61 +35,58 @@ class Notebook(Domain):
         return "ok"
 
 
-def test_address_tree_and_unicast() -> None:
+class Core:
+    """静态域容器（示例；无运行时注册）。"""
+
+    Counter: Counter
+
+    def __init__(self, counter: Counter) -> None:
+        self.Counter = counter
+
+
+def test_action_routes_through_bound_bus() -> None:
     sig = Signal()
-    counter = sig.register(Counter())
+    counter = Counter().bind(sig)
 
-    assert sig.core.Counter is counter
-    assert sig.core.Counter.bump(2) == 2
-    assert counter.bump(3) == 5
+    assert counter.bump(2) == 2
+    assert counter.value == 2
 
 
-def test_action_handle_dispatches_through_bus() -> None:
-    sig = Signal()
-    counter = sig.register(Counter())
-    handle = sig.core.Counter.bump
+def test_action_without_bus_calls_directly() -> None:
+    counter = Counter()
 
-    assert isinstance(handle, Action)
-    assert handle.name == "bump"
-    assert handle.owner is counter
-    assert handle(4) == 4
+    assert counter.bump(3) == 3
 
 
 def test_action_exception_propagates() -> None:
     sig = Signal()
 
     class Boom(Domain):
-        namespace = "core"
-
         @action
         def go(self) -> None:
             raise RuntimeError("boom")
 
-    sig.register(Boom())
+    boom = Boom().bind(sig)
     with pytest.raises(RuntimeError, match="boom"):
-        sig.core.Boom.go()
+        boom.go()
 
 
-def test_unregistered_domain_bus_raises() -> None:
-    with pytest.raises(SignalError, match="域未注册"):
+def test_unbound_domain_bus_raises() -> None:
+    with pytest.raises(SignalError, match="未绑定总线"):
         _ = Counter().bus
 
 
-def test_unknown_namespace_raises() -> None:
+def test_static_tree_attach() -> None:
     sig = Signal()
-    with pytest.raises(SignalError, match="未知命名空间"):
-        sig.register(Counter(), namespace="nope")
+    sig.core = Core(Counter().bind(sig))
 
-
-def test_unknown_domain_attribute_raises() -> None:
-    sig = Signal()
-    with pytest.raises(AttributeError, match="未注册的域"):
-        _ = sig.feature.Nope
+    assert sig.core is not None
+    assert sig.core.Counter.bump(1) == 1
 
 
 def test_topic_multicast_and_isolation() -> None:
     sig = Signal()
-    note = sig.register(Notebook())
+    note = Notebook().bind(sig)
     seen: list[int] = []
     note.changed.subscribe(seen.append)
 
@@ -104,7 +100,7 @@ def test_topic_multicast_and_isolation() -> None:
 
 def test_topic_subscription_cancel() -> None:
     sig = Signal()
-    note = sig.register(Notebook())
+    note = Notebook().bind(sig)
     seen: list[int] = []
     sub = note.changed.subscribe(seen.append)
 
@@ -117,8 +113,8 @@ def test_topic_subscription_cancel() -> None:
 def test_two_signals_are_isolated() -> None:
     first = Signal()
     second = Signal()
-    a = first.register(Counter())
-    b = second.register(Counter())
+    a = Counter().bind(first)
+    b = Counter().bind(second)
 
     a.bump(5)
     assert a.value == 5
