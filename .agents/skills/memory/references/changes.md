@@ -300,6 +300,9 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 最小 MainWindow**：`ui/core/qt.py` 加 `build_window(app)`——`SuperLayout` 落成
+  `QMainWindow`（标题栏 / 导航 + 内容 + 检查器 / 状态栏；内容用 `QStackedWidget` 装已挂载页面）；
+  入口三件套 `build` / `build_compiler` / `build_window`。新增测试。ruff / format / mypy / pytest 全绿，206 通过。
 - 2026-09-19 · 已定 · **UI 主题（token → QSS）**：新增 `ui/core/theme.py`（`Theme`：`token` 封闭词表 +
   CSS 式 `styles`；`resolve` 展开 `token.*`；`to_qss()` 把 `widget.<kind>[:state]` 编译为
   `QWidget[cairnClass="<kind>"][:state]`；`apply(qapp)` 全局套用）；`ui/core/qt.py` 给每个控件打

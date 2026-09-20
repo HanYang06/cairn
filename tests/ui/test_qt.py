@@ -6,13 +6,20 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QGridLayout,
+    QHBoxLayout,
+    QMainWindow,
+    QVBoxLayout,
+    QWidget,
+)
 
 from core import Vault
 from core.storage import Block
-from ui.component import Component
+from ui.component import Component, Label
+from ui.core import App, Facet
 from ui.core.bridge import Bridge
-from ui.core.qt import build
+from ui.core.qt import build, build_window
 from ui.core.session import Session
 from ui.layout import Grid, HBox, VBox
 from ui.page import Page
@@ -57,6 +64,23 @@ def test_build_grid_uses_cols() -> None:
 
     assert isinstance(widget.layout(), QGridLayout)
     assert widget.layout().count() == 3
+
+
+class _Domain:
+    pass
+
+
+def test_build_window_regions() -> None:
+    app = App(session=None)  # type: ignore[arg-type]
+    facet = Facet(_Domain(), name="note")
+    facet.set(VBox)
+    facet.add(Label("hi"))
+    app.mount(facet)
+
+    window = build_window(app)
+
+    assert isinstance(window, QMainWindow)
+    assert window.centralWidget() is not None
 
 
 def test_bridge_emits_qt_signal(tmp_path: Path) -> None:

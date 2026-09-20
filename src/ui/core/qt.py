@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMainWindow,
     QPushButton,
     QSplitter,
     QStackedWidget,
@@ -27,9 +28,10 @@ from PySide6.QtWidgets import (
 )
 
 from .compile import Compiler
+from .node import Node
 
 if TYPE_CHECKING:
-    from .node import Node
+    from .app import App
 
 
 def build_compiler() -> Compiler:
@@ -54,6 +56,44 @@ def build_compiler() -> Compiler:
 def build(node: Node) -> object:
     """把一棵声明树编译为 Qt 对象。"""
     return build_compiler().compile(node)
+
+
+def build_window(app: App) -> QMainWindow:
+    """把 `App` 的根壳落成窗口：标题栏 / 导航+内容+检查器 / 状态栏。"""
+    compiler = build_compiler()
+    window = QMainWindow()
+    central = QWidget()
+    window.setCentralWidget(central)
+    column = QVBoxLayout(central)
+    column.addWidget(_region(compiler, app.layout.titlebar))
+    middle = QHBoxLayout()
+    middle.addWidget(_region(compiler, app.layout.navigator))
+    middle.addWidget(_content(compiler, app), 1)
+    middle.addWidget(_region(compiler, app.layout.inspector))
+    column.addLayout(middle, 1)
+    column.addWidget(_region(compiler, app.layout.statusbar))
+    return window
+
+
+def _region(compiler: Compiler, region: Node) -> QWidget:
+    container = _tag(QWidget(), region)
+    layout = QVBoxLayout(container)
+    for placed in region.children():
+        if isinstance(placed.component, Node):
+            widget = compiler.compile(placed.component)
+            if isinstance(widget, QWidget):
+                layout.addWidget(widget)
+    return container
+
+
+def _content(compiler: Compiler, app: App) -> QWidget:
+    stack = QStackedWidget()
+    for placed in app.layout.content.children():
+        if isinstance(placed.component, Node):
+            widget = compiler.compile(placed.component)
+            if isinstance(widget, QWidget):
+                stack.addWidget(widget)
+    return _tag(stack, app.layout.content)
 
 
 def _tag(widget: QWidget, node: Node) -> QWidget:
@@ -136,4 +176,4 @@ def _chip(node: Node, _children: list[object]) -> QWidget:
     return _tag(QLabel(str(getattr(node, "text", ""))), node)
 
 
-__all__ = ["build", "build_compiler"]
+__all__ = ["build", "build_compiler", "build_window"]
