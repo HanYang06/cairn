@@ -300,6 +300,9 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 底层补口**：`Facet.node_paths()` 对同名同类兄弟路径去重（首原名、余追加 `#n`），
+  修 schema 路径碰撞；新增 `tests/test_architecture.py`（红线：`ui` 不 import `feature` / `core.storage` / `core.vault`）。
+  ruff / format / mypy / pytest 全绿，211 通过。
 - 2026-09-19 · 已定 · **UI 信号 + 绑定落地**：`UiSignal` 加 `owner`；`Component.ui_signal(name)` 声明信号，
   `Button.clicked` / `Field.text_changed` 已声明；`Node` 加 `bind_widget` / `widget`（编译期回填目标控件）；
   Qt 翻译器回填控件；`WindowHost` 编译绑定（`source.owner.widget` 上的同名 Qt 信号 → target）——**按钮点击真连上动作**。

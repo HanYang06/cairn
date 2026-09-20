@@ -71,12 +71,21 @@ class Facet:
         return result
 
     def node_paths(self) -> list[tuple[str, Node]]:
-        """本域的相对路径 → 节点：`<域>` / `<域>.<page>` / `<域>.<page>.<layout>.<com>…`。"""
-        result: list[tuple[str, Node]] = []
+        """本域的相对路径 → 节点：`<域>` / `<域>.<page>` / `<域>.<page>.<layout>.<com>…`。
+
+        同名同类兄弟会撞路径；按首次出现保原名，其余追加 `#n` 保唯一。
+        """
+        raw: list[tuple[str, Node]] = []
         for page in [self.root, *self._pages]:
             prefix = self.name if page is self.root else f"{self.name}.{page.name or page.kind}"
-            result.append((prefix, page))
-            result.extend(self._walk(page.layout, prefix))
+            raw.append((prefix, page))
+            raw.extend(self._walk(page.layout, prefix))
+        seen: dict[str, int] = {}
+        result: list[tuple[str, Node]] = []
+        for path, node in raw:
+            count = seen.get(path, 0)
+            seen[path] = count + 1
+            result.append((path if count == 0 else f"{path}#{count}", node))
         return result
 
     def paths(self) -> list[str]:
