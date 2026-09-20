@@ -3,7 +3,8 @@
 
 """Qt 翻译器：把声明树编译成 QWidget 树（M1 最小实现）。
 
-按 `kind` 注册翻译器到通用 `Compiler`；内核其余部分不感知 Qt。
+按 `kind` 注册翻译器到通用 `Compiler`；每个控件打 `cairnClass` 动态属性，
+供主题选择器 `widget.<kind>[:state]` 命中。内核其余部分不感知 Qt。
 """
 
 from __future__ import annotations
@@ -55,22 +56,27 @@ def build(node: Node) -> object:
     return build_compiler().compile(node)
 
 
-def _page(_node: Node, children: list[object]) -> object:
+def _tag(widget: QWidget, node: Node) -> QWidget:
+    widget.setProperty("cairnClass", node.kind)
+    return widget
+
+
+def _page(node: Node, children: list[object]) -> object:
     if len(children) == 1 and isinstance(children[0], QWidget):
         return children[0]
-    return _box(QVBoxLayout(), children)
+    return _box(node, QVBoxLayout(), children)
 
 
-def _vbox(_node: Node, children: list[object]) -> QWidget:
-    return _box(QVBoxLayout(), children)
+def _vbox(node: Node, children: list[object]) -> QWidget:
+    return _box(node, QVBoxLayout(), children)
 
 
-def _hbox(_node: Node, children: list[object]) -> QWidget:
-    return _box(QHBoxLayout(), children)
+def _hbox(node: Node, children: list[object]) -> QWidget:
+    return _box(node, QHBoxLayout(), children)
 
 
-def _box(layout: QBoxLayout, children: list[object]) -> QWidget:
-    widget = QWidget()
+def _box(node: Node, layout: QBoxLayout, children: list[object]) -> QWidget:
+    widget = _tag(QWidget(), node)
     widget.setLayout(layout)
     for child in children:
         if isinstance(child, QWidget):
@@ -79,7 +85,7 @@ def _box(layout: QBoxLayout, children: list[object]) -> QWidget:
 
 
 def _grid(node: Node, children: list[object]) -> QWidget:
-    widget = QWidget()
+    widget = _tag(QWidget(), node)
     layout = QGridLayout(widget)
     cols = int(node.options.get("cols", 1) or 1)
     for index, child in enumerate(children):
@@ -88,28 +94,28 @@ def _grid(node: Node, children: list[object]) -> QWidget:
     return widget
 
 
-def _split(_node: Node, children: list[object]) -> QWidget:
+def _split(node: Node, children: list[object]) -> QWidget:
     splitter = QSplitter(Qt.Orientation.Horizontal)
     for child in children:
         if isinstance(child, QWidget):
             splitter.addWidget(child)
-    return splitter
+    return _tag(splitter, node)
 
 
-def _stack(_node: Node, children: list[object]) -> QWidget:
+def _stack(node: Node, children: list[object]) -> QWidget:
     stack = QStackedWidget()
     for child in children:
         if isinstance(child, QWidget):
             stack.addWidget(child)
-    return stack
+    return _tag(stack, node)
 
 
 def _label(node: Node, _children: list[object]) -> QWidget:
-    return QLabel(str(getattr(node, "text", "")))
+    return _tag(QLabel(str(getattr(node, "text", ""))), node)
 
 
 def _button(node: Node, _children: list[object]) -> QWidget:
-    return QPushButton(str(getattr(node, "text", "")))
+    return _tag(QPushButton(str(getattr(node, "text", ""))), node)
 
 
 def _field(node: Node, _children: list[object]) -> QWidget:
@@ -117,19 +123,17 @@ def _field(node: Node, _children: list[object]) -> QWidget:
     placeholder = str(getattr(node, "placeholder", ""))
     if placeholder:
         edit.setPlaceholderText(placeholder)
-    return edit
+    return _tag(edit, node)
 
 
-def _divider(_node: Node, _children: list[object]) -> QWidget:
+def _divider(node: Node, _children: list[object]) -> QWidget:
     frame = QFrame()
     frame.setFrameShape(QFrame.Shape.HLine)
-    return frame
+    return _tag(frame, node)
 
 
 def _chip(node: Node, _children: list[object]) -> QWidget:
-    chip = QLabel(str(getattr(node, "text", "")))
-    chip.setProperty("cairnClass", "chip")
-    return chip
+    return _tag(QLabel(str(getattr(node, "text", ""))), node)
 
 
 __all__ = ["build", "build_compiler"]

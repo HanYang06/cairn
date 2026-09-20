@@ -300,6 +300,10 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 主题（token → QSS）**：新增 `ui/core/theme.py`（`Theme`：`token` 封闭词表 +
+  CSS 式 `styles`；`resolve` 展开 `token.*`；`to_qss()` 把 `widget.<kind>[:state]` 编译为
+  `QWidget[cairnClass="<kind>"][:state]`；`apply(qapp)` 全局套用）；`ui/core/qt.py` 给每个控件打
+  `cairnClass` 动态属性。新增 `tests/ui/test_theme.py`。ruff / format / mypy / pytest 全绿，205 通过。
 - 2026-09-19 · 已定 · **UI 组件原子**：`ui/component/atoms.py` `Label`/`Button`/`Field`/`Divider`/`Chip`（各带 `STYLABLE`/`STATES` 词汇元数据）；`ui/core/qt.py` 补对应翻译器（QLabel/QPushButton/QLineEdit/QFrame）。新增 `tests/ui/test_atoms.py`。ruff / format / mypy / pytest 全绿，202 通过。
 - 2026-09-19 · 已定 · **UI 内核 · Qt 桥 + 最小翻译器**：新增 `ui/core/bridge.py`（`Bridge(QObject)`：
   `Session` 变更 → Qt `changed` 信号）与 `ui/core/qt.py`（`build_compiler`：`page`/`layout`/`vbox`/`hbox`/

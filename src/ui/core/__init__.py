@@ -18,6 +18,7 @@ from .registry import kinds, vocabulary
 from .schema import Schema
 from .session import Session
 from .signal import UiSignal
+from .theme import Theme
 
 __all__ = [
     "App",
@@ -35,6 +36,7 @@ __all__ = [
     "Schema",
     "Session",
     "SuperLayout",
+    "Theme",
     "Translator",
     "UiError",
     "UiSignal",
