@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from core.signal import Event, Subscription
 
@@ -46,11 +46,11 @@ class Session:
 
         return cancel
 
-    def projection(self, key: str, loader: Callable[[], Any]) -> Any:
-        """按 key 取投影；命中即复用缓存，主干有变更则整体失效重算。"""
+    def projection[T](self, key: str, loader: Callable[[], T]) -> T:
+        """按 key 取**类型化投影**；命中即复用缓存，主干有变更则整体失效重算。"""
         if key not in self._cache:
             self._cache[key] = loader()
-        return self._cache[key]
+        return cast("T", self._cache[key])
 
     def close(self) -> None:
         """取消主干订阅并清空观察者 / 缓存。"""

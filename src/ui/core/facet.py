@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..page import Page
-from .bind import Bind
+from .bind import Bind, Binding
 from .conf import Conf
 from .errors import UiError
 from .node import Node
@@ -61,6 +61,14 @@ class Facet:
         if page is None:
             raise UiError(f"未注册的路由: {route!r}")
         return page
+
+    def compile_bindings(self) -> list[Binding]:
+        """编译本域全部绑定（Facet + 默认页 + 各页面），非法即报错。"""
+        result = self.bind.compile()
+        result.extend(self.root.bind.compile())
+        for page in self._pages:
+            result.extend(page.bind.compile())
+        return result
 
     def paths(self) -> list[str]:
         """本域由领域的相对路径：`<域>` / `<域>.<page>` / `<域>.<page>.<layout>.<com>…`。"""

@@ -300,6 +300,10 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 内核底层 · 绑定编译 + 模型**：`Bind.compile()`（源须 `UiSignal`、目标须可调用，
+  否则报错）与 `Facet.compile_bindings()`（Facet + 默认页 + 各页面汇总）；新增 `ui/core/model.py`
+  （`Model[T]` 类型化可观察列表：append/replace/remove/clear + `watch` 返回取消）；`Session.projection[T]`
+  泛型化。新增 `tests/ui/test_bind_model.py`。ruff / format / mypy / pytest 全绿，189 通过。
 - 2026-09-19 · 已定 · **UI 内核底层 · 配置路径 schema**：新增 `ui/core/schema.py`（`Schema`：规范形式
   `app.<域>.<page>.<layout>.<com>…`；`resolve` 支持**从领域起写 + 后缀补全**，未命中 / 歧义即报错）；
   `Facet.paths()` 由领域树导出相对路径、`App.schema()` 汇总。新增 `tests/ui/test_schema.py`。

@@ -11,6 +11,7 @@ from .compile import Compiler, Translator
 from .conf import Conf, ConfGroup
 from .errors import LayoutError, UiError
 from .facet import Facet
+from .model import Model, Notify
 from .node import Node, Placed, registered_kinds
 from .registry import kinds, vocabulary
 from .schema import Schema
@@ -26,7 +27,9 @@ __all__ = [
     "ConfGroup",
     "Facet",
     "LayoutError",
+    "Model",
     "Node",
+    "Notify",
     "Placed",
     "Schema",
     "Session",

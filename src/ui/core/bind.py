@@ -11,6 +11,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .errors import UiError
+from .signal import UiSignal
+
 
 @dataclass(frozen=True)
 class Binding:
@@ -35,6 +38,15 @@ class Bind:
 
     def items(self) -> list[Binding]:
         """全部绑定（按登记顺序）。"""
+        return list(self._items)
+
+    def compile(self) -> list[Binding]:
+        """编译校验：源须为 UI 信号、目标须可调用；否则即报错。"""
+        for binding in self._items:
+            if not isinstance(binding.source, UiSignal):
+                raise UiError(f"绑定源不是 UI 信号: {binding.source!r}")
+            if not callable(binding.target):
+                raise UiError(f"绑定目标不可调用: {binding.target!r}")
         return list(self._items)
 
     def clear(self) -> None:
