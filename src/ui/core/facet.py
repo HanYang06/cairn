@@ -17,6 +17,7 @@ from ..page import Page
 from .bind import Bind
 from .conf import Conf
 from .errors import UiError
+from .node import Node
 
 if TYPE_CHECKING:
     from ..layout import Layout
@@ -60,6 +61,24 @@ class Facet:
         if page is None:
             raise UiError(f"未注册的路由: {route!r}")
         return page
+
+    def paths(self) -> list[str]:
+        """本域由领域的相对路径：`<域>` / `<域>.<page>` / `<域>.<page>.<layout>.<com>…`。"""
+        result = [self.name]
+        for page in [self.root, *self._pages]:
+            prefix = self.name if page is self.root else f"{self.name}.{page.name or page.kind}"
+            result.append(prefix)
+            result.extend(self._walk(page.layout, prefix))
+        return result
+
+    @staticmethod
+    def _walk(node: Node, prefix: str) -> list[str]:
+        base = f"{prefix}.{node.name or node.kind}"
+        out = [base]
+        for placed in node.children():
+            if isinstance(placed.component, Node):
+                out.extend(Facet._walk(placed.component, base))
+        return out
 
     def __repr__(self) -> str:
         return f"Facet({self.name!r}, pages={len(self._pages)})"

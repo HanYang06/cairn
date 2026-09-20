@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from .errors import UiError
 from .node import Node
+from .schema import Schema
 
 if TYPE_CHECKING:
     from ..page import Page
@@ -68,6 +69,14 @@ class App:
     def facets(self) -> list[Facet]:
         """已挂载的 Facet。"""
         return list(self._facets)
+
+    def schema(self) -> Schema:
+        """由已挂载 Facet 编译出配置路径树。"""
+        schema = Schema()
+        for facet in self._facets:
+            for rel in facet.paths():
+                schema.add(f"app.{rel}")
+        return schema
 
 
 __all__ = ["App", "SuperLayout"]

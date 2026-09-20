@@ -13,6 +13,7 @@ from .errors import LayoutError, UiError
 from .facet import Facet
 from .node import Node, Placed, registered_kinds
 from .registry import kinds, vocabulary
+from .schema import Schema
 from .session import Session
 from .signal import UiSignal
 
@@ -27,6 +28,7 @@ __all__ = [
     "LayoutError",
     "Node",
     "Placed",
+    "Schema",
     "Session",
     "SuperLayout",
     "Translator",

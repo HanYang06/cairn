@@ -300,6 +300,12 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 内核底层 · 配置路径 schema**：新增 `ui/core/schema.py`（`Schema`：规范形式
+  `app.<域>.<page>.<layout>.<com>…`；`resolve` 支持**从领域起写 + 后缀补全**，未命中 / 歧义即报错）；
+  `Facet.paths()` 由领域树导出相对路径、`App.schema()` 汇总。新增 `tests/ui/test_schema.py`。
+  确认：PyQt 无"编译层"（Shiboken 运行期绑定、QSS/.ui 运行期解析、QML 可预编译）；
+  `Compiler`/`Translator` 预留**构建期静态化**缝（生成 `.ui` / 静态 Python / QML，内核不改）。
+  ruff / format / mypy / pytest 全绿，183 通过。
 - 2026-09-19 · 已定 · **UI 内核底层（通用机制）**：`Node` 加 **kind 注册表**（`__init_subclass__` 自动登记，
   冲突报错）、**词汇元数据** `STYLABLE`/`STATES`、**父子链与点分路径**（`parent`/`path()`/`walk()`）；
   新增 `ui/core/registry.py`（`kinds` / `vocabulary`）、`ui/core/signal.py`（`UiSignal`：UI 侧信号代理占位）、
