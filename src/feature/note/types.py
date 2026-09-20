@@ -27,8 +27,8 @@ from core.signal import Domain, Topic, action
 from core.storage import Attr, Block, Body, VersionStore
 from core.types import Oid
 
+from .._shared.signature import Signature
 from ..base import UNSET, normalize_tags
-from ..signature import Signature
 from .edit import (
     OVERLONG_WEIGHT,
     StyleMap,
@@ -505,7 +505,7 @@ class Note(Domain):
     @action
     def link(self, data: NoteData, target: Oid | str, relation: str = "references") -> Any:
         """从本笔记向目标建一条关系。"""
-        from ..relation import Relation  # noqa: PLC0415 — 延迟导入，避免领域间加载期环
+        from .._shared.relation import Relation  # noqa: PLC0415 — 延迟导入，避免加载期环
 
         return Relation.create(self.vault, data.oid, target, relation=relation, domain="note")
 

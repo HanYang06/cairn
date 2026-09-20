@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, Any, Self
 
 from core.storage import Attr, Block, BodyField
 
+from .._shared.relation import Relation
 from ..base import UNSET, normalize_tags
-from ..relation import Relation
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Mapping

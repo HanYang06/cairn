@@ -300,6 +300,10 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **领域共享层 `feature/_shared/`**：把 `relation` / `provenance` / `signature` 从 `feature/` 顶层
+  （看着像域）移入 `feature/_shared/`（横跨多域的共享设施）；更新 `feature/__init__` / `group` / `note` / `project` /
+  `provenance` 引用与测试。域不再横着 import 兄弟。ruff / format / mypy / pytest 全绿，211 通过。
+  剩余横向依赖 `note → canvas`（待定归宿）。
 - 2026-09-19 · 已定 · **领域树归位到应用内核**：`main.py` 只做 boot；新增 `src/kernel.py`（`Feature` 静态领域容器 +
   `Kernel`：握 `signal`、挂 `feature`）——领域树声明落在**应用内核侧**（`core` 不许认识 `feature`，故不能放进
   `core.signal`；入口也不该定义它）。ruff / format / mypy / pytest 全绿，211 通过。

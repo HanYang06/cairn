@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 from core.storage import Attr, Block, BodyField
 from core.types import Oid
 
+from ._shared.relation import CONTAINS as _CONTAINS
+from ._shared.relation import Relation
 from .base import DomainError
-from .relation import CONTAINS as _CONTAINS
-from .relation import Relation
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
