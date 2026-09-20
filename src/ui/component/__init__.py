@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from .atoms import Button, Chip, Divider, Field, Label
+from .atoms import Button, Chip, Divider, Field, Label, List
 from .component import Component
 
-__all__ = ["Button", "Chip", "Component", "Divider", "Field", "Label"]
+__all__ = ["Button", "Chip", "Component", "Divider", "Field", "Label", "List"]

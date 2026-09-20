@@ -9,9 +9,16 @@ Qt 实现在 `ui/core/qt.py`；此处不依赖 Qt。
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .component import Component
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+
+def _default_row(item: object) -> str:
+    return str(item)
 
 
 class Label(Component):
@@ -77,4 +84,23 @@ class Chip(Component):
         self.text = text
 
 
-__all__ = ["Button", "Chip", "Divider", "Field", "Label"]
+class List(Component):
+    """列表（数据来自类型化 `Model`；`row` 决定行文本）。"""
+
+    kind = "list"
+    STYLABLE = frozenset({"background", "color"})
+
+    def __init__(
+        self,
+        model: Any = None,
+        *,
+        row: Callable[[Any], str] | None = None,
+        name: str = "",
+        **opts: Any,
+    ) -> None:
+        super().__init__(name, **opts)
+        self.model = model
+        self.row: Callable[[Any], str] = row if row is not None else _default_row
+
+
+__all__ = ["Button", "Chip", "Divider", "Field", "Label", "List"]

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListView,
     QMainWindow,
     QPushButton,
     QSplitter,
@@ -31,6 +32,7 @@ from ..page import Page
 from .compile import Compiler
 from .errors import UiError
 from .node import Node
+from .qtmodel import QtListModel
 
 if TYPE_CHECKING:
     from .app import App
@@ -53,6 +55,7 @@ def build_compiler() -> Compiler:
     compiler.register("field", _field)
     compiler.register("divider", _divider)
     compiler.register("chip", _chip)
+    compiler.register("list", _list)
     return compiler
 
 
@@ -219,6 +222,15 @@ def _divider(node: Node, _children: list[object]) -> QWidget:
 
 def _chip(node: Node, _children: list[object]) -> QWidget:
     return _tag(QLabel(str(getattr(node, "text", ""))), node)
+
+
+def _list(node: Node, _children: list[object]) -> QWidget:
+    view = QListView()
+    model = getattr(node, "model", None)
+    if model is not None:
+        row = getattr(node, "row", None) or str
+        view.setModel(QtListModel(model, row))
+    return _tag(view, node)
 
 
 __all__ = ["WindowHost", "build", "build_compiler", "build_window"]

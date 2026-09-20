@@ -300,6 +300,10 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 列表 + 模型桥 + 变更自动刷新**：`Session.model(loader)` 建类型化模型（主干一变即重算并通知）；
+  `ui/component/atoms.py` 加 `List` 原子（持 `Model` + `row` 行文本）；新增 `ui/core/qtmodel.py` `QtListModel`
+  （`Model[T]` → `QAbstractListModel`，变更整表 reset）；`ui/core/qt.py` 加 `list` 翻译器（`QListView`）。
+  新增 `tests/ui/test_list_model.py`（新增笔记 → 列表行数自动 +1）。ruff / format / mypy / pytest 全绿，212 通过。
 - 2026-09-19 · 已定 · **UI 底层补口**：`Facet.node_paths()` 对同名同类兄弟路径去重（首原名、余追加 `#n`），
   修 schema 路径碰撞；新增 `tests/test_architecture.py`（红线：`ui` 不 import `feature` / `core.storage` / `core.vault`）。
   ruff / format / mypy / pytest 全绿，211 通过。
