@@ -313,13 +313,18 @@
 - 待定 · `type` 枚举码表 = kind ↔ int 的**稳定映射**（不可重编号）；倾向由各块子类自报 `code`、
   码表登记在 `core/storage`，core 不硬编码领域名。
 
-## 编排层（2026-09-19，方向定）
+## 编排 / App 层（2026-09-19，方向定 + 目录已落地）
 
-- 已定 · **分层**：`core`（底座，域无关）/ `feature`（各域**竖依赖 core**）/ **编排层（应用内核 `kernel`）** /
-  `ui`（消费）。编排层 = **域容器 + 域间关系 / 跨域订阅 + 唯一组合点**；`ui` 只消费它暴露的稳定面。
-- 已定 · **领域之间不 import**：横向共享物不得让域互摸——要么**下沉到共享层**（`core` 或 `feature/_shared`），
-  要么由**编排层注入**；跨域协作走信号。加第 N 个域不必改前 N-1 个。
-- 已定 · UI **不是**统一领域的东西（它只是消费方）；编排层才是。
+- 已定 · **内核 / 领域 / UI 各自独立定义**，之间是**垂直依赖**；由此自然产生的新层是 **App**——**不是再造一个
+  "kernel" 层**（此前 `src/kernel.py` 的编排尝试已撤除）。**App = 组合根 / 编排层**：组合内核 + 领域 + UI，并按平台发布。
+- 已定 · **发布布局在 `src/app/<平台>/`**：`win` / `linux`（macOS 等顺加）；`src/app/__main__.py`、
+  `src/app/win/{main,backend,windows}`。
+- 已定 · **目录重定**：`src/core`（底座；含新 `core/conf` 配置 / 常量）/ `src/feature`（域 + `_shared`）/
+  `src/ui_tools`（界面工具层，原 `src/ui`）/ `src/app`（应用）。**删除** `src/conf`（并入 `core/conf`）、
+  `src/net`、`src/server`。
+- 已定 · **领域之间不 import**：横向共享物下沉共享层（`relation`/`provenance`/`signature` → `feature/_shared`）；
+  跨域协作走信号。加第 N 个域不必改前 N-1 个。
+- 已定 · UI **不是**统一领域的东西（它只是消费方）；App 才是。
 - 已定 · `relation` / `provenance` / `signature` 下沉 **`feature/_shared/`**（横跨多域的共享设施，非域）；
   `group` / `note` / `project` 改依赖共享层，不再横着 import 兄弟。
 - 待定 · 剩余横向依赖：`note → canvas`（`canvas` 已升格为块域，却被 note 当共享类型用）——

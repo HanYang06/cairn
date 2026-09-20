@@ -6,9 +6,9 @@ from __future__ import annotations
 import pytest
 from PySide6.QtWidgets import QFrame, QLabel, QLineEdit, QPushButton
 
-from ui.component import Button, Chip, Divider, Field, Label
-from ui.core import vocabulary
-from ui.core.qt import build
+from ui_tools.component import Button, Chip, Divider, Field, Label
+from ui_tools.core import vocabulary
+from ui_tools.core.qt import build
 
 pytestmark = pytest.mark.usefixtures("qapp")
 

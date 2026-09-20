@@ -5,15 +5,15 @@ from __future__ import annotations
 
 import pytest
 
-from ui.component import Component
-from ui.core import (
+from ui_tools.component import Component
+from ui_tools.core import (
     Compiler,
     LayoutError,
     UiError,
     registered_kinds,
     vocabulary,
 )
-from ui.layout import Grid, VBox
+from ui_tools.layout import Grid, VBox
 
 
 def test_kinds_registered() -> None:

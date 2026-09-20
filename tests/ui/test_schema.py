@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import pytest
 
-from ui.component import Component
-from ui.core import App, Facet, Schema, UiError, apply_config
-from ui.layout import Grid
-from ui.page import Page
+from ui_tools.component import Component
+from ui_tools.core import App, Facet, Schema, UiError, apply_config
+from ui_tools.layout import Grid
+from ui_tools.page import Page
 
 
 class FakeDomain:

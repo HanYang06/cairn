@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""架构红线：`ui` 不依赖存储实现与领域层。"""
+"""架构红线：`ui_tools` 不依赖存储实现与领域层。"""
 
 from __future__ import annotations
 
 import ast
 from pathlib import Path
 
-UI_DIR = Path(__file__).resolve().parents[1] / "src" / "ui"
+UI_DIR = Path(__file__).resolve().parents[1] / "src" / "ui_tools"
 
 _FORBIDDEN = ("feature", "core.storage", "core.vault")
 

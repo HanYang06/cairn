@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from core import Vault
 from core.storage import Block
-from ui.core.session import Session
+from ui_tools.core.session import Session
 
 if TYPE_CHECKING:
     from pathlib import Path

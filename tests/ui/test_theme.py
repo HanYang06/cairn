@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from ui.component import Button
-from ui.core.qt import build
-from ui.core.theme import Theme
+from ui_tools.component import Button
+from ui_tools.core.qt import build
+from ui_tools.core.theme import Theme
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QApplication

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import pytest
 
-from ui.core import Bind, Facet, Model, UiError, UiSignal
+from ui_tools.core import Bind, Facet, Model, UiError, UiSignal
 
 
 class FakeDomain:

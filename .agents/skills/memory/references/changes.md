@@ -300,6 +300,12 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **App 层落地 + 目录重定（用户主导）**：新增 `src/app/`（App = 组合根 / 编排：`__main__.py`、
+  `win/{main,backend,windows}`、`linux/`）；`src/ui/` → `src/ui_tools/`（界面工具层）；新增 `src/core/conf/`
+  （配置 / 常量，`core.py` 含 `FORMAT_VERSION` / `TOML_NAME` / `VAULT_META_CONTEXT` / `VERSION_WINDOW_MS`）；
+  **删除** `src/conf`、`src/net`、`src/server`、`src/ui`；撤除 `src/kernel.py` / `src/main.py`（编排归 App）。
+  收尾：修 `core/__init__` 半截导入、`ui.` → `ui_tools.` 引用、补新建占位文件 SPDX 头与 docstring、
+  `pyproject` 的 wheel packages / isort。ruff / format / mypy / pytest 全绿，211 通过。
 - 2026-09-19 · 已定 · **领域共享层 `feature/_shared/`**：把 `relation` / `provenance` / `signature` 从 `feature/` 顶层
   （看着像域）移入 `feature/_shared/`（横跨多域的共享设施）；更新 `feature/__init__` / `group` / `note` / `project` /
   `provenance` 引用与测试。域不再横着 import 兄弟。ruff / format / mypy / pytest 全绿，211 通过。

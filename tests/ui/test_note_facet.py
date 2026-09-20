@@ -10,9 +10,9 @@ from PySide6.QtWidgets import QMainWindow
 
 from core import Vault
 from feature import Note
-from ui.core import App, Session
-from ui.core.qt import build_window
-from ui.note import NoteFacet
+from ui_tools.core import App, Session
+from ui_tools.core.qt import build_window
+from ui_tools.note import NoteFacet
 
 if TYPE_CHECKING:
     from pathlib import Path

@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 from PySide6.QtWidgets import QMainWindow
 
-from ui.app import build_demo
+from ui_tools.app import build_demo
 
 pytestmark = pytest.mark.usefixtures("qapp")
 

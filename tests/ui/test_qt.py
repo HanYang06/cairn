@@ -17,13 +17,13 @@ from PySide6.QtWidgets import (
 
 from core import Vault
 from core.storage import Block
-from ui.component import Button, Component, Label
-from ui.core import App, Facet
-from ui.core.bridge import Bridge
-from ui.core.qt import WindowHost, build, build_window
-from ui.core.session import Session
-from ui.layout import Grid, HBox, VBox
-from ui.page import Page
+from ui_tools.component import Button, Component, Label
+from ui_tools.core import App, Facet
+from ui_tools.core.bridge import Bridge
+from ui_tools.core.qt import WindowHost, build, build_window
+from ui_tools.core.session import Session
+from ui_tools.layout import Grid, HBox, VBox
+from ui_tools.page import Page
 
 if TYPE_CHECKING:
     from pathlib import Path

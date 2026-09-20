@@ -10,10 +10,10 @@ from PySide6.QtWidgets import QListView
 
 from core import Vault
 from feature import Note
-from ui.component import List
-from ui.core import App, Facet, Session
-from ui.core.qt import WindowHost
-from ui.layout import VBox
+from ui_tools.component import List
+from ui_tools.core import App, Facet, Session
+from ui_tools.core.qt import WindowHost
+from ui_tools.layout import VBox
 
 if TYPE_CHECKING:
     from pathlib import Path

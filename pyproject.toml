@@ -47,8 +47,8 @@ url = "https://mirrors.aliyun.com/pypi/simple/"
 default = true
 
 [tool.hatch.build.targets.wheel]
-# 内核与工作台；`src/net`、`src/server` 是实验顶层包，不进 wheel。
-packages = ["src/conf", "src/core", "src/feature"]
+# 应用 + 内核 + 领域；`ui_tools` 为界面工具层。
+packages = ["src/app", "src/core", "src/feature", "src/ui_tools"]
 
 [tool.ruff]
 target-version = "py313"
@@ -92,7 +92,7 @@ ignore = [
 notice-rgx = "SPDX-FileCopyrightText: 2026 HanYang06"
 
 [tool.ruff.lint.isort]
-known-first-party = ["conf", "core", "feature", "net", "server", "ui"]
+known-first-party = ["app", "core", "feature", "ui_tools"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
