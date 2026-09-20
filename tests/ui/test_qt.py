@@ -19,7 +19,7 @@ from core.storage import Block
 from ui.component import Component, Label
 from ui.core import App, Facet
 from ui.core.bridge import Bridge
-from ui.core.qt import build, build_window
+from ui.core.qt import WindowHost, build, build_window
 from ui.core.session import Session
 from ui.layout import Grid, HBox, VBox
 from ui.page import Page
@@ -81,6 +81,22 @@ def test_build_window_regions() -> None:
 
     assert isinstance(window, QMainWindow)
     assert window.centralWidget() is not None
+
+
+def test_window_host_routes_pages() -> None:
+    app = App(session=None)  # type: ignore[arg-type]
+    facet = Facet(_Domain(), name="note")
+    facet.root.set(VBox)
+    page = Page("edit")
+    page.set(VBox)
+    facet.page(page, "edit")
+    app.mount(facet)
+
+    host = WindowHost(app)
+    host.show("edit")
+
+    assert app.active is page
+    assert host.stack.currentWidget() is not None
 
 
 def test_bridge_emits_qt_signal(tmp_path: Path) -> None:

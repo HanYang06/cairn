@@ -27,7 +27,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..page import Page
 from .compile import Compiler
+from .errors import UiError
 from .node import Node
 
 if TYPE_CHECKING:
@@ -58,42 +60,66 @@ def build(node: Node) -> object:
     return build_compiler().compile(node)
 
 
+class WindowHost:
+    """把 `App` 落成窗口并托管页面切换（路由 → Qt 内容栈）。"""
+
+    def __init__(self, app: App) -> None:
+        self.app = app
+        self.compiler = build_compiler()
+        self.stack = QStackedWidget()
+        self._index: dict[Page, int] = {}
+        self.window = self._build()
+
+    def show(self, route: object) -> Page:
+        """路由到某页并在内容区切换。"""
+        page = self.app.navigate(route)
+        index = self._index.get(page)
+        if index is None:
+            raise UiError(f"页面未挂载到窗口: {page!r}")
+        self.stack.setCurrentIndex(index)
+        return page
+
+    def _build(self) -> QMainWindow:
+        app = self.app
+        window = QMainWindow()
+        central = QWidget()
+        window.setCentralWidget(central)
+        column = QVBoxLayout(central)
+        column.addWidget(self._region(app.layout.titlebar))
+        middle = QHBoxLayout()
+        middle.addWidget(self._region(app.layout.navigator))
+        middle.addWidget(self._content(), 1)
+        middle.addWidget(self._region(app.layout.inspector))
+        column.addLayout(middle, 1)
+        column.addWidget(self._region(app.layout.statusbar))
+        return window
+
+    def _region(self, region: Node) -> QWidget:
+        container = _tag(QWidget(), region)
+        layout = QVBoxLayout(container)
+        for placed in region.children():
+            if isinstance(placed.component, Node):
+                widget = self.compiler.compile(placed.component)
+                if isinstance(widget, QWidget):
+                    layout.addWidget(widget)
+        return container
+
+    def _content(self) -> QWidget:
+        content = self.app.layout.content
+        for placed in content.children():
+            if not isinstance(placed.component, Node):
+                continue
+            widget = self.compiler.compile(placed.component)
+            if isinstance(widget, QWidget):
+                self.stack.addWidget(widget)
+                if isinstance(placed.component, Page):
+                    self._index[placed.component] = self.stack.count() - 1
+        return _tag(self.stack, content)
+
+
 def build_window(app: App) -> QMainWindow:
     """把 `App` 的根壳落成窗口：标题栏 / 导航+内容+检查器 / 状态栏。"""
-    compiler = build_compiler()
-    window = QMainWindow()
-    central = QWidget()
-    window.setCentralWidget(central)
-    column = QVBoxLayout(central)
-    column.addWidget(_region(compiler, app.layout.titlebar))
-    middle = QHBoxLayout()
-    middle.addWidget(_region(compiler, app.layout.navigator))
-    middle.addWidget(_content(compiler, app), 1)
-    middle.addWidget(_region(compiler, app.layout.inspector))
-    column.addLayout(middle, 1)
-    column.addWidget(_region(compiler, app.layout.statusbar))
-    return window
-
-
-def _region(compiler: Compiler, region: Node) -> QWidget:
-    container = _tag(QWidget(), region)
-    layout = QVBoxLayout(container)
-    for placed in region.children():
-        if isinstance(placed.component, Node):
-            widget = compiler.compile(placed.component)
-            if isinstance(widget, QWidget):
-                layout.addWidget(widget)
-    return container
-
-
-def _content(compiler: Compiler, app: App) -> QWidget:
-    stack = QStackedWidget()
-    for placed in app.layout.content.children():
-        if isinstance(placed.component, Node):
-            widget = compiler.compile(placed.component)
-            if isinstance(widget, QWidget):
-                stack.addWidget(widget)
-    return _tag(stack, app.layout.content)
+    return WindowHost(app).window
 
 
 def _tag(widget: QWidget, node: Node) -> QWidget:
@@ -176,4 +202,4 @@ def _chip(node: Node, _children: list[object]) -> QWidget:
     return _tag(QLabel(str(getattr(node, "text", ""))), node)
 
 
-__all__ = ["build", "build_compiler", "build_window"]
+__all__ = ["WindowHost", "build", "build_compiler", "build_window"]

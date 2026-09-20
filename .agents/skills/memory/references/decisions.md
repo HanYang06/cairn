@@ -346,6 +346,6 @@
   建议改名 `when` / `state`；状态样式需 repolish，按 `ui-boundary`「逐条加、可测、有边界」推进。
 - 已定 · 字段不写死：由**内核提供中立内省**（对象结构 → 中性视图；UI 不 import `core.storage`），
   `Facet` 读它生成；`label` / `group` / `display` / `editable` 只是可选显示提示槽位。
-- 待定 · **红线调整（建议）**：把「UI 不 import `feature`」放宽为「UI **可认识领域类型**，但**不碰存储实现**
-  （`Vault` / `Bucket` / `Block` 内部 / `body` / `attrs` / `checksum`）」；写回仍走主干命令。
-  待确认后回写 `AGENTS.md` / `ui-boundary.md` / `ui-kernel.md`。
+- 已定 · **红线不动**：`Facet` 收的是**注入进来的领域对象**，自己不创建，故**无需 import `feature`**
+  （类型提示可选，`object` / 鸭子类型即可）；"UI 不 import `feature` / 不碰 `Vault`" 继续有效。
+  真正认识领域的只有**组合根**（创建服务并注入），不在 UI 内。

@@ -300,6 +300,10 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 路由宿主 + 可运行入口**：`ui/core/qt.py` 加 `WindowHost`（`App` → `QMainWindow` +
+  `QStackedWidget` 内容区，`show(route)` 按 `App.navigate` 切换；`build_window` 仍返回窗口）。新增 `src/ui/app.py`
+  （`build_demo` / `main`：组合根 demo，**不依赖领域**，验证"声明树 → 窗口"整链）。新增 `tests/ui/test_app_entry.py`。
+  修正：`Facet` 收注入对象、**不需要 import 领域**，UI 红线无需放宽。ruff / format / mypy / pytest 全绿，208 通过。
 - 2026-09-19 · 已定 · **UI 最小 MainWindow**：`ui/core/qt.py` 加 `build_window(app)`——`SuperLayout` 落成
   `QMainWindow`（标题栏 / 导航 + 内容 + 检查器 / 状态栏；内容用 `QStackedWidget` 装已挂载页面）；
   入口三件套 `build` / `build_compiler` / `build_window`。新增测试。ruff / format / mypy / pytest 全绿，206 通过。
