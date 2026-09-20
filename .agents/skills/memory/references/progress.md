@@ -23,6 +23,8 @@
 - [ ] 其余领域按同口径拆（asset / canvas / group / project / relation / signature / provenance）。
 - [ ] 图片 / 音频转码（不传染库）；大正文透明分片（`Bucket.put_content`）。
 - [ ] **跨域编排**（域间关系 / 订阅）——交由 App 承担，尚未落地。
+- [ ] **变更签名**（非原作者 / `prev` 链；`alg` 日后换 `ed25519`）预留未实现。
+- [ ] `note/shapes.py` 形状集 v2（含图形超出 / 图形未定义）未落。
 
 ### UI 内核 `ui_tools`（工具箱）
 - [x] 声明树 `Node` / 注册表 / 元数据 / 路径；`compile` 管线 + Widgets 翻译器；atoms / list。

@@ -60,11 +60,11 @@
   （标题/标签/签名/时间不同不影响同正文去重）。body 与 attrs 分家存储。
 - 已定 · **段落 = 行**：**1 个硬行就是 1 段**，不设独立段落实体；段级属性放行元素 `p`，
   字级仍走行内区间 `style`。超长行（等效中文 > 300）由 UI 关软换行、转横向滚动逼硬回车，**不自动拆行**。
-- 已定 · **工具 = 基类 + 参数化实例**（`domains/note/tools.py`）；**分组 / 位置是数据**
+- 已定 · **工具 = 基类 + 参数化实例**（`feature/note/tools.py`）；**分组 / 位置是数据**
   （`PRESET_LAYOUT`，将来可用户自定义）。工具栏两行（编辑型字级 / 段级）、纯图标 + 提示、溢出**向下抽屉**。
 - 已定 · **工具四分类**（2026-09-17）：`ToolCategory` = 添加 / 编辑 / 命令 / 查询；分类是工具元数据
   （抽屉内分组），两行预设只放编辑型，其余自定义时随便摆。**编辑型 / 添加型**改 note、元数据在
-  `domains/note/tools.py`；**命令型 / 查询型**属应用与界面、元数据在 `ui/tools.py`，行为由 UI 回调 `Backend`。
+  `feature/note/tools.py`；**命令型 / 查询型**属应用与界面（UI 待重建，归 `ui_tools` / App）。
 - 已定 · **`Tool.state` 只读三态**（2026-09-17）：`run` 写、`state` 读；`state` 返回 `True` 生效 /
   `False` 未生效 / `None` 混合，供工具栏高亮；四类里只有**编辑型**有可读状态。未实现工具
   `available=False`（UI 置灰、不执行），不假装已存在。
@@ -85,7 +85,7 @@
   `title/tags/authors` 属业务字段，已从 `Block` 挪到 Note/Project/Asset（`Block` 只留硬件字段）。
 - 已定 · **`Attr` = 属性字段，`Data` = 数据字段**（两者同机制、同存储）。`title/tags/signature` 等描述性
   元数据用 `Attr`；承载数据的 `canvas/access` 用 `Data`（避免"属性"用词错位）。位置不变、仍在块内。
-- 已定 · **`Canvas` 升格为块**（`cairn.canvas`，`domains/canvas.py`）：`Canvas(Block)` + `CanvasBody(Body)`
+- 已定 · **`Canvas` 升格为块**（`cairn.canvas`，`feature/canvas.py`）：`Canvas(Block)` + `CanvasBody(Body)`
   （`mode` diagram/sketch + 图形 + 连线）；全局内容寻址、去重。note 的 `canvas: list[str]` 存 canvas oid。
 - 已定 · **不设 `Access` 类**：外联资源就是 `Asset`（Block）；note 的 `access: list[str]` 存 asset oid（全局去重）。
 - 已定 · **数据字段免标记**：裸容器注解自证类型，自动成 `Data` 字段（每实例一份）——
@@ -110,19 +110,16 @@
 - 2026-09-19 · 已定 · **导入面必须统一、直观**：同一件事的代码收在同一个目录 / 包下、从一处可导入，
   不许散落。判据 =「外部开发者懒得研究内部，散乱就导入不了，只会骂作者」。布包时按"使用者视角"归拢。
 
-## 目录结构（2026-09-19，重定）
+## 目录结构（2026-09-19，重定；同日再调）
 
-- 已定 · **取消 `cairn.` 前缀**：`src/` 下直接放顶层包 `conf` / `core` / `feature` / `ui`
-  （+ 实验 `net` / `server`）；导入形如 `from core.storage import Bucket`。
-- 已定 · **重命名**：`core/store → core/storage`、`domains → feature`、`comm → net`；
-  `cairn/types` 与 `cairn/core/types` 合并为 `core/types`。
-- 已定 · **UI 源码整体移除、待重建**：其实现、测试与专用工具一并删除；`src/ui/` 暂留空壳，
-  技术路线（Widgets / decl）作废、待重新立项。桌面入口 `ui.app:main` 与打包待 UI 恢复。
-- 已定 · 实验顶层包 `net` / `server` 不进 hatch wheel。
+- 已定 · **取消 `cairn.` 前缀**：`src/` 下直接放顶层包；导入形如 `from core.storage import Bucket`。
+- 已定 · **当前四层**：`core`（底座）/ `feature`（领域）/ `ui_tools`（界面工具箱）/ `app`（应用，按平台
+  `win` / `linux`）；辅助 `core/conf`（配置 / 常量）。**删除** `src/conf`（并入 `core/conf`）、
+  `src/net`、`src/server`、`src/ui`（→ `src/ui_tools`）。
+- 已定 · 早期重命名：`core/store → core/storage`、`domains → feature`、`cairn/types` 并入 `core/types`。
+- 已定 · `core` / `feature` / `ui_tools` / `app` 进 hatch wheel。
 
-## UI 技术路线（2026-09-18；2026-09-19 源码删除 / 待重新立项）
-
-> 已废弃（2026-09-19）：以下 Widgets 宿主 + QML 岛的实现已随重定删除，仅作历史与重估参考。
+## UI 技术路线（2026-09-18，现行）
 
 - 已定 · **Widgets 宿主 + QML 岛**：工作台外壳、列表/树、检查器、编辑器、菜单/对话框全部走
   QtWidgets（Python 对象组合）；QML 只保留给**画布 / 大规模关系图 / 特殊视觉**这类自包含「岛」。
@@ -134,35 +131,9 @@
 - 已定 · **命名分层**：`App`（QObject 组合根：Session/facade/命令表）+ `MainWindow`（QMainWindow）
   + `Component` / `Panel` / `Page`（部件基类）。依赖显式注入，不用全局单例。
 - 已定 · **QML 岛是哑视图**：输入类型化 VM、输出回调；不持应用状态、不碰 Vault、不反向耦合。
-- 进行中 · 现有 QML 的 Shell / Navigator / Editor / Inspector **逐步迁到 Widgets**；
-  详见 `progress.md` 的「UI 重建」。
 - 已定 · 组件建造四规则：**联动在控制器**（compound components，不控件互连）、
   **布局靠 `VBox/HBox/Grid/Split` 嵌套组合**（不新增原语）、**增长只在原子与页面**、
   **主题 = 点分配置 → QSS 编译 + 有限 Qt 侧增强**。细则见 `rules/references/ui-boundary.md` §6。
-
-## 声明式描述层 decl（2026-09-19，新增；同日源码删除 / 已废弃）
-
-> 已废弃（2026-09-19）：`cairn.ui.decl` 实现已随 UI 删除，仅作历史与重估参考。
-
-- 已定 · **`cairn.ui.decl` 是 UI 描述层**：语法层 `Node / Layout / Display / Page / Component`；
-  **交替规则**——`Layout` 只排列（子件只能是显示节点）、`Display` 只承载 `Layout`/`Component`、
-  `Page` 只能挂在 `Layout` 下且必含一个 `Layout`。信号**不是类型**，是所有节点内置的意图边
-  （`on` / `emit`）。
-- 已定 · **配置分两类**：`Theme`（**封闭词表**，外观唯一真源，样式只写 `token.*` 引用、禁硬编码）
-  与 `UiConfAttribute`（**开放词表**，随组件继承生长，支持新增 / 覆盖 / 重定向 / 失效）。
-  两者重叠用「**属性设状态、样式选状态**」的伪状态桥缝合。
-- 已定 · **重定向 ≠ 失效**：重定向（改名 + 兼容别名）安全；失效会破坏「子类可当父类用」，
-  慎用。防配置爆炸靠**组合 > 深继承**。
-- 已定 · **`Scope` 是隔离边界**（主题 / 绑定 / 撤销 / 焦点），可派生子作用域并继承主题；
-  `App` 只是最外层的 Scope + 根布局。
-- 已定 · **编译层单向一次性**：描述树 → Qt 树，扩展只加 translator（注册表）；
-  `Raw` 是一等逃生舱。**不造 reconciler / 不搬响应式**——响应仍走内核 → `Session` → 模型。
-  旧规则「不要造绑定框架」继续有效：decl 只做描述 + 编译，无绑定框架。
-- 已定 · `Layout`（排列机制）与 `Page`（语义目的地）是两类，**不可合并**；两者的子类
-  即「词汇层」（`VBox/Grid/Table…`、`ListPage/DetailPage…`）。
-- 已定 · **路由 / 宿主 / 生命周期**：`PageRegistry`（route → Page 工厂，注册顺序即标签序）+
-  `PageHost`（即 **Tab 槽**，`QTabBar` + `QStackedWidget`）。页面控件**首次显示才构建**（懒加载）；
-  切换时触发 `Page.on_enter/on_leave`。加页面 = 注册一行，不动外壳。
 
 ## UI 内核（2026-09-19，重定；设计总纲 `docs/architecture/ui-kernel.md`）
 
@@ -183,9 +154,10 @@
   `FieldSpec{名字,种类,traits}`，UI 只读 `FieldSpec`，不外泄 `Attr`/`Data`/`Block`。
 - 已定 · **Bucket / Block 与 UI 正交**：`core.storage`（Bucket/Block）是存储实现，**UI 不 import、
   不复用、不感知**（UI 里出现 `bucket`/`block`/`body`/`attrs`/`checksum` 即失控）；判据=
-  「新开发者要懂 UI 须先学 Bucket/Block」即失败。加架构测试断言 `ui` 不 import `core.storage`/`feature`。
-- 已定 · **预埋目录**（2026-09-19，空目录）：`src/core/signal/`（Qt-free 信号原语）、`src/ui/core/`（UI 内核）；
-  现役 `EventBus` 是过渡，将来建在 `signal` 上。
+  「新开发者要懂 UI 须先学 Bucket/Block」即失败。**已有架构测试**断言 `ui_tools` 不 import
+  `feature` / `core.storage` / `core.vault`（`tests/test_architecture.py`）。
+- 已定 · **实现归位**：`core/signal/`（Qt-free 通信主干，**已实现**）、`ui_tools/core/`（UI 内核，**已实现**）；
+  `EventBus` 已并入 `core/signal`（不再单飞）。
 - 已定 · **验收指标**：加领域字段 = 领域一处（+traits），UI **0~1 处**；加标准动作 = 契约一处。
   加字段仍要改 5 个 UI 文件 = 设计失败。
 - 已定 · **代理是必然的（内核在变，UI 不变）**：内核随业务 / 数据变，UI 可不变，靠**代理**挡住。
@@ -269,7 +241,7 @@
   `restore` / `link` / `add_canvas` / `add_access`，并声明 `changed` 多播。版本基线 `_saved_state` 随数据。
 - 已定 · 其余领域（Project / Canvas / Group …）尚未拆，按同一口径推进。
 
-## 数据库重构（2026-09-19，方向定 / 待落地）
+## 数据库重构（2026-09-19，方向定 + 切片 1–3 已落地）
 
 - 已定 · **现状 8 张表**：内核 `packs` / `contents` / `blocks` / `meta`；按需 `search` / `versions` /
    `version_heads` / `relations`。问题：无「表政策」，可派生冗余（`version_heads`）与内容副本（`search`）。
@@ -310,8 +282,8 @@
 - 已定 · **长期方向**：让权威数据尽量落 **block**，DB 退为**可重建的索引 / 投影**——届时迁移 ≈ 重建索引。
   前置：版本外置为「版本块」、关系内嵌进块（`relation` 退为投影）；代价是双写。
 - 待定 · `search` 是否并入投影 / FTS5 / 向量库（混合搜索实现待定）。
-- 待定 · `type` 枚举码表 = kind ↔ int 的**稳定映射**（不可重编号）；倾向由各块子类自报 `code`、
-  码表登记在 `core/storage`，core 不硬编码领域名。
+- 已定 · **`type` 整数码表已落地**：`block_type(code, name)`；core 预置 `0=block / 1=part / 2=index`，
+  其余首写自动登记（`Catalog.type_code` / `type_name`），**码分配后不复用**；core 不硬编码领域名。
 
 ## 编排 / App 层（2026-09-19，方向定 + 目录已落地）
 
@@ -324,7 +296,7 @@
   （Qt 上安卓不划算）。
 - 已定 · App 组合落地：`app.Feature`（静态域容器）+ `app.build(vault)`（Session/App/Facet）；领域 UI
   `NoteFacet` 在 **App 侧**（`src/app/facets.py`），**不进 `ui_tools`**。
-- 已定 · **目录重定**：`src/core`（底座；含新 `core/conf` 配置 / 常量）/ `src/feature`（域 + `_shared`）/
+- 已定 · **目录重定**：`src/core`（底座；含新 `core/conf` 配置 / 常量）/ `src/feature`（领域）/
   `src/ui_tools`（界面工具层，原 `src/ui`）/ `src/app`（应用）。**删除** `src/conf`（并入 `core/conf`）、
   `src/net`、`src/server`。
 - 已定 · **撤销 `feature/_shared`**：跨域协作不靠"共享层"，改由 **App 承担编排**；`relation` / `provenance` /
@@ -333,10 +305,8 @@
   用途仍在明确（`core.py` 已有 `FORMAT_VERSION` / `TOML_NAME` / `VAULT_META_CONTEXT` / `VERSION_WINDOW_MS`）。
 - 已定 · UI **不是**统一领域的东西（它只是消费方）；App 才是。`ui_tools` 是**工具箱**，不放入口 / 领域 Facet
   （已删 `ui_tools/app.py`、`ui_tools/note.py`）。
-- 已定 · `relation` / `provenance` / `signature` 下沉 **`feature/_shared/`**（横跨多域的共享设施，非域）；
-  `group` / `note` / `project` 改依赖共享层，不再横着 import 兄弟。
 - 待定 · 剩余横向依赖：`note → canvas`（`canvas` 已升格为块域，却被 note 当共享类型用）——
-  需定 `canvas` 算共享内容类型还是独立域。
+  需定 `canvas` 算共享内容类型还是独立域；跨域编排整体归 App，待落地。
 
 ## UI 内核修正（2026-09-19，Facet 分析 ≠ 领域契约）
 
