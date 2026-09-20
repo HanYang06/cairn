@@ -9,9 +9,6 @@
 
 from __future__ import annotations
 
-from ._shared.provenance import ancestors, derivatives, descendants, lineage
-from ._shared.relation import Relation
-from ._shared.signature import Signature
 from .asset import Asset
 from .base import (
     DomainError,
@@ -24,6 +21,9 @@ from .canvas import Canvas, CanvasBody, Form, Graphic, Line, Link, Paint
 from .group import Group, GroupError, all_gids, list_groups, roots
 from .note import Note, NoteData
 from .project import Project
+from .provenance import ancestors, derivatives, descendants, lineage
+from .relation import Relation
+from .signature import Signature
 
 __all__ = [
     "Asset",

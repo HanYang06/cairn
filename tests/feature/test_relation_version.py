@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from core import Vault
 from feature import Note, Relation
-from feature._shared.provenance import DERIVED_FROM
+from feature.provenance import DERIVED_FROM
 
 if TYPE_CHECKING:
     from pathlib import Path

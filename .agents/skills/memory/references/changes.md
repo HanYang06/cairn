@@ -306,6 +306,9 @@
   **删除** `src/conf`、`src/net`、`src/server`、`src/ui`；撤除 `src/kernel.py` / `src/main.py`（编排归 App）。
   收尾：修 `core/__init__` 半截导入、`ui.` → `ui_tools.` 引用、补新建占位文件 SPDX 头与 docstring、
   `pyproject` 的 wheel packages / isort。ruff / format / mypy / pytest 全绿，211 通过。
+- 2026-09-19 · 已定 · **清理：撤销 `feature/_shared` + 清空 `ui_tools` 主导件**：删 `src/feature/_shared/`
+  （`relation`/`provenance`/`signature` 回 `feature/` 顶层；跨域编排归 App）；删 `ui_tools/app.py`、`ui_tools/note.py`
+  与对应测试（`ui_tools` 是工具箱，不放入口 / 领域 Facet）。ruff / format / mypy / pytest 全绿，209 通过。
 - 2026-09-19 · 已定 · **领域共享层 `feature/_shared/`**：把 `relation` / `provenance` / `signature` 从 `feature/` 顶层
   （看着像域）移入 `feature/_shared/`（横跨多域的共享设施）；更新 `feature/__init__` / `group` / `note` / `project` /
   `provenance` 引用与测试。域不再横着 import 兄弟。ruff / format / mypy / pytest 全绿，211 通过。
