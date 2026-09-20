@@ -59,8 +59,8 @@ from .model import (
     NOTE_KIND,
     NOTE_MIME,
     NOTE_SCHEMA,
-    Canvas,
     CanvasBody,
+    CanvasData,
     Form,
     Graphic,
     Line,
@@ -510,7 +510,7 @@ class Note(Domain):
         return Relation.create(self.vault, data.oid, target, relation=relation, domain="note")
 
     @action
-    def add_canvas(self, data: NoteData, canvas: Canvas) -> str:
+    def add_canvas(self, data: NoteData, canvas: CanvasData) -> str:
         """把一块画板嵌进正文：``canvas`` 追加其 oid，并在 body 末尾放占位。"""
         entry = str(canvas.oid)
         data.canvas = [*data.canvas, entry]
@@ -548,8 +548,8 @@ __all__ = [
     "NOTE_KIND",
     "NOTE_MIME",
     "NOTE_SCHEMA",
-    "Canvas",
     "CanvasBody",
+    "CanvasData",
     "Form",
     "Graphic",
     "Line",

@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 from .edit import (
-    Line,
+    Line as LineDict,
+)
+from .edit import (
     Marker,
     StyleMap,
     content_signature,
@@ -19,10 +21,11 @@ from .model import (
     NOTE_KIND,
     NOTE_MIME,
     NOTE_SCHEMA,
-    Canvas,
     CanvasBody,
+    CanvasData,
     Form,
     Graphic,
+    Line,
     Link,
     Paint,
     Segment,
@@ -41,11 +44,12 @@ __all__ = [
     "NOTE_KIND",
     "NOTE_MIME",
     "NOTE_SCHEMA",
-    "Canvas",
     "CanvasBody",
+    "CanvasData",
     "Form",
     "Graphic",
     "Line",
+    "LineDict",
     "LineKind",
     "Link",
     "Marker",

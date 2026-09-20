@@ -306,6 +306,10 @@
   **删除** `src/conf`、`src/net`、`src/server`、`src/ui`；撤除 `src/kernel.py` / `src/main.py`（编排归 App）。
   收尾：修 `core/__init__` 半截导入、`ui.` → `ui_tools.` 引用、补新建占位文件 SPDX 头与 docstring、
   `pyproject` 的 wheel packages / isort。ruff / format / mypy / pytest 全绿，211 通过。
+- 2026-09-19 · 已定 · **领域拆分（Asset / Canvas）**：按 note 口径拆「数据 + 域服务」——
+  `AssetData(Block)` + `Asset(Domain)`（入库转码 / 载入）、`CanvasData(Block)` + `Canvas(Domain)`（创建 / 载入）；
+  `note/model` / `note/types` / `note/__init__` 改用 `CanvasData`；`feature` 导出两套；测试同步。
+  ruff / format / mypy / pytest 全绿，206 通过。
 - 2026-09-19 · 已定 · **清理 `Vault` 死 API**：删 `put` / `put_meta` / `versions` / `read_version` /
   `restore_version` 与 `Source` / `_read_source`；并清加密时代残留 `lock` / `unlock` / `is_locked`、
   `create(path, passphrase)` 的 `passphrase` 参数；删 `core.types.VersionInfo`（无活引用）。

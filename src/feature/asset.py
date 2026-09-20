@@ -1,24 +1,29 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""资产领域：继承 ``Block`` 的多媒体对象——图 / 声 / 视频 / 文件。
+"""资产领域：**数据**（``AssetData``）与**域服务**（``Asset``）分离。
 
-与其它领域不同，资产**入库第一件事是转码**：无论原始编码是什么，先统一转成
-一套最优编码，再交给桶存储。分片不由资产处理——``Block`` / 桶已经自带。
+- ``AssetData(Block)``：非文本内容（图 / 声 / 视等）纯数据 + 属性。
+- ``Asset(Domain)``：域服务——入库/载入，入库第一件事是**转码**（草案：恒等），再交桶存储。
+
+分片不由资产处理——``Block`` / 桶已自带。
 """
 
 from __future__ import annotations
 
 import mimetypes
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, BinaryIO, ClassVar, Self
+from typing import TYPE_CHECKING, Any, BinaryIO, ClassVar
 
+from core.signal import Domain, action
 from core.storage import Attr, Block, BodyField
 
 from .base import normalize_tags
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
+
+    from core.types import Oid
 
 ASSET_KIND = "cairn.asset"
 ASSET_SCHEMA = 1
@@ -64,8 +69,8 @@ def _read_source(source: Source) -> bytes:
     return source.read()
 
 
-class Asset(Block):
-    """资产块：非文本内容（图/音/视等），入库前统一转码。"""
+class AssetData(Block):
+    """资产数据块：非文本内容 + 属性（纯数据）。"""
 
     type = ASSET_KIND
     body = BodyField()
@@ -77,37 +82,60 @@ class Asset(Block):
     name: Attr[str | None] = None
     origin_mime: Attr[str | None] = None  # 转码前的原始编码，留作来源记录
 
-    @classmethod
-    def create(  # noqa: PLR0913 — 入库入口：描述字段均有默认值
-        cls,
-        vault: Any,
-        source: Source,
-        *,
-        name: str | None = None,
-        mime: str | None = None,
-        tags: Iterable[str] | Mapping[str, Any] | None = None,
-        props: dict[str, Any] | None = None,
-    ) -> Self:
-        asset = cls()
-        asset._vault = vault
-        raw = _read_source(source)
-        original = mime or (mimetypes.guess_type(name)[0] if name else None)
-        encoded, unified = transcode(raw, original)  # ← 入库先转码
-        asset.body = encoded
-        asset.attrs["name"] = None if name is None else str(name)
-        asset.attrs["mime"] = unified
-        asset.attrs["origin_mime"] = original
-        asset.title = name
-        asset.tags = tags or {}
-        if props:
-            asset.attrs["props"] = dict(props)
-        asset.save()
-        return asset
-
     @property
     def content_type(self) -> str | None:
         value = self.attrs.get("mime")
         return None if value is None else str(value)
 
 
-__all__ = ["ASSET_KIND", "ASSET_SCHEMA", "UNIFIED_CODECS", "Asset", "transcode", "unified_target"]
+class Asset(Domain):
+    """资产域服务（单例）：入库（转码）/ 载入。"""
+
+    name = "Asset"
+
+    def __init__(self, vault: Any) -> None:
+        self.vault = vault
+
+    @action
+    def create(
+        self,
+        source: Source,
+        *,
+        name: str | None = None,
+        mime: str | None = None,
+        tags: Iterable[str] | Mapping[str, Any] | None = None,
+        props: dict[str, Any] | None = None,
+    ) -> AssetData:
+        """入库一个资产：先转码，再落盘。"""
+        data = AssetData()
+        data._vault = self.vault  # noqa: SLF001 — 服务为数据绑定库
+        raw = _read_source(source)
+        original = mime or (mimetypes.guess_type(name)[0] if name else None)
+        encoded, unified = transcode(raw, original)  # ← 入库先转码
+        data.body = encoded
+        data.attrs["name"] = None if name is None else str(name)
+        data.attrs["mime"] = unified
+        data.attrs["origin_mime"] = original
+        data.title = name
+        data.tags = tags or {}
+        if props:
+            data.attrs["props"] = dict(props)
+        data.save()
+        return data
+
+    @action
+    def load(self, oid: Oid | str) -> AssetData:
+        """按 oid 载入资产数据。"""
+        data: AssetData = AssetData.load(self.vault, oid)
+        return data
+
+
+__all__ = [
+    "ASSET_KIND",
+    "ASSET_SCHEMA",
+    "UNIFIED_CODECS",
+    "Asset",
+    "AssetData",
+    "transcode",
+    "unified_target",
+]

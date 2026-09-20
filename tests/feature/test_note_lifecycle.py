@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 import pytest
 
 from core import ObjectNotFoundError, Vault
-from feature import Asset, Note, Relation
-from feature.note.types import Canvas, Form, Graphic
+from feature import Asset, Canvas, Note, Relation
+from feature.note.types import Form, Graphic
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -38,10 +38,10 @@ def test_note_full_lifecycle(tmp_path: Path) -> None:
     notes.update(note, text="改过")
 
     # 3) 画板 + 外联资源嵌入（各自都会 save 并记版本）
-    asset = Asset.create(vault, b"PNG-DATA", name="a.png")
+    asset = Asset(vault).create(b"PNG-DATA", name="a.png")
     notes.add_access(note, asset.oid, mime="image/png", name="a.png")
-    canvas = Canvas.create(
-        vault, graphics=[Graphic(form=Form.CIRCLE, cx=0.0, cy=0.0, w=2.0, h=2.0)]
+    canvas = Canvas(vault).create(
+        graphics=[Graphic(form=Form.CIRCLE, cx=0.0, cy=0.0, w=2.0, h=2.0)]
     )
     notes.add_canvas(note, canvas)
 
@@ -62,7 +62,7 @@ def test_note_full_lifecycle(tmp_path: Path) -> None:
     assert loaded.props()["color"] == "red"
 
     assert loaded.canvas
-    loaded_canvas = Canvas.load(reopened, loaded.canvas[0])
+    loaded_canvas = Canvas(reopened).load(loaded.canvas[0])
     assert loaded_canvas.body.graphics[0].form == int(Form.CIRCLE)
     assert loaded.access[0] == str(asset.oid)
     assert loaded.references == (asset.oid,)

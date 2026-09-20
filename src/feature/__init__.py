@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from .asset import Asset
+from .asset import Asset, AssetData
 from .base import (
     DomainError,
     KindMismatchError,
@@ -17,7 +17,7 @@ from .base import (
     known_kinds,
     normalize_tags,
 )
-from .canvas import Canvas, CanvasBody, Form, Graphic, Line, Link, Paint
+from .canvas import Canvas, CanvasBody, CanvasData, Form, Graphic, Line, Link, Paint
 from .group import Group, GroupError, all_gids, list_groups, roots
 from .note import Note, NoteData
 from .project import Project
@@ -27,8 +27,10 @@ from .signature import Signature
 
 __all__ = [
     "Asset",
+    "AssetData",
     "Canvas",
     "CanvasBody",
+    "CanvasData",
     "DomainError",
     "Form",
     "Graphic",

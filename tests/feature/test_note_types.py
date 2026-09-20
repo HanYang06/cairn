@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from core.types import Oid
 from feature.note.types import (
-    Canvas,
     CanvasBody,
+    CanvasData,
     Form,
     Graphic,
     Line,
@@ -131,7 +131,7 @@ def test_style_overlay_later_wins() -> None:
 
 
 def test_note_typed_canvas_and_marker() -> None:
-    canvas = Canvas(graphics=[_graphic()])
+    canvas = CanvasData(graphics=[_graphic()])
     note = NoteData()
     note.body = ["床前明月光，", canvas_ref(0), "低头思故乡"]
     note.canvas = [str(canvas.oid)]
