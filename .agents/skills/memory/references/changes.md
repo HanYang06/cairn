@@ -306,6 +306,10 @@
   **删除** `src/conf`、`src/net`、`src/server`、`src/ui`；撤除 `src/kernel.py` / `src/main.py`（编排归 App）。
   收尾：修 `core/__init__` 半截导入、`ui.` → `ui_tools.` 引用、补新建占位文件 SPDX 头与 docstring、
   `pyproject` 的 wheel packages / isort。ruff / format / mypy / pytest 全绿，211 通过。
+- 2026-09-19 · 已定 · **App 层接线**：`src/app/__init__.py`（`Feature` 静态域容器 + `build(vault)` 组合
+  Session/App/Facet）、`src/app/facets.py`（`NoteFacet`，App 侧领域 UI，不 import feature）、
+  `src/app/win/main.py`（Windows 入口：QApplication + `build_window` + show）、`src/app/__main__.py`（按平台分发）。
+  新增 `tests/app/`。`ui_tools` 原地不动（工具）。ruff / format / mypy / pytest 全绿，210 通过。
 - 2026-09-19 · 已定 · **清理：撤销 `feature/_shared` + 清空 `ui_tools` 主导件**：删 `src/feature/_shared/`
   （`relation`/`provenance`/`signature` 回 `feature/` 顶层；跨域编排归 App）；删 `ui_tools/app.py`、`ui_tools/note.py`
   与对应测试（`ui_tools` 是工具箱，不放入口 / 领域 Facet）。ruff / format / mypy / pytest 全绿，209 通过。

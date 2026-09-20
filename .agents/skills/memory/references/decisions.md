@@ -319,6 +319,11 @@
   "kernel" 层**（此前 `src/kernel.py` 的编排尝试已撤除）。**App = 组合根 / 编排层**：组合内核 + 领域 + UI，并按平台发布。
 - 已定 · **发布布局在 `src/app/<平台>/`**：`win` / `linux`（macOS 等顺加）；`src/app/__main__.py`、
   `src/app/win/{main,backend,windows}`。
+- 已定 · **`ui_tools` 原地不动（工具箱）；实际 UI 载体在 `src/app/<平台>`**（`win/`）：从内核取数据、用
+  `ui_tools` 组装窗口。**平台策略**：Windows 真上；Linux 不要 UI；macOS 暂缓；Android 未来另择 UI 框架
+  （Qt 上安卓不划算）。
+- 已定 · App 组合落地：`app.Feature`（静态域容器）+ `app.build(vault)`（Session/App/Facet）；领域 UI
+  `NoteFacet` 在 **App 侧**（`src/app/facets.py`），**不进 `ui_tools`**。
 - 已定 · **目录重定**：`src/core`（底座；含新 `core/conf` 配置 / 常量）/ `src/feature`（域 + `_shared`）/
   `src/ui_tools`（界面工具层，原 `src/ui`）/ `src/app`（应用）。**删除** `src/conf`（并入 `core/conf`）、
   `src/net`、`src/server`。
