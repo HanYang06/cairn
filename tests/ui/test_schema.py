@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from ui.component import Component
-from ui.core import App, Facet, Schema, UiError
+from ui.core import App, Facet, Schema, UiError, apply_config
 from ui.layout import Grid
 from ui.page import Page
 
@@ -61,3 +61,37 @@ def test_resolve_ambiguous_raises() -> None:
 
     with pytest.raises(UiError, match="歧义"):
         schema.resolve("shared")
+
+
+def test_apply_config_domain_rooted() -> None:
+    schema = _app().schema()
+
+    apply_config(schema, {"note.edit.grid.editor": {"color": "#fff"}})
+
+    node = schema.node("note.edit.grid.editor")
+    assert node is not None
+    assert node.conf.attr.get("color") == "#fff"
+
+
+def test_apply_config_theme_group() -> None:
+    schema = _app().schema()
+
+    apply_config(schema, {"note": {"token.accent": "#123456"}}, group="theme")
+
+    node = schema.node("note")
+    assert node is not None
+    assert node.conf.theme.get("token.accent") == "#123456"
+
+
+def test_apply_config_unknown_path_raises() -> None:
+    schema = _app().schema()
+
+    with pytest.raises(UiError, match="未找到配置路径"):
+        apply_config(schema, {"note.nope": {"x": 1}})
+
+
+def test_apply_config_bad_group_raises() -> None:
+    schema = _app().schema()
+
+    with pytest.raises(UiError, match="未知配置组"):
+        apply_config(schema, {}, group="nope")

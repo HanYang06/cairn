@@ -70,19 +70,23 @@ class Facet:
             result.extend(page.bind.compile())
         return result
 
-    def paths(self) -> list[str]:
-        """本域由领域的相对路径：`<域>` / `<域>.<page>` / `<域>.<page>.<layout>.<com>…`。"""
-        result = [self.name]
+    def node_paths(self) -> list[tuple[str, Node]]:
+        """本域的相对路径 → 节点：`<域>` / `<域>.<page>` / `<域>.<page>.<layout>.<com>…`。"""
+        result: list[tuple[str, Node]] = []
         for page in [self.root, *self._pages]:
             prefix = self.name if page is self.root else f"{self.name}.{page.name or page.kind}"
-            result.append(prefix)
+            result.append((prefix, page))
             result.extend(self._walk(page.layout, prefix))
         return result
 
+    def paths(self) -> list[str]:
+        """本域的全部相对路径。"""
+        return [path for path, _ in self.node_paths()]
+
     @staticmethod
-    def _walk(node: Node, prefix: str) -> list[str]:
+    def _walk(node: Node, prefix: str) -> list[tuple[str, Node]]:
         base = f"{prefix}.{node.name or node.kind}"
-        out = [base]
+        out: list[tuple[str, Node]] = [(base, node)]
         for placed in node.children():
             if isinstance(placed.component, Node):
                 out.extend(Facet._walk(placed.component, base))

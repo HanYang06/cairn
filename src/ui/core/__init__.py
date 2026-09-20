@@ -9,6 +9,7 @@ from .app import App, SuperLayout
 from .bind import Bind, Binding
 from .compile import Compiler, Translator
 from .conf import Conf, ConfGroup
+from .config import apply_config
 from .errors import LayoutError, UiError
 from .facet import Facet
 from .model import Model, Notify
@@ -37,6 +38,7 @@ __all__ = [
     "Translator",
     "UiError",
     "UiSignal",
+    "apply_config",
     "kinds",
     "registered_kinds",
     "vocabulary",

@@ -10,19 +10,31 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from .errors import UiError
+
+if TYPE_CHECKING:
+    from .node import Node
 
 
 class Schema:
-    """一棵已登记的配置路径树。"""
+    """一棵已登记的配置路径树；可选记录路径对应的节点。"""
 
     def __init__(self, root: str = "app") -> None:
         self.root = root
         self._paths: set[str] = set()
+        self._nodes: dict[str, Node] = {}
 
-    def add(self, path: str) -> None:
-        """登记一条规范路径。"""
+    def add(self, path: str, node: Node | None = None) -> None:
+        """登记一条规范路径（可附带其节点）。"""
         self._paths.add(path)
+        if node is not None:
+            self._nodes[path] = node
+
+    def node(self, path: str) -> Node | None:
+        """解析路径并返回其节点（不可寻址返回 `None`）。"""
+        return self._nodes.get(self.resolve(path))
 
     def paths(self) -> list[str]:
         """全部规范路径（有序）。"""

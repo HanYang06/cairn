@@ -71,11 +71,11 @@ class App:
         return list(self._facets)
 
     def schema(self) -> Schema:
-        """由已挂载 Facet 编译出配置路径树。"""
+        """由已挂载 Facet 编译出配置路径树（含路径 → 节点）。"""
         schema = Schema()
         for facet in self._facets:
-            for rel in facet.paths():
-                schema.add(f"app.{rel}")
+            for rel, node in facet.node_paths():
+                schema.add(f"app.{rel}", node)
         return schema
 
 
