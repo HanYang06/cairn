@@ -300,6 +300,10 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **真实组合根 + `NoteFacet`**：新增 `src/ui/note.py` `NoteFacet`（收**注入的**笔记域服务、
+  **不 import `feature`**；经 `Session.projection` 投影出列表条目）与 `src/main.py` 组合根（打开 `Vault` →
+  `vault.signal.register(Note)` → `Session` → `App` → `mount(NoteFacet)` → `build_window`）——**只有入口认识领域**。
+  新增 `tests/ui/test_note_facet.py`。ruff / format / mypy / pytest 全绿，209 通过。
 - 2026-09-19 · 已定 · **UI 路由宿主 + 可运行入口**：`ui/core/qt.py` 加 `WindowHost`（`App` → `QMainWindow` +
   `QStackedWidget` 内容区，`show(route)` 按 `App.navigate` 切换；`build_window` 仍返回窗口）。新增 `src/ui/app.py`
   （`build_demo` / `main`：组合根 demo，**不依赖领域**，验证"声明树 → 窗口"整链）。新增 `tests/ui/test_app_entry.py`。
