@@ -300,6 +300,9 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **领域树归位到应用内核**：`main.py` 只做 boot；新增 `src/kernel.py`（`Feature` 静态领域容器 +
+  `Kernel`：握 `signal`、挂 `feature`）——领域树声明落在**应用内核侧**（`core` 不许认识 `feature`，故不能放进
+  `core.signal`；入口也不该定义它）。ruff / format / mypy / pytest 全绿，211 通过。
 - 2026-09-19 · 已定 · **去掉动态注册，改静态挂载**：删 `core/signal` 的 `Namespace` / `Signal.register` /
   `_domains` / `domains()` / `Domain.namespace`；`Signal` 暴露 `core` / `feature` 属性（组合根普通赋值）；
   `Domain` 加 `bind(signal)` 显式绑总线。组合根 `src/main.py` 用静态 `Feature` 容器（`Note: Note` + 构造赋值）。
