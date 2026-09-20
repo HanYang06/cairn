@@ -1,14 +1,14 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""Vault：应用级门面，架在新存储（``Bucket`` / ``Block``）之上。
+"""Vault：应用级门面，架在存储（``Bucket`` / ``Block``）之上。
 
-本层**不再有本地加密、空间、清单、分块**——那些都归入桶与块；
-这里只把「对象」这个概念翻译成块，并提供检索与领域要用的查询。
+本层**不再有本地加密、空间、清单、分块、版本**——那些都归入桶与块；
+这里只把「对象」翻译成块，并提供检索与领域要用的查询。
 
 - 对象 = 块（``Block``）：正文进 ``body``，标题 / 标签 / props 进 ``attrs``。
 - 内容按 checksum 去重；对象身份是稳定 id。
-- 版本不属于块：本门面只提供"当前版本"占位，具体版本策略留给领域层。
+- 版本不属于块：领域层用通用 ``VersionStore`` 自行承载。
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from __future__ import annotations
 import io
 from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any
 
 from .signal import (
     Event,
@@ -28,16 +28,7 @@ from .signal import (
     Subscription,
 )
 from .storage import Block, Bucket
-from .types import (
-    ObjectInfo,
-    ObjectNotFoundError,
-    Oid,
-    VerifyReport,
-    VersionInfo,
-    now_ms,
-)
-
-Source = bytes | bytearray | memoryview | str | Path | BinaryIO
+from .types import ObjectInfo, Oid, VerifyReport, now_ms
 
 
 class Vault:
@@ -51,8 +42,7 @@ class Vault:
 
     # ---- 生命周期 ----
     @classmethod
-    def create(cls, path: Path | str, passphrase: str | None = None) -> Vault:
-        del passphrase
+    def create(cls, path: Path | str) -> Vault:
         root = Path(path)
         bucket = Bucket.create(root)
         bucket.catalog.set_meta("created", str(now_ms()))
@@ -64,23 +54,13 @@ class Vault:
         root = Path(path)
         return cls(root, Bucket.open(root))
 
-    def unlock(self, passphrase: str | None = None) -> None:
-        del passphrase
-
-    def lock(self) -> None:
-        return None
-
-    @property
-    def is_locked(self) -> bool:
-        return False
-
     def close(self) -> None:
         self.bucket.close()
 
     # ---- 通信主干（存储事件 + 领域信号共用一条总线）----
     @property
     def signal(self) -> Signal:
-        """通信主干：域服务在其上注册，存储事件与语义信号共用同一条总线。"""
+        """通信主干：域服务在其上静态挂载，存储事件与语义信号共用同一条总线。"""
         return self._signal
 
     @property
@@ -92,64 +72,6 @@ class Vault:
         return self._signal.events.subscribe(handler, event_type)
 
     # ---- 写 ----
-    def put(  # noqa: PLR0913 — 写接口的显式参数面，均有默认值
-        self,
-        src: Source,
-        *,
-        type: str = "blob",
-        mime: str | None = None,
-        meta: dict[str, Any] | None = None,
-        oid: Oid | str | None = None,
-        search_text: str | None = None,
-    ) -> Oid:
-        payload = _read_source(src)
-        attrs: dict[str, Any] = dict(meta or {})
-        if mime is not None:
-            attrs["mime"] = mime
-        created = oid is None
-        if oid is not None:
-            target = str(oid)
-            try:
-                block = self.bucket.get(Block, target)
-            except ObjectNotFoundError:
-                block = Block(body=payload, attrs=attrs, type=type)
-            else:
-                block.body = payload
-                block.attrs = attrs
-                block.type = type
-        else:
-            block = Block(body=payload, attrs=attrs, type=type)
-        self.bucket.put(block)
-        self._set_search(block.id, search_text)
-        result = Oid.parse(block.id)
-        self._signal.events.emit(
-            ObjectPut(
-                oid=result,
-                type=type,
-                seq=1,
-                created=created,
-                checksum=str(block.checksum or ""),
-            )
-        )
-        return result
-
-    def put_meta(
-        self,
-        oid: Oid | str,
-        *,
-        meta: dict[str, Any] | None = None,
-        search_text: str | None = None,
-    ) -> Oid:
-        target = str(oid)
-        block = self.bucket.get(Block, target)
-        merged = dict(block.attrs)
-        if meta:
-            merged.update(meta)
-        block.attrs = merged
-        self.bucket.put(block)
-        self._set_search(target, search_text)
-        return Oid.parse(target)
-
     def put_block(self, block: Block, *, search_text: str | None = None) -> Block:
         """存储一个块（含领域块），可选更新其检索文本；写入后发 ``ObjectPut``。"""
         created = not self.bucket.has(block.id)
@@ -215,31 +137,6 @@ class Vault:
     def iter_object_ids(self) -> Iterator[Oid]:
         for block_id in self.bucket.iter_block_ids():
             yield Oid.parse(block_id)
-
-    # ---- 版本（占位：块不管版本，具体策略留给领域层）----
-    def versions(self, oid: Oid | str) -> list[VersionInfo]:
-        block = self.bucket.get(Block, str(oid))
-        body = block.body
-        size = len(body) if isinstance(body, (bytes, bytearray)) else block.size
-        return [
-            VersionInfo(
-                seq=1,
-                updated=block.updated,
-                size=size,
-                is_current=True,
-                author=str(block.attrs.get("author") or ""),
-            )
-        ]
-
-    def read_version(self, oid: Oid | str, seq: int) -> bytes:
-        if seq != 1:
-            raise ObjectNotFoundError(f"版本不存在: {oid}@{seq}")
-        return self._read_body(oid)
-
-    def restore_version(self, oid: Oid | str, seq: int) -> Oid:
-        if seq != 1:
-            raise ObjectNotFoundError(f"版本不存在: {oid}@{seq}")
-        return Oid.parse(str(oid))
 
     # ---- 检索 ----
     def search(self, query: str) -> list[Oid]:
@@ -334,13 +231,3 @@ def _matches_tags(have: dict[str, Any], wanted: dict[str, Any]) -> bool:
         if value is not None and have.get(key) != value:
             return False
     return True
-
-
-def _read_source(src: Source) -> bytes:
-    if isinstance(src, bytes):
-        return src
-    if isinstance(src, (bytearray, memoryview)):
-        return bytes(src)
-    if isinstance(src, (str, Path)):
-        return Path(src).read_bytes()
-    return src.read()

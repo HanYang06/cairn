@@ -19,11 +19,9 @@ from feature import (
 if TYPE_CHECKING:
     from pathlib import Path
 
-PASSPHRASE = "correct horse battery staple"
-
 
 def _vault(tmp_path: Path) -> Vault:
-    return Vault.create(tmp_path / "vault", PASSPHRASE)
+    return Vault.create(tmp_path / "vault")
 
 
 def test_registry_has_builtin_kinds() -> None:

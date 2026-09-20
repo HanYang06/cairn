@@ -15,7 +15,6 @@
 - [x] 类型 / 编解码 / `Vault`。
 - [ ] `core/conf`：现仅 `core.py` 有常量，`feature` / `signal` / `storage` / `confsys` 待填。
 - [ ] 数据库迁移机制（`catalog_version` → 旧库检测 / 迁移）。
-- [ ] `Vault` 死 API 收口（`put` / `put_meta` / `versions` / `read_version` / `restore_version`）。
 - [ ] pack 压实 / gc。
 
 ### 领域 `feature`

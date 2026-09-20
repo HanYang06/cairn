@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 def test_relation_pins_version(tmp_path: Path) -> None:
-    vault = Vault.create(tmp_path / "vault", "pw")
+    vault = Vault.create(tmp_path / "vault")
     notes = Note(vault)
     source = notes.create("源", title="源")
     child = notes.create("子", title="子")

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""内核数据结构：对象层结构（元数据视图、版本视图、巡检报告）。"""
+"""内核数据结构：对象层结构（元数据视图、巡检报告）。"""
 
 from __future__ import annotations
 
@@ -38,14 +38,3 @@ class VerifyReport:
     @property
     def ok(self) -> bool:
         return not self.problems
-
-
-@dataclass(frozen=True, slots=True)
-class VersionInfo:
-    """对象的一个历史版本视图（域版本策略填充）。"""
-
-    seq: int
-    updated: int
-    size: int
-    is_current: bool = False
-    author: str = ""

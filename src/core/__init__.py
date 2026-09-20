@@ -22,7 +22,6 @@ from .types import (
     ObjectNotFoundError,
     Oid,
     VaultError,
-    VersionInfo,
 )
 from .vault import Vault
 
@@ -40,7 +39,6 @@ __all__ = [
     "Subscription",
     "Vault",
     "VaultError",
-    "VersionInfo",
     "is_private",
     "target_audience",
     "visible_to",

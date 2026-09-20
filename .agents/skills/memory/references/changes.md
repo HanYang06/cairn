@@ -306,6 +306,10 @@
   **删除** `src/conf`、`src/net`、`src/server`、`src/ui`；撤除 `src/kernel.py` / `src/main.py`（编排归 App）。
   收尾：修 `core/__init__` 半截导入、`ui.` → `ui_tools.` 引用、补新建占位文件 SPDX 头与 docstring、
   `pyproject` 的 wheel packages / isort。ruff / format / mypy / pytest 全绿，211 通过。
+- 2026-09-19 · 已定 · **清理 `Vault` 死 API**：删 `put` / `put_meta` / `versions` / `read_version` /
+  `restore_version` 与 `Source` / `_read_source`；并清加密时代残留 `lock` / `unlock` / `is_locked`、
+  `create(path, passphrase)` 的 `passphrase` 参数；删 `core.types.VersionInfo`（无活引用）。
+  测试改用 `put_block(Block(...))`；删 `tests/core/test_versions.py`；门禁全绿，206 通过。
 - 2026-09-19 · 已定 · **App 层接线**：`src/app/__init__.py`（`Feature` 静态域容器 + `build(vault)` 组合
   Session/App/Facet）、`src/app/facets.py`（`NoteFacet`，App 侧领域 UI，不 import feature）、
   `src/app/win/main.py`（Windows 入口：QApplication + `build_window` + show）、`src/app/__main__.py`（按平台分发）。

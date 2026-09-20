@@ -16,14 +16,18 @@ def _create(tmp_path: Path) -> Vault:
     return Vault.create(tmp_path / "vault")
 
 
+def _put(vault: Vault, body: bytes = b"", *, id: str | None = None) -> Block:
+    return vault.put_block(Block(id=id, body=body))
+
+
 def test_put_and_delete_events_in_order(tmp_path: Path) -> None:
     vault = _create(tmp_path)
     seen: list[Event] = []
     vault.subscribe(seen.append)
 
-    oid = vault.put(b"x", type="note")
-    vault.put(b"y", oid=oid, type="note")
-    vault.delete(oid)
+    block = _put(vault, b"x")
+    _put(vault, b"y", id=block.id)
+    vault.delete(block.id)
 
     assert [type(event).__name__ for event in seen] == [
         "ObjectPut",
@@ -41,8 +45,8 @@ def test_filtered_subscription(tmp_path: Path) -> None:
     puts: list[Event] = []
     vault.subscribe(puts.append, event_type=ObjectPut)
 
-    vault.put(b"a")
-    vault.delete(vault.put(b"b"))
+    _put(vault, b"a")
+    vault.delete(_put(vault, b"b").id)
 
     assert len(puts) == 2
     assert all(isinstance(event, ObjectPut) for event in puts)
@@ -52,9 +56,9 @@ def test_cancel_stops_delivery(tmp_path: Path) -> None:
     vault = _create(tmp_path)
     seen: list[Event] = []
     subscription = vault.subscribe(seen.append)
-    vault.put(b"a")
+    _put(vault, b"a")
     subscription.cancel()
-    vault.put(b"b")
+    _put(vault, b"b")
 
     assert len(seen) == 1
 
@@ -63,8 +67,8 @@ def test_subscription_context_manager(tmp_path: Path) -> None:
     vault = _create(tmp_path)
     seen: list[Event] = []
     with vault.subscribe(seen.append):
-        vault.put(b"a")
-    vault.put(b"b")
+        _put(vault, b"a")
+    _put(vault, b"b")
 
     assert len(seen) == 1
 
@@ -79,8 +83,8 @@ def test_handler_exception_is_isolated(tmp_path: Path) -> None:
     vault.subscribe(boom)
     vault.subscribe(received.append)
 
-    oid = vault.put(b"a")
-    assert oid
+    block = _put(vault, b"a")
+    assert block.id
     assert len(received) == 1
 
 
@@ -89,7 +93,7 @@ def test_delete_missing_emits_nothing(tmp_path: Path) -> None:
     seen: list[Event] = []
     vault.subscribe(seen.append, event_type=ObjectDeleted)
 
-    vault.delete(vault.put(b"a"))
+    vault.delete(_put(vault, b"a").id)
     seen.clear()
     vault.delete("01M26N4DXANY9TDMSJQBEP8B4J")
 

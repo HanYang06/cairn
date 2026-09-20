@@ -3,7 +3,7 @@
 
 """类型层：基础数据结构 + 内核对象层结构。
 
-基础（标识符 / 错误 / 通用）与对象层视图（元数据 / 版本 / 巡检）同处一层，
+基础（标识符 / 错误 / 通用）与对象层视图（元数据 / 巡检）同处一层，
 对外只暴露 ``core.types``。
 """
 
@@ -20,7 +20,7 @@ from .errors import (
     VaultError,
 )
 from .ids import Cid, Oid
-from .objects import ObjectInfo, VerifyReport, VersionInfo
+from .objects import ObjectInfo, VerifyReport
 
 __all__ = [
     "AuthError",
@@ -34,6 +34,5 @@ __all__ = [
     "Oid",
     "VaultError",
     "VerifyReport",
-    "VersionInfo",
     "now_ms",
 ]
