@@ -18,12 +18,12 @@ from .layout import VBox
 class NoteFacet(Facet):
     """笔记域 UI 定义（列表页 + 简单条目）。"""
 
-    def __init__(self, notes: Any, session: Session) -> None:
-        super().__init__(notes, name="note")
+    def __init__(self, note: Any, session: Session) -> None:
+        super().__init__(note, name="note")
         self.session = session
         self.set(VBox)
         self.add(Label("笔记"))
-        for data in session.projection("notes", lambda: list(notes.list_notes())):
+        for data in session.projection("notes", lambda: list(note.list_notes())):
             self.add(Label(str(getattr(data, "title", "") or "（无标题）")))
 
 

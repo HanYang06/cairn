@@ -35,6 +35,7 @@ class Button(Component):
     def __init__(self, text: str = "", *, name: str = "", **opts: Any) -> None:
         super().__init__(name, **opts)
         self.text = text
+        self.clicked = self.ui_signal("clicked")
 
 
 class Field(Component):
@@ -55,6 +56,7 @@ class Field(Component):
         super().__init__(name, **opts)
         self.text = text
         self.placeholder = placeholder
+        self.text_changed = self.ui_signal("textChanged")
 
 
 class Divider(Component):

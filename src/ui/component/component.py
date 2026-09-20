@@ -10,12 +10,17 @@
 from __future__ import annotations
 
 from ..core.node import Node
+from ..core.signal import UiSignal
 
 
 class Component(Node):
     """部件基类（原子 / 组合）。"""
 
     kind = "component"
+
+    def ui_signal(self, name: str) -> UiSignal:
+        """声明一条本部件的 UI 信号（`Bind` 的 source）。"""
+        return UiSignal(name, owner=self)
 
 
 __all__ = ["Component"]

@@ -22,10 +22,11 @@ from ui.note import NoteFacet
 
 def build(vault: Vault) -> App:
     """由一个库组装 UI 组合根。"""
-    notes = vault.signal.register(Note(vault))
+    vault.signal.register(Note(vault))
+    note = vault.signal.feature.Note  # 从地址树取（今天是同一对象；代理落地后亦然）
     session = Session(vault.signal)
     app = App(session)
-    app.mount(NoteFacet(notes, session))
+    app.mount(NoteFacet(note, session))
     return app
 
 

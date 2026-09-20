@@ -34,6 +34,7 @@ from .node import Node
 
 if TYPE_CHECKING:
     from .app import App
+    from .bind import Binding
 
 
 def build_compiler() -> Compiler:
@@ -69,6 +70,7 @@ class WindowHost:
         self.stack = QStackedWidget()
         self._index: dict[Page, int] = {}
         self.window = self._build()
+        self._connect_bindings()
 
     def show(self, route: object) -> Page:
         """路由到某页并在内容区切换。"""
@@ -104,6 +106,22 @@ class WindowHost:
                     layout.addWidget(widget)
         return container
 
+    def _connect_bindings(self) -> None:
+        for facet in self.app.facets():
+            for binding in facet.compile_bindings():
+                self._connect(binding)
+
+    def _connect(self, binding: Binding) -> None:
+        source = binding.source
+        owner = getattr(source, "owner", None)
+        widget = getattr(owner, "widget", None)
+        name = str(getattr(source, "name", ""))
+        if widget is None or not name:
+            return
+        signal = getattr(widget, name, None)
+        if signal is not None and hasattr(signal, "connect"):
+            signal.connect(binding.target)
+
     def _content(self) -> QWidget:
         content = self.app.layout.content
         for placed in content.children():
@@ -124,6 +142,7 @@ def build_window(app: App) -> QMainWindow:
 
 def _tag(widget: QWidget, node: Node) -> QWidget:
     widget.setProperty("cairnClass", node.kind)
+    node.bind_widget(widget)
     return widget
 
 

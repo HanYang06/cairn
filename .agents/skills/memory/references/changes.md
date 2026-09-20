@@ -300,6 +300,10 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 信号 + 绑定落地**：`UiSignal` 加 `owner`；`Component.ui_signal(name)` 声明信号，
+  `Button.clicked` / `Field.text_changed` 已声明；`Node` 加 `bind_widget` / `widget`（编译期回填目标控件）；
+  Qt 翻译器回填控件；`WindowHost` 编译绑定（`source.owner.widget` 上的同名 Qt 信号 → target）——**按钮点击真连上动作**。
+  另：`main.py` 改从地址树取对象（`vault.signal.feature.Note`）再注入 `NoteFacet`。ruff / format / mypy / pytest 全绿，210 通过。
 - 2026-09-19 · 已定 · **真实组合根 + `NoteFacet`**：新增 `src/ui/note.py` `NoteFacet`（收**注入的**笔记域服务、
   **不 import `feature`**；经 `Session.projection` 投影出列表条目）与 `src/main.py` 组合根（打开 `Vault` →
   `vault.signal.register(Note)` → `Session` → `App` → `mount(NoteFacet)` → `build_window`）——**只有入口认识领域**。

@@ -69,6 +69,17 @@ class Node:
         self.conf = Conf()
         self._children: list[Placed] = []
         self._parent: Node | None = None
+        self._widget: object | None = None
+
+    # ---- 目标控件（编译期回填，供信号连接）----
+    def bind_widget(self, widget: object) -> None:
+        """编译期回填本节点对应的目标控件。"""
+        self._widget = widget
+
+    @property
+    def widget(self) -> object | None:
+        """本节点对应的目标控件（未编译为 `None`）。"""
+        return self._widget
 
     # ---- 父子 / 路径 ----
     @property

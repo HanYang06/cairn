@@ -11,10 +11,17 @@ from __future__ import annotations
 
 
 class UiSignal:
-    """一条 UI 侧信号的稳定表述（名称 + 可选参数表）。"""
+    """一条 UI 侧信号的稳定表述（名称 + 所属节点 + 可选参数表）。"""
 
-    def __init__(self, name: str = "", *, args: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self,
+        name: str = "",
+        *,
+        owner: object | None = None,
+        args: tuple[str, ...] = (),
+    ) -> None:
         self.name = name
+        self.owner = owner
         self.args = tuple(args)
 
     def __repr__(self) -> str:

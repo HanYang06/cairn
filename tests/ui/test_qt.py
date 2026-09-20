@@ -10,13 +10,14 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QMainWindow,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
 from core import Vault
 from core.storage import Block
-from ui.component import Component, Label
+from ui.component import Button, Component, Label
 from ui.core import App, Facet
 from ui.core.bridge import Bridge
 from ui.core.qt import WindowHost, build, build_window
@@ -97,6 +98,24 @@ def test_window_host_routes_pages() -> None:
 
     assert app.active is page
     assert host.stack.currentWidget() is not None
+
+
+def test_button_binding_clicks() -> None:
+    app = App(session=None)  # type: ignore[arg-type]
+    facet = Facet(_Domain(), name="demo")
+    facet.set(VBox)
+    button = Button("go")
+    calls: list[int] = []
+    facet.bind.add(button.clicked, lambda: calls.append(1))
+    facet.add(button)
+    app.mount(facet)
+
+    host = WindowHost(app)
+    qt_button = host.window.findChild(QPushButton)
+    assert qt_button is not None
+    qt_button.click()
+
+    assert calls == [1]
 
 
 def test_bridge_emits_qt_signal(tmp_path: Path) -> None:
