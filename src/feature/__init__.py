@@ -18,9 +18,9 @@ from .base import (
     normalize_tags,
 )
 from .canvas import Canvas, CanvasBody, CanvasData, Form, Graphic, Line, Link, Paint
-from .group import Group, GroupError, all_gids, list_groups, roots
+from .group import Group, GroupData, GroupError, all_gids, list_groups, roots
 from .note import Note, NoteData
-from .project import Project
+from .project import Project, ProjectData
 from .provenance import ancestors, derivatives, descendants, lineage
 from .relation import Relation
 from .signature import Signature
@@ -35,6 +35,7 @@ __all__ = [
     "Form",
     "Graphic",
     "Group",
+    "GroupData",
     "GroupError",
     "KindMismatchError",
     "Line",
@@ -43,6 +44,7 @@ __all__ = [
     "NoteData",
     "Paint",
     "Project",
+    "ProjectData",
     "Relation",
     "Signature",
     "UnknownKindError",

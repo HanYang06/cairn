@@ -89,17 +89,18 @@ def test_note_embed_and_link(tmp_path: Path) -> None:
 
 def test_project_members(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    project = Project.create(vault, "Cairn", description="工作台")
+    projects = Project(vault)
+    project = projects.create("Cairn", description="工作台")
     notes = Note(vault)
     first = notes.create("a")
     second = notes.create("b")
 
-    project.add_member(first.oid)
-    project.add_member(second.oid)
+    projects.add_member(project, first.oid)
+    projects.add_member(project, second.oid)
 
     assert project.name == "Cairn"
     assert project.description == "工作台"
-    assert set(project.members()) == {first.oid, second.oid}
+    assert set(projects.members(project)) == {first.oid, second.oid}
 
 
 def test_provenance_lineage(tmp_path: Path) -> None:

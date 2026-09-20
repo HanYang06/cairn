@@ -1,20 +1,19 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""组（Group）：管理一组 ID 的容器，可无限嵌套。
+"""组：**数据**（``GroupData``）与**域服务**（``Group``）分离。
 
-- **组是块**（``cairn.group``）：有自己的稳定域 ID ``gid``，与块的存储身份 ``oid`` **分开**。
-- ``group``：有序子项列表，装笔记 / 项目 / 组的 ID（组存 ``gid``，其余存 ``oid``），顺序即显示顺序。
-- ``lock``：锁定后不可再增删成员。
-- ``owner`` / ``member``：社区化的「有限编辑组」预埋；``User`` 系统落地前暂用字符串。
-- ``key``：访问口令（非空则进组要密码，密码本身不是加密）。
-- 成员关系**两套都存**：``group`` 列表存结构（顺序），``relations`` 表存 ``contains`` 关系（反查）。
+- ``GroupData(Block)``：域身份 ``gid``（≠ 块 ``oid``）+ 有序子项 ``group`` 列表（结构）。
+- ``Group(Domain)``：域服务——创建 / 载入 / 增删 / 重排 / 嵌套解析；成员关系落 ``contains`` 边。
+
+成员关系**两套都存**：``group`` 列表存结构（顺序），``relation`` 表存 ``contains``（反查）。
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar
 
+from core.signal import Domain, action
 from core.storage import Attr, Block, BodyField
 from core.types import Oid
 
@@ -34,8 +33,8 @@ class GroupError(DomainError):
     """组操作非法（如锁定后编辑）。"""
 
 
-class Group(Block):
-    """组块：``gid`` 为域身份，``group`` 为有序子项 ID 列表。"""
+class GroupData(Block):
+    """组数据块：``gid`` 为域身份，``group`` 为有序子项 ID 列表。"""
 
     type = GROUP_KIND
     mime: ClassVar[str | None] = GROUP_MIME
@@ -50,101 +49,121 @@ class Group(Block):
     group: list[str] = []  # noqa: RUF012  # 有序子项 ID 列表（结构）
     member: list[str] = []  # noqa: RUF012  # 预留：社区成员（User 系统落地后换类型）
 
-    def _require_unlocked(self) -> None:
+    def require_unlocked(self) -> None:
+        """锁定则拒绝编辑。"""
         if self.lock:
             raise GroupError(f"组已锁定，不可编辑: {self.gid or self.id}")
 
     @staticmethod
     def ref_of(child: Block | str) -> str:
         """子项在 ``group`` 列表里的 ID：组存 ``gid``，其余存块 ``oid``。"""
-        if isinstance(child, Group):
+        if isinstance(child, GroupData):
             return child.gid or str(child.oid)
         if isinstance(child, Block):
             return str(child.oid)
         return str(child)
 
-    @classmethod
-    def create(  # noqa: PLR0913 — 建组入口：描述字段均有默认值
-        cls,
-        vault: Any,
+
+class Group(Domain):
+    """组域服务（单例）：创建 / 增删 / 重排 / 嵌套解析。"""
+
+    name = "Group"
+
+    def __init__(self, vault: Any) -> None:
+        self.vault = vault
+
+    # ---- 创建 / 载入 ----
+    @action
+    def create(
+        self,
         title: str = "",
         *,
-        parent: Group | None = None,
+        parent: GroupData | None = None,
         key: str = "",
         owner: str = "",
         member: Iterable[str] | None = None,
-    ) -> Self:
-        group = cls()
-        group._vault = vault
-        group.gid = str(Oid.new())
-        group.title = title
-        group.key = key
-        group.owner = owner
-        group.member = [str(item) for item in member or ()]
-        group.save()
+    ) -> GroupData:
+        """新建一个组并落盘；给了 ``parent`` 则同时加入父组。"""
+        data = GroupData()
+        data._vault = self.vault  # noqa: SLF001 — 服务为数据绑定库
+        data.gid = str(Oid.new())
+        data.title = title
+        data.key = key
+        data.owner = owner
+        data.member = [str(item) for item in member or ()]
+        data.save()
         if parent is not None:
-            parent.add(group)
-        return group
+            self.add(parent, data)
+        return data
+
+    @action
+    def load(self, oid: Oid | str) -> GroupData:
+        """按 oid 载入组数据。"""
+        data: GroupData = GroupData.load(self.vault, oid)
+        return data
 
     # ---- 子项 ----
-    def add(self, child: Block | str) -> Group:
+    @action
+    def add(self, data: GroupData, child: Block | str) -> GroupData:
         """把笔记 / 项目 / 组加进本组（去重、保序），并落一条 ``contains`` 关系。"""
-        self._require_unlocked()
-        ref = self.ref_of(child)
-        if ref and ref not in self.group:
-            self.group = [*self.group, ref]
-            self._link_relation(child)
-            self.save()
-        return self
+        data.require_unlocked()
+        ref = GroupData.ref_of(child)
+        if ref and ref not in data.group:
+            data.group = [*data.group, ref]
+            self._link(data, child)
+            data.save()
+        return data
 
-    def remove(self, child: Block | str) -> Group:
+    @action
+    def remove(self, data: GroupData, child: Block | str) -> GroupData:
         """从本组移除子项（只摘列表；关系行留给后续清理策略）。"""
-        self._require_unlocked()
-        self.group = [ref for ref in self.group if ref != self.ref_of(child)]
-        self.save()
-        return self
+        data.require_unlocked()
+        data.group = [ref for ref in data.group if ref != GroupData.ref_of(child)]
+        data.save()
+        return data
 
-    def move(self, order: Sequence[int]) -> Group:
+    @action
+    def move(self, data: GroupData, order: Sequence[int]) -> GroupData:
         """按旧下标重排子项。"""
-        self._require_unlocked()
-        items = list(self.group)
-        self.group = [items[index] for index in order]
-        self.save()
-        return self
+        data.require_unlocked()
+        items = list(data.group)
+        data.group = [items[index] for index in order]
+        data.save()
+        return data
 
-    def _link_relation(self, child: Block | str) -> None:
-        if self._vault is None:
-            return
+    def _link(self, data: GroupData, child: Block | str) -> None:
         target = str(child.oid) if isinstance(child, Block) else str(child)
-        Relation.create(self._vault, self.oid, target, relation=_CONTAINS, domain="group")
+        Relation.create(self.vault, data.oid, target, relation=_CONTAINS, domain="group")
 
-    def subgroups(self, vault: Any) -> list[Group]:
+    # ---- 解析 ----
+    @action
+    def subgroups(self, data: GroupData) -> list[GroupData]:
         """按 ``gid`` 解析出子组（引用不到的忽略），保持列表顺序。"""
-        index = {group.gid: group for group in Group.list(vault)}
-        return [index[ref] for ref in self.group if ref in index]
+        index = {group.gid: group for group in GroupData.list(self.vault)}
+        return [index[ref] for ref in data.group if ref in index]
 
-    @classmethod
-    def by_gid(cls, vault: Any, gid: str) -> Group | None:
+    @action
+    def by_gid(self, gid: str) -> GroupData | None:
         """按域 ID 找组。"""
-        for group in cls.list(vault):
+        for group in GroupData.list(self.vault):
             if group.gid == gid:
                 return group
         return None
 
 
-def list_groups(vault: Any) -> Iterator[Group]:
+def list_groups(vault: Any) -> Iterator[GroupData]:
     """列出全部组。"""
-    return Group.list(vault)
+    return GroupData.list(vault)
 
 
 def all_gids(vault: Any) -> set[str]:
     """全部组的 ``gid`` 集合（判定子项是组还是普通块）。"""
-    return {group.gid for group in Group.list(vault)}
+    return {group.gid for group in GroupData.list(vault)}
 
 
-def roots(vault: Any) -> list[Group]:
+def roots(vault: Any) -> list[GroupData]:
     """没有被任何组包含的组。"""
-    groups = list(Group.list(vault))
+    groups = list(GroupData.list(vault))
     contained: set[str] = set()
     for group in groups:
         contained.update(group.group)
@@ -156,6 +175,7 @@ __all__ = [
     "GROUP_MIME",
     "GROUP_SCHEMA",
     "Group",
+    "GroupData",
     "GroupError",
     "all_gids",
     "list_groups",
