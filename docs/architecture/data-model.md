@@ -407,21 +407,20 @@ VersionStore ── 按块 id 的版本链（DB）
 
 > `type` 命名空间约定：`cairn.<domain>.<kind>`（见 [`domains.md`](./domains.md) §2）。
 
-### 12.3 客户端（UI，非内核）
+### 12.3 界面（非内核）
 
 | 术语 | 代码对象 | 文件 | 状态 |
 |---|---|---|---|
-| 后端适配 | `Backend` / `NotesModel` / `TabsModel` / `ProfileStore` | `ui/backend.py` / `ui/app.py` | 已实现 |
-| 界面骨架 | `Main.qml` / `Shell.qml` / `EditorArea.qml` / `RightDock.qml` | `ui/qml/` | 已实现 |
-| 弹层 | `NoteMenu.qml` / `SharePopover.qml` / `ToolDrawer.qml` | `ui/qml/` | 已实现 |
-| 主题令牌 / 悬停提示 | `CairnTheme` / `Tips`（singleton） | `ui/qml/theme/` | 已实现 |
+| UI 工具箱 | `Node` / `Facet` / `Session` / `Compiler` / `WindowHost` / `Theme` … | `ui_tools/` | 已实现（工具箱） |
+| 应用层 | `Feature` / `build` / `NoteFacet` | `src/app/`（`win` / `linux`） | 已搭最小闭环 |
+| 旧 QML / `Backend` | — | `ui/qml/`、`ui/backend.py` | **已删除**（界面待重建） |
 
-### 12.4 实验顶层包（不进 wheel）
+### 12.4 实验顶层包
 
 | 术语 | 代码 | 文件 | 状态 |
 |---|---|---|---|
-| P2P / 通信 | `net/` | `src/net/` | 实验（待随新存储重做） |
-| 服务端 | `server/` | `src/server/` | 占位 |
+| P2P / 通信 | — | ~~`src/net/`~~ | **已删除**；待随新模型重设 |
+| 服务端 | — | ~~`src/server/`~~ | **已删除**；待重设 |
 
 ---
 
@@ -430,16 +429,16 @@ VersionStore ── 按块 id 的版本链（DB）
 | 术语 | 归属 | 状态 |
 |---|---|---|
 | 行序列 + 行内区间样式 | §5.1 | **已实现**（`note/types.py` / `edit.py` / `model.py`） |
-| 关系落 DB（`relations` 表，一等行） | §4.3 | **已实现**（`feature/relation.py`） |
+| 关系落 DB（`relation` 表，一等行） | §4.3 | **已实现**（`feature/relation.py`） |
 | 通用版本引擎 `VersionStore`（prev 链 + 反向补丁） | §6.5 | **已实现**（`core/storage/version.py` + `note/versions.py`） |
 | 桶 / 块 / 目录（`Bucket` / `Block` / `catalog.db`） | §6 | **已实现**（`core/storage/`） |
 | `Attr` / `Data` 字段描述符 + `Body` 基类 | §4.4 | **已实现**（`core/storage/block.py`） |
 | 复合签名 `Signature` | §5 | **已实现**（`feature/signature.py`） |
 | 外置图形集 `Form` + 生成器 | §5.5 | 已实现（`note/shapes.py` + `config/shapes.json`） |
-| 画板（diagram / sketch）数据模型 | §5.2 | 数据模型在（`Canvas` / `Graphic`），**无编辑 UI** |
+| 画板（diagram / sketch）数据模型 | §5.2 | 数据模型在（`CanvasData` / `Graphic`），**无编辑 UI** |
 | 逻辑图自动布局 / 连线走线 | §5.2 | 未实现 |
 | 资产转码（图片 / 音频 / 视频） | §5.3 | 草案（恒等） |
-| 后台 `currentBlocks` 接编辑器 | §5.1 | **已接**（逐行编辑器首版：行编辑 + 行内样式 + 占位 chip） |
+| 旧 QML 编辑器（`currentBlocks`） | §5.1 | **已删除**（界面待重建，`src/app`） |
 | 大正文分片（`put_content`）接笔记 | §6.3 | 未实现（桶能力已在） |
 | `fold`（把版本链折成新版本） | §6.5 | 未实现 |
 | pack 压实（收回空洞） | §8 | 未实现 |

@@ -45,7 +45,7 @@
 | Qt 原生 | Py/C++ | LGPL/商业 | `QTextEdit`/`QGraphicsView`；富编辑能力有限 |
 
 **建议**：数据格式用我们自己的**行序列 + 区间样式**（CBOR，见 [`note-model.md`](./note-model.md) §6），编辑器的文档 JSON 只作**投影 / 输入**。
-- **当前界面是原生 Qt Quick/QML**，编辑器走 QML 分块渲染（`Backend.currentBlocks`）；Web 富编辑 / 画布是**备选路线**（QtWebEngine），未引入。
+- **界面当前待重建**（UI 已删除；`ui_tools` 工具箱 + `src/app` 载体）；编辑器路线待定。Web 富编辑 / 画布是**备选路线**（QtWebEngine），未引入。
 - 若日后启用 Web 编辑面：块编辑用 `ProseMirror`（或 Tiptap）；自由手绘用 `Excalidraw`（MIT，避开 tldraw 的许可风险）+ `perfect-freehand`。
 - **逻辑图（diagram）：自造**——只存数值序列（图形 + 连线），布局与连线派生（`data-model.md` §5.2）；`Excalidraw` 是**自由画布**，不适合语义图。
 

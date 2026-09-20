@@ -9,6 +9,10 @@
 状态：**草案 v0.2**。界面已按 **Qt Quick / QML** 落地；主题令牌的**唯一事实来源**是
 `ui/qml/theme/CairnTheme.qml`（QML 单例），本文档描述目标与取舍。
 
+> **2026-09-19 现状导引**：原 QML 实现与 `ui/qml/theme/CairnTheme.qml` **已随 UI 删除**，界面待重建
+> （`ui_tools` 工具箱 + `src/app` 载体）。当前主题实现为 `ui_tools/core/theme.py`（**token 封闭词表 → QSS**，
+> 选择器 `widget.<kind>[:state]` → `QWidget[cairnClass=…]`）+ 配置路径树（App 生成 schema）。本文旧 QML 表述作历史。
+
 ---
 
 ## 1. 目标与约束
