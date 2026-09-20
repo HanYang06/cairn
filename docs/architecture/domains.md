@@ -17,7 +17,8 @@
 | 结构基座 | `Block`（`core/storage/block.py`） | **固定**，领域不新增顶层字段 |
 | 领域结构 | 子类用 `Attr` / `Data` / `Body` 重新描述字段 | **可继承**，注册表按 `type` 分发 |
 
-- 领域类**没有中间层**，`Note` / `Asset` / `Project` / `Canvas` 都直接 `class X(Block)`。
+- 领域类**没有中间层**：数据类 `NoteData` / `AssetData` / `ProjectData` / `CanvasData` / `GroupData`
+  都直接 `class XData(Block)`；每个域另配**域服务** `Note` / `Asset` / …（`core.signal.Domain`，见 §3）。
 - 扩展方式只有两种：**加一个 `type` 子类**、或**给已有类加字段**（字段落在块的 `attrs` / `body`，不碰 `Block` 的硬件字段）。
 - **不新增块顶层字段**：`id` / `checksum` / `type` / `body` / `attrs` / `config` / `author` / `size` / `created` / `updated`
   是硬件面，领域只重描述 `body` 与 `attrs`。这样确定性 CBOR 编码与 `checksum` 口径始终稳。
@@ -45,7 +46,7 @@
 `id` / `checksum` 之外的字段用**描述符**声明，落在 `attrs` 上：
 
 ```python
-class Note(Block):
+class NoteData(Block):
     type = "cairn.note"
     schema: Attr[int] = 1  # 注解即类型、右边即默认值
     title: Attr[str | None] = None
@@ -70,7 +71,7 @@ class Note(Block):
 |---|---|---|
 | **body**（内容池） | 正文行序列、画板数值、二进制本体 | 按 `body_hash` 去重；同 body 只存一份 |
 | **attrs** | `title` / `tags` / `signature` / `props` / `schema` | 随块行存，**不参与去重** |
-| **DB 表** | 关系（`relations`）、领域自描述业务表 | 可查询 / join，**不是块** |
+| **DB 表** | 关系（`relation`）、领域自描述业务表 | 可查询 / join，**不是块** |
 
 红线：
 
@@ -95,9 +96,12 @@ class Block:
 - **注册表**：`type -> 子类`（`Block._REGISTRY`）；`Bucket.put` 时 `mount(type(block))` 触发 `bind`。
 - **业务表**：领域用 `tables()` 声明表结构，桶用 `Bucket.mount()` 幂等创建；
   通用查询用 `Bucket.table()`，复杂 SQL 走 `Bucket.execute()` / `query()`——**上层不 import sqlite**。
-- 领域之间**互不依赖**，只依赖 core 公共 API（跨域引用走 `Relation` 或延迟导入，如 `note.link`）。
+- 领域之间**互不 import 兄弟域**：跨域协作交由 **App 编排**；共享设施（`relation` / `signature` / `provenance`）
+  直接放 `feature/` 顶层供各域向下依赖。
+- **域服务**：每域一个 `Domain` 子类（`create` / `load` / 策略动作，经 `@action` 暴露）；
+  数据由 `Bucket`（存储）与域服务（语义）共同管理、各管各的。
 - 关系领域（`feature/relation.py`）特殊：它是**一等 DB 行**，不是 `Block` 子类；
-  `src` / `dst` / `kind` / `at` / `attrs` 直接落 `relations` 表（见 `storage.md` §10）。
+  `src` / `dst` / `kind` / `domain` / `at` / `attrs` 直接落 `relation` 表（见 `storage.md` §10）。
 
 ---
 
@@ -125,12 +129,10 @@ class Block:
 - 命名空间天然分层、天然隔离：
 
 ```
-core
-  └─ storage                  # L0
-feature
-  ├─ note                     # 各领域独立
-  └─ project
-ui
+core                          # 底座（storage / signal / types …）
+feature                       # 领域：各域独立（note / asset / canvas / project / group …）
+ui_tools                      # 界面工具箱
+app                           # 应用（组合根 / 编排，按平台发布）
 ```
 
 - **配置在应用层**（UI 启动时）：按命名空间把各域路由到各自的 handler / 文件，互不混杂。库自身不设默认输出。

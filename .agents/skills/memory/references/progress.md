@@ -49,6 +49,8 @@
 - [ ] P2P / 服务端（顶层包待重设）、成员 / 社区、传输加密。
 
 ## 工程债
-- [ ] 架构文档回写：`kernel.md` / `ui-kernel.md`（§3.1.1 取代「通知非命令」）/ `domains.md`；`ui-kernel.md` §10 待定项 1 关闭。
+- [~] 架构文档回写：`storage.md`（表/列/随机 pack/无 heads）、`domains.md`（数据+域服务、路径）、
+  `kernel.md`（§1.6 通信主干）、`data-model.md` / `ui-kernel.md`（状态导引）**已改**；
+  待回写：`access.md` / `network.md` / `ecosystem.md`（P2P，`net`/`server` 已删）、`ui-theme.md`（UI 已重生）、`note-model.md`。
 - [ ] 可复现构建、代码签名（Authenticode）；包体瘦身。
 - [ ] Linux 服务端 / CLI / Docker（待服务端）。

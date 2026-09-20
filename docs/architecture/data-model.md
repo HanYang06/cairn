@@ -11,6 +11,9 @@
 状态：**草案 v0.4**（2026-09-17 按「桶 + 块」模型整体重写；行序列 + 行内区间样式、关系落 DB、
 通用版本引擎**已实现**。旧稿的 Manifest / 加密 / structure.db / FastCDC 分块等表述全部作废）
 
+> **2026-09-19 现状导引**：领域目录为 `feature/`（非 `domains/`）；五域口径统一为「`XxxData(Block)` + `Xxx(Domain)`」；
+> 存储表已重构（`block` / `body` / `type` 整数码 / `block.data`；表名单数直白）。细节以 `storage.md` / `domains.md` / 代码为准。
+
 ---
 
 ## 0. 一页看懂（对象拓扑）

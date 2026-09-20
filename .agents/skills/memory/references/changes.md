@@ -306,6 +306,10 @@
   **删除** `src/conf`、`src/net`、`src/server`、`src/ui`；撤除 `src/kernel.py` / `src/main.py`（编排归 App）。
   收尾：修 `core/__init__` 半截导入、`ui.` → `ui_tools.` 引用、补新建占位文件 SPDX 头与 docstring、
   `pyproject` 的 wheel packages / isort。ruff / format / mypy / pytest 全绿，211 通过。
+- 2026-09-19 · 已定 · **架构文档回写（事实修正）**：`storage.md` 改表 / 列（`block` / `body` / `block_type` /
+  `block.data` / 随机 pack 名 / 去 `version_heads` / `relation.domain`）；`domains.md` 改「数据 + 域服务」与当前路径；
+  `kernel.md` 加 §1.6 通信主干（`core/signal` 静态挂载）；`data-model.md` / `ui-kernel.md` 加现状导引。
+  待回写：`access.md` / `network.md` / `ecosystem.md` / `ui-theme.md` / `note-model.md`。206 通过。
 - 2026-09-19 · 已定 · **领域拆分（Project / Group）**：`ProjectData(Block)` + `Project(Domain)`（创建 / 载入 / 更新 /
   成员关系）、`GroupData(Block)` + `Group(Domain)`（创建 / 增删 / 重排 / 嵌套解析）；`group` 模块函数改用 `GroupData`；
   `feature` 导出两套；测试迁移。至此 **note / asset / canvas / project / group 五域口径统一**（数据 + 域服务）。

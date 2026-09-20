@@ -24,8 +24,8 @@
 - 上层的一切（笔记 / 资产 / 项目 / 画板 / 索引 / 变更）**最终都是块**或其属性；
   区别只在 `type` 与 `body`，不再另开"存储物种"。
 - **本地不加密**，落盘明文；加密只用于传输 / 服务端（见 §7）。
-- 内容按 `checksum`（= `body_hash`）**内容寻址**；桶在 `contents` 表按该哈希去重（同 body 只存一份）。
-  分片 / 索引块（`cairn.part` / `cairn.index`）不做块级去重。
+- 内容按 `checksum`（= `body_hash`）**内容寻址**；桶在 **`body` 表**按该哈希去重（同 body 只存一份）。
+  分片 / 索引块（`cairn.part` / `cairn.index`）不做块级去重；`block.type` 为**整数码**（`block_type` 表）。
 - 没有 manifest、没有 space、没有分块池：这些概念已删除。
 
 ### 非目标
@@ -58,11 +58,11 @@
 ```
 <bucket>/
   catalog.db            # 目录（唯一真源）：块位置 + 版本 + 关系 + 检索
-  packs/                # 载体文件，平铺、顺序命名
-    000000.pack …
+  packs/                # 载体文件，平铺、**随机哈希命名**
+    3f9a…（[0-9a-z] 32 位）
 ```
 
-- pack 名不含任何明文，只是顺序号；内容按 checksum 去重，逻辑块另有稳定 id。
+- pack 名是**随机哈希**（无语义 / 无顺序号）；内容按 checksum 去重，逻辑块另有稳定 id。
 - 没有 `.cairn/` 派生索引、没有 `db/structure.db` 之分：**只剩一个目录库**。
 
 ---
@@ -102,18 +102,21 @@ Block:
 ## 6. 目录（Catalog，SQLite）
 
 ```sql
-packs(id PK, blocks, bytes, sealed, created)
-contents(checksum PK, pack_id, offset, length)      -- body 内容池：按 body_hash 去重
-blocks(id PK, checksum, type, size, author, config, meta, created, updated)
-                                                    -- checksum=body_hash；meta=attrs(CBOR)
-versions(id PK, oid, prev, at, payload)            -- 版本链（反向补丁；见 §9）
-version_heads(oid PK, head, count)                  -- 每条笔记的链头
-relations(id PK, src, dst, kind, at, attrs, created)-- 关系（一等行）
+packs(id PK, name, blocks, bytes, sealed, created)   -- name = 随机哈希
+body(body_id PK, pack_id, offset, length)            -- body 池：按 body_hash 去重
+block_type(code PK, name)                            -- 类型码表：kind ↔ int（稳定、不复用）
+block(oid PK, body_id, type, size, data, created, updated)
+                                                     -- body_id=body_hash；type=整数码；
+                                                     -- data=canonical({attrs, config, author})
+version(id PK, oid, prev, at, payload)              -- 版本链（反向补丁；见 §9；无 heads 表）
+relation(id PK, src, dst, kind, domain, at, attrs, created)
+                                                     -- 关系（一等行；domain=归属领域）
 search(oid PK, body)                                -- 检索文本
 meta(key PK, value)
 ```
 
-- `contents` 就是**去重池**：`body_hash`（主键）→ 物理位置，查找 O(1)；同 body 只存一份。
+- `body` 就是**去重池**：`body_id`（主键）→ 物理位置，查找 O(1)；同 body 只存一份。
+- `block.data` 一次性装 `{attrs, config, author}`（不再拆多列）；`block.type` 为整数码。
 - 目录是**唯一真源**：块的位置只在这里；不做"可重建的派生索引"。
 - 领域自描述的业务表走 `Block.tables()` + `Bucket.mount()` 创建；通用查询用 `Bucket.table()`，
   复杂 SQL 走 `Bucket.execute()/query()`——上层不 import sqlite。
@@ -133,12 +136,12 @@ meta(key PK, value)
 写入（一次 `bucket.put(block)`）：
 
 1. `block.validate()`（领域校验，默认放行）；
-2. 算 `body_hash`；查内容池，无则：`canonical(body)` → 追加到活跃 pack（`fsync`）→ 记 `contents`；
-3. 记/更新 `blocks` 行（`checksum=body_hash`，`meta=canonical(attrs)`）；提交事务。
+2. 算 `body_hash`；查 body 池，无则：`canonical(body)` → 追加到活跃 pack（`fsync`）→ 记 `body`；
+3. 记/更新 `block` 行（`body_id=body_hash`，`type`=整数码，`data=canonical({attrs,config,author})`）；提交事务。
 
 读取（`bucket.get(cls, id)`）：
 
-1. 由 `blocks` 行拿 `checksum` → `contents` 定位 → 读 pack 得 body；`meta` 取 attrs；
+1. 由 `block` 行拿 `body_id` → `body` 定位 → 读 pack 得 body；`data` 取 attrs/config/author；
 2. 拼合还原为对应子类，重算 `body_hash` 校验；类型不符抛 `KindMismatchError`。
 
 大内容：`Bucket.put_content(bytes)` 切片 + 索引块（`cairn.index`）；分片块不做块级去重。
@@ -149,9 +152,9 @@ meta(key PK, value)
 
 - 引擎在 `core/storage/version.py`，**block 亲和**：以块 id 为键，只管链、顺序、回放、压实，
   不认识领域语义；域提供 `Codec`（`digest / diff / apply`）。
-- 表 `versions(id PK, oid, prev, at, payload)` + `version_heads(oid PK, head, count)`：
-  - **版本 id = `blake3(canonical({prev, at, sig}))`**：哈希身份 + `prev` 单亲链；顺序从 `head`
-    沿 `prev` 走，不依赖时间/序号（Git 式，将来可扩多亲 DAG）。
+- 表 `version(id PK, oid, prev, at, payload)`（**无 `version_heads`**；头 / 计数由表推导）：
+  - **版本 id = `blake3(canonical({prev, at, sig}))`**：哈希身份 + `prev` 单亲链；`head` = 不被任何
+    `prev` 指向者，沿 `prev` 走，不依赖时间/序号（Git 式，将来可扩多亲 DAG）。
   - 第一版记一个**根节点**（空补丁），此后每次内容变化追加一个反向补丁。
 - 补丁是**反向的**（新 → 旧）：当前版本永远在块里，历史从 `head` 反向回放重建。
   - 笔记补丁按**行 id** 锚定：`PUT`（载荷=旧值）/ `DROP` / `@order`；未变更行不入补丁。
@@ -163,8 +166,8 @@ meta(key PK, value)
 
 ## 10. 关系（一等 DB 行）
 
-- 表 `relations(id, src, dst, kind, at, attrs, created)`；`kind` 有 `derived-from` /
-  `references` / `contains` 等。
+- 表 `relation(id, src, dst, kind, domain, at, attrs, created)`；`kind` 有 `derived-from` /
+  `references` / `contains` 等；`domain` 标明边归属的领域（note / project / group …）。
 - `outbound(src)` / `backlinks(dst)` 直接查表 → 引用拓扑（A→B→C）。
 - 关系**不是块**（去对象化）。
 
