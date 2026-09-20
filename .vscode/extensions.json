@@ -5,5 +5,8 @@
         "charliermarsh.ruff",
         "ms-python.mypy-type-checker",
         "theqtcompany.qt-python"
+    ],
+    "unwantedRecommendations": [
+        "ms-python.isort"
     ]
 }
