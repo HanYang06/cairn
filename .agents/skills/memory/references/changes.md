@@ -300,6 +300,7 @@
   （`from .types` 改 `..types`）；`bus.py` / `service.py` 改相对导入；`core.signal.__init__` 统一转出
   `Event` / `EventBus` / `Handler` / `ObjectPut` / `ObjectDeleted` / `Subscription`。`core/__init__` 与
   `Vault` 改从 `core.signal` 导入。**信号层现在一处可导入**（`EventBus` 不再单飞）。
+- 2026-09-19 · 已定 · **UI 组件原子**：`ui/component/atoms.py` `Label`/`Button`/`Field`/`Divider`/`Chip`（各带 `STYLABLE`/`STATES` 词汇元数据）；`ui/core/qt.py` 补对应翻译器（QLabel/QPushButton/QLineEdit/QFrame）。新增 `tests/ui/test_atoms.py`。ruff / format / mypy / pytest 全绿，202 通过。
 - 2026-09-19 · 已定 · **UI 内核 · Qt 桥 + 最小翻译器**：新增 `ui/core/bridge.py`（`Bridge(QObject)`：
   `Session` 变更 → Qt `changed` 信号）与 `ui/core/qt.py`（`build_compiler`：`page`/`layout`/`vbox`/`hbox`/
   `grid`/`split`/`stack`/`component` → QWidget 树）。`Translator` 由 `Protocol` 改 **`Callable` 类型别名**；
@@ -339,3 +340,4 @@
   `Session`（消费主干：订阅 `Signal.events`，维护投影缓存，变更即整体失效并通知观察者；`watch` 返回取消函数；
   `close` 收订阅）与 `App`（组合根，持 `Session`）。**不 import `feature`、不碰 `Vault`**，只吃 `Signal`；
   不带 Qt。新增 `tests/ui/test_session.py`（3 例）。ruff / format / mypy / pytest 全绿，166 通过。
+

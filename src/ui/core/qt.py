@@ -13,8 +13,12 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QBoxLayout,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
     QSplitter,
     QStackedWidget,
     QVBoxLayout,
@@ -38,6 +42,11 @@ def build_compiler() -> Compiler:
     compiler.register("split", _split)
     compiler.register("stack", _stack)
     compiler.register("component", _vbox)
+    compiler.register("label", _label)
+    compiler.register("button", _button)
+    compiler.register("field", _field)
+    compiler.register("divider", _divider)
+    compiler.register("chip", _chip)
     return compiler
 
 
@@ -93,6 +102,34 @@ def _stack(_node: Node, children: list[object]) -> QWidget:
         if isinstance(child, QWidget):
             stack.addWidget(child)
     return stack
+
+
+def _label(node: Node, _children: list[object]) -> QWidget:
+    return QLabel(str(getattr(node, "text", "")))
+
+
+def _button(node: Node, _children: list[object]) -> QWidget:
+    return QPushButton(str(getattr(node, "text", "")))
+
+
+def _field(node: Node, _children: list[object]) -> QWidget:
+    edit = QLineEdit(str(getattr(node, "text", "")))
+    placeholder = str(getattr(node, "placeholder", ""))
+    if placeholder:
+        edit.setPlaceholderText(placeholder)
+    return edit
+
+
+def _divider(_node: Node, _children: list[object]) -> QWidget:
+    frame = QFrame()
+    frame.setFrameShape(QFrame.Shape.HLine)
+    return frame
+
+
+def _chip(node: Node, _children: list[object]) -> QWidget:
+    chip = QLabel(str(getattr(node, "text", "")))
+    chip.setProperty("cairnClass", "chip")
+    return chip
 
 
 __all__ = ["build", "build_compiler"]
