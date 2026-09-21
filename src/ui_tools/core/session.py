@@ -88,7 +88,7 @@ class Session:
 
     def _on_event(self, event: Event) -> None:
         self._cache.clear()
-        for loader, model in self._models:
+        for loader, model in list(self._models):  # 迭代副本：回调可能增删模型
             try:
                 model.replace(loader())
             except Exception:  # noqa: BLE001 — 单个 loader 失败不应拖垮其余模型

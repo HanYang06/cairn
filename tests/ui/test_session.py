@@ -97,3 +97,22 @@ def test_on_event_isolates_failing_observer(tmp_path: Path) -> None:
     vault.put_block(Block(body=b"w"))
 
     assert len(seen) == 1
+
+
+def test_on_event_allows_model_change_from_loader(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    session = Session(vault.signal)
+    state = {"armed": False, "added": False}
+
+    def loader() -> list[int]:
+        if state["armed"] and not state["added"]:
+            state["added"] = True
+            session.model(list)  # 通知期间新增模型，不得中断迭代
+        return []
+
+    session.model(loader)
+    state["armed"] = True
+
+    vault.put_block(Block(body=b"q"))
+
+    assert state["added"] is True
