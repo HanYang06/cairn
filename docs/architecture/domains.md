@@ -29,11 +29,11 @@
 
 ```python
 class Kind:
-    class Feature(Enum):   # 域
+    class Feature(Enum):  # 域
         Note = "note"
         Project = "project"
 
-    class Data(Enum):      # 数据（落盘的块类型）
+    class Data(Enum):  # 数据（落盘的块类型）
         Notedata = "notedata"
         Projectdata = "projectdata"
         Canvas = "canvas"
@@ -49,10 +49,10 @@ class Kind:
 
 ```python
 class Note(Domain):
-    type = Kind.Feature.Note                               # 身份（缺省 = 类名小写）
+    type = Kind.Feature.Note  # 身份（缺省 = 类名小写）
     # name 缺省 = 定义它的模块路径：**解析键，不是显示名**（显示名是 UI 的事）
-    data = (NoteData, AssetData, CanvasData, GroupData)    # 本域用到的数据类（body 免列）
-    light = [NoteData]                                     # 最小数据单元（可多个）
+    data = (NoteData, AssetData, CanvasData, GroupData)  # 本域用到的数据类（body 免列）
+    light = [NoteData]  # 最小数据单元（可多个）
 ```
 
 - `name`：解析键，自动派生；**领域不写显示名**（UI 侧给 title）。
@@ -65,8 +65,8 @@ class Note(Domain):
 ```python
 class NoteData(Block):
     type = Kind.Data.Notedata
-    body: NoteBody = NoteBody()      # 结构化 body；裸 body 用 BodyField()
-    title: Attr[str | None] = None   # 注解即类型、右边即值（自动字段）
+    body: NoteBody = NoteBody()  # 结构化 body；裸 body 用 BodyField()
+    title: Attr[str | None] = None  # 注解即类型、右边即值（自动字段）
     tags: Attr = Attr(factory=dict, coerce=normalize_tags)  # 显式描述符
 ```
 
