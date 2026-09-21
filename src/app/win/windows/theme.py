@@ -48,19 +48,29 @@ _FALLBACK_STYLES: dict[str, dict[str, str]] = {
 
 
 def theme_dir() -> Path:
-    """主题目录：`CAIRN_THEME_DIR` 优先，否则仓库 `config/theme`。"""
+    """主题目录：`CAIRN_THEME_DIR` 优先（须是目录），否则向上找仓库 `config/theme`。"""
     override = os.environ.get("CAIRN_THEME_DIR")
     if override:
-        return Path(override)
-    return Path(__file__).resolve().parents[4] / "config" / "theme"
+        candidate = Path(override)
+        if candidate.is_dir():
+            return candidate
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "config" / "theme"
+        if candidate.is_dir():
+            return candidate
+    return here.parent / "config" / "theme"
 
 
 def app_theme(name: str = DEFAULT_THEME) -> Theme:
-    """加载命名主题文件；不存在则退回内置默认。"""
+    """加载命名主题文件；文件缺失、非法或损坏都退回内置默认，保证永远能起。"""
+    if not name or Path(name).name != name or name in {".", ".."}:
+        return Theme(_FALLBACK_TOKENS, _FALLBACK_STYLES)
     path = theme_dir() / f"{name}.json"
-    if path.exists():
+    try:
         return load_theme(path)
-    return Theme(_FALLBACK_TOKENS, _FALLBACK_STYLES)
+    except (OSError, ValueError):
+        return Theme(_FALLBACK_TOKENS, _FALLBACK_STYLES)
 
 
 __all__ = ["DEFAULT_THEME", "app_theme", "theme_dir"]

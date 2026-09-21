@@ -9,6 +9,7 @@ import pytest
 from PySide6.QtWidgets import QListView, QMainWindow, QPushButton
 
 from app.win import CairnApp
+from app.win.windows.theme import app_theme
 from core import Vault
 from feature import Note
 from ui_tools.core.qt import build_window
@@ -55,3 +56,18 @@ def test_stage_shows_real_notes(tmp_path) -> None:
     assert stage.model() is not None
     assert stage.model().rowCount() == 2
     vault.close()
+
+
+def test_theme_falls_back_on_broken_file(tmp_path, monkeypatch) -> None:
+    (tmp_path / "broken.json").write_text("{ not json", encoding="utf-8")
+    monkeypatch.setenv("CAIRN_THEME_DIR", str(tmp_path))
+
+    theme = app_theme("broken")
+
+    assert theme.token("bg")  # 损坏文件退回内置默认，不抛
+
+
+def test_theme_rejects_path_traversal(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("CAIRN_THEME_DIR", str(tmp_path))
+
+    assert app_theme("../../etc/passwd").token("bg")  # 非法名退回内置默认
