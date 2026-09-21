@@ -115,9 +115,11 @@ class GroupData(Block):
         return self
 
     def move(self, order: Sequence[int]) -> Self:
-        """按旧下标重排子项。"""
+        """按旧下标重排子项；``order`` 必须是 ``0..n-1`` 的完整排列。"""
         self.require_unlocked()
         items = list(self.group)
+        if sorted(order) != list(range(len(items))):
+            raise GroupError(f"重排下标必须是 0..{len(items) - 1} 的完整排列: {list(order)}")
         self.group = [items[index] for index in order]
         self.save()
         return self

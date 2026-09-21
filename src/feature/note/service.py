@@ -82,8 +82,9 @@ class Note(Domain):
         data.tags = tags or {}
         if props:
             data.attrs["props"] = dict(props)
-        # 创作签名：锁在创建时的正文内容上（原始结构据此可找回）
-        data.signature = Signature.create(author=data.author or "", subject=data.body_hash())
+        # 创作签名：锁在创建时的正文内容上（原始结构据此可找回；剥离行 id）
+        subject = data.body.refresh().hash
+        data.signature = Signature.create(author=data.author or "", subject=subject)
         self.save(data, search_text=_search_text(title, text))
         return data
 
@@ -298,7 +299,7 @@ class Note(Domain):
         state = VersionStore(self.vault.bucket).state_at(
             data.id,
             NOTE_CODEC,
-            data._state(),  # noqa: SLF001 — 域服务读取数据内部状态
+            data._saved_state or data._state(),  # noqa: SLF001 — 回放起点须为落盘基线
             str(version),
         )
         body: list[LineDict] = state["body"]
@@ -310,7 +311,7 @@ class Note(Domain):
         state = VersionStore(self.vault.bucket).state_at(
             data.id,
             NOTE_CODEC,
-            data._state(),  # noqa: SLF001 — 域服务读取数据内部状态
+            data._saved_state or data._state(),  # noqa: SLF001 — 回放起点须为落盘基线
             str(version),
         )
         data.body.text = normalize_body(state["body"])

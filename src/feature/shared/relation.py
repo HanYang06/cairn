@@ -121,16 +121,17 @@ class Relation:
         attrs = dict(props or {})
         at = attrs.pop("at", None)
         if tags:
-            attrs["tags"] = (
-                {str(key): value for key, value in tags.items()}
-                if isinstance(tags, Mapping)
-                else {str(item): None for item in tags}
-            )
+            if isinstance(tags, Mapping):
+                attrs["tags"] = {str(key): value for key, value in tags.items()}
+            elif isinstance(tags, str):
+                attrs["tags"] = {tags: None}
+            else:
+                attrs["tags"] = {str(item): None for item in tags}
         _table(vault).insert(
             {
                 "id": rid,
-                "src": str(source),
-                "dst": str(target),
+                "src": str(Oid.parse(str(source))),
+                "dst": str(Oid.parse(str(target))),
                 "kind": str(relation),
                 "domain": str(domain),
                 "at": None if at is None else str(at),
@@ -178,7 +179,7 @@ class Relation:
         *,
         relation: str | None = None,
     ) -> Iterator[Relation]:
-        for row in _table(vault).select(src=str(source)):
+        for row in _table(vault).select(src=str(Oid.parse(str(source)))):
             item = cls._from_row(vault, row)
             if relation is None or item.relation == relation:
                 yield item
@@ -191,7 +192,7 @@ class Relation:
         *,
         relation: str | None = None,
     ) -> Iterator[Relation]:
-        for row in _table(vault).select(dst=str(target)):
+        for row in _table(vault).select(dst=str(Oid.parse(str(target)))):
             item = cls._from_row(vault, row)
             if relation is None or item.relation == relation:
                 yield item

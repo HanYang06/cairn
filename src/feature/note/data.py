@@ -16,7 +16,9 @@ import copy
 from collections.abc import Mapping
 from typing import Any, ClassVar
 
-from core.storage import Attr, Block, Body
+from blake3 import blake3
+
+from core.storage import Attr, Block, Body, canonical
 from core.types import Oid
 
 from ..shared.base import normalize_tags
@@ -134,9 +136,16 @@ class NoteData(Block):
         # 上次落盘基线；域服务 ``save()`` 据此记版本检查点
         self._saved_state: dict[str, Any] | None = None
 
-    # ---- 去重键（剥离行 id；只算正文 + 行内样式）----
+    # ---- 去重键 = 落盘负载的哈希 ----
     def body_hash(self) -> str:
-        return self.body.refresh().hash
+        """内容池去重键 = **落盘负载的哈希**。
+
+        负载（``to_data``）里含行 id，故去重键必须与负载口径一致，否则不同行 id
+        的笔记会命中同一内容行、读回时被静默替换成别人的行 id。供签名 / 版本用的
+        「剥离行 id」的内容签名是 ``self.body.hash``，二者分工不同。
+        """
+        self.body.refresh()
+        return blake3(canonical(self.body.to_data())).hexdigest()
 
     # ---- 正文读视图 ----
     @property

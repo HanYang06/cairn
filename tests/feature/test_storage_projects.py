@@ -115,3 +115,40 @@ def test_provenance_lineage(tmp_path: Path) -> None:
 
     assert descendants(vault, original.oid) == (remix.oid, again.oid)
     assert ancestors(vault, again.oid) == (remix.oid, original.oid)
+
+
+def test_add_member_is_idempotent(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    projects = Project(vault)
+    project = projects.create("P")
+    member = Note(vault).create("a")
+
+    first = projects.add_member(project, member.oid)
+    again = projects.add_member(project, member.oid)
+
+    assert first.oid == again.oid
+    assert projects.members(project) == [member.oid]
+
+
+def test_provenance_cycle_excludes_origin(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    notes = Note(vault)
+    a = notes.create("a")
+    b = notes.create("b")
+    Relation.create(vault, b.oid, a.oid, relation="derived-from")
+    Relation.create(vault, a.oid, b.oid, relation="derived-from")
+
+    assert descendants(vault, a.oid) == (b.oid,)
+    assert ancestors(vault, a.oid) == (b.oid,)
+
+
+def test_relation_normalizes_id_case(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    notes = Note(vault)
+    a = notes.create("a")
+    b = notes.create("b")
+
+    edge = Relation.create(vault, str(a.oid).lower(), str(b.oid).lower(), relation="references")
+
+    assert edge.source == a.oid
+    assert [item.oid for item in Relation.outbound(vault, a.oid)] == [edge.oid]
