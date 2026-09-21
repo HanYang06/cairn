@@ -30,9 +30,11 @@ class Slot(Node):
         align: str | None = None,
         stretch: bool = False,
         capacity: int | None = None,
+        addable: bool | None = None,
         **opts: Any,
     ) -> None:
-        super().__init__(name, addable=not locked, capacity=capacity, stretch=stretch, **opts)
+        resolved = (not locked) if addable is None else addable
+        super().__init__(name, addable=resolved, capacity=capacity, stretch=stretch, **opts)
         self.expects = expects
         self.scroll = scroll
         self.hidden = hidden

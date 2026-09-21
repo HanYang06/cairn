@@ -72,7 +72,7 @@
 ```python
 Block:
   id          # 稳定身份（ULID），创建即分配，**锁死**
-  checksum    # = body_hash：只覆盖 body（BLAKE3，十六进制）；桶按它去重
+  checksum    # = body_hash：**落盘负载**的哈希（BLAKE3，十六进制）；桶按它去重
   type        # 承载类型（str / Enum）
   body        # 主体（list / bytes / 标量）→ 进**内容池**，按 body_hash 去重
   attrs       # 原生属性（dict）→ 随块行存，**不参与去重**
@@ -84,8 +84,9 @@ Block:
 
 - **body 与 attrs 分家**：`body` 进内容池（同 body 只存一份）；`attrs` 随块行存。
   于是「同正文、不同属性（标题 / 标签 / 签名 / 时间）」既能共享正文、又互不污染。
-- `checksum`（= body_hash）只算 body，不含 id / attrs / 签名；子类可覆写口径
-  （笔记剥离行 id、把行内样式算入）。
+- `checksum`（= `body_hash`）是**落盘负载**的哈希，去重键与负载口径必须一致。笔记负载含行 id，
+  故其去重键也含行 id——同文但行 id 不同的笔记不会误命中而串行 id。剥离行 id 的内容签名是
+  `Body.hash`（供签名 / 版本用）；子类可覆写 `body_hash` 口径。
 - 领域结构**直接继承 `Block`**，用 `Attr` / `Body` 重新描述字段；`Bucket` 负责 I/O。
 
 ---

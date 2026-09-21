@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from typing import TYPE_CHECKING, Any
 
 from .relation import Relation
@@ -47,11 +48,12 @@ def descendants(
     relation: str = DERIVED_FROM,
 ) -> tuple[Oid, ...]:
     """所有（递归）派生自 ``oid`` 的对象。"""
-    seen: set[str] = set()
+    origin = str(oid)
+    seen: set[str] = {origin}
     order: list[Oid] = []
-    frontier = [str(oid)]
+    frontier = deque([origin])
     while frontier:
-        current = frontier.pop(0)
+        current = frontier.popleft()
         for edge in Relation.backlinks(vault, current, relation=relation):
             child = str(edge.source)
             if child not in seen:
@@ -68,11 +70,12 @@ def ancestors(
     relation: str = DERIVED_FROM,
 ) -> tuple[Oid, ...]:
     """``oid`` 的（递归）来源对象。"""
-    seen: set[str] = set()
+    origin = str(oid)
+    seen: set[str] = {origin}
     order: list[Oid] = []
-    frontier = [str(oid)]
+    frontier = deque([origin])
     while frontier:
-        current = frontier.pop(0)
+        current = frontier.popleft()
         for edge in Relation.outbound(vault, current, relation=relation):
             parent = str(edge.target)
             if parent not in seen:

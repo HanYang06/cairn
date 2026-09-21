@@ -56,10 +56,12 @@ def diff(new_state: State, old_state: State) -> bytes:  # noqa: C901 — 三趟 
     old_order = [line["id"] for line in old_state.get("body") or ()]
 
     patch: dict[str, Any] = {}
+    structural = False  # 行有增删 / 重排：必须显式给 @order，不能只靠 after 链
 
     for lid in new_by:
         if lid not in old_by:
             patch[lid] = {"act": "DROP"}
+            structural = True
 
     for index, lid in enumerate(old_order):
         if lid in new_by:
@@ -71,6 +73,7 @@ def diff(new_state: State, old_state: State) -> bytes:  # noqa: C901 — 三趟 
             entry["style"] = old_style[lid]
         entry["after"] = old_order[index - 1] if index > 0 else None
         patch[lid] = entry
+        structural = True
 
     for lid, old_line in old_by.items():
         new_line = new_by.get(lid)
@@ -90,7 +93,7 @@ def diff(new_state: State, old_state: State) -> bytes:  # noqa: C901 — 三趟 
 
     new_common = [line["id"] for line in new_state.get("body") or () if line["id"] in old_by]
     old_common = [lid for lid in old_order if lid in new_by]
-    if new_common != old_common:
+    if structural or new_common != old_common:
         patch["@order"] = old_order
 
     return canonical(patch) if patch else b""

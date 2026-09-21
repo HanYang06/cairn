@@ -107,6 +107,23 @@ def test_body_pool_dedupes_across_attrs(tmp_path: Path) -> None:
     assert vault.bucket.catalog.count_blocks() == 2  # 属性各自独立
 
 
+def test_same_content_different_line_ids_coexist(tmp_path: Path) -> None:
+    """同文但行 id 不同的两条笔记：去重键含行 id，读回不得串成别人的行 id。"""
+    vault = _vault(tmp_path)
+    notes = Note(vault)
+    first = notes.create("same body")
+    second = notes.create("same body")
+    # 模拟编辑过程中行 id 变化（拆分 / 删除重插等），正文内容保持不变
+    second.body.text = [dict(second.body[0], id="01ARZ3NDEKTSV4RRFFQ69G5FAV")]
+    second.body.refresh()
+    notes.save(second)
+
+    assert first.body.hash == second.body.hash  # 内容签名（剥离行 id）一致
+    assert vault.bucket.catalog.count_bodies() == 2  # 负载口径不同 → 各存一份
+    loaded = notes.load(second.oid)
+    assert loaded.body[0]["id"] == "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+
+
 def test_note_creation_signature_is_composite(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     notes = Note(vault)
@@ -129,6 +146,19 @@ def test_signature_tamper_is_detected() -> None:
     assert signature.verify()
 
     tampered = Signature.from_data({**signature.to_data(), "author": "石"})
+    assert not tampered.verify()
+
+
+def test_signature_from_data_fails_closed() -> None:
+    assert Signature.from_data(None).verify() is False
+    assert Signature.from_data({"created": None}).verify() is False
+    with pytest.raises(TypeError):
+        Signature.from_data([1])
+
+
+def test_signature_created_type_is_strict() -> None:
+    signature = Signature.create(author="韩", subject="abc", created=1000)
+    tampered = Signature.from_data({**signature.to_data(), "created": "1000"})
     assert not tampered.verify()
 
 

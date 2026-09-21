@@ -58,8 +58,12 @@ def insert_line(
     """在 ``after_id`` 之后插入一行（``None`` 追加到末尾）；返回新行 id。"""
     out = copy_lines(lines)
     lid = new_id()
-    position = len(out) if after_id is None else index_of(out, after_id) + 1
-    out.insert(max(0, position), entry(lid, str(value)))
+    position = len(out)
+    if after_id is not None:
+        index = index_of(out, after_id)
+        if index >= 0:
+            position = index + 1
+    out.insert(position, entry(lid, str(value)))
     return out, lid
 
 

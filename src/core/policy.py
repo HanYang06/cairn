@@ -48,6 +48,8 @@ _TARGET: dict[ShareKind, Audience] = {
 
 def parse_kind(value: object) -> ShareKind | None:
     """把任意值解析为 ``ShareKind``；无法识别时返回 ``None``。"""
+    if isinstance(value, ShareKind):
+        return value
     try:
         return ShareKind(str(value))
     except ValueError:
@@ -61,7 +63,7 @@ def target_audience(kind: ShareKind) -> Audience:
 
 def is_private(shares: Iterable[Mapping[str, object]]) -> bool:
     """没有任何分享目标即私密（仅自己可见）。"""
-    return not list(shares)
+    return not any(True for _ in shares)
 
 
 def visible_to(shares: Iterable[Mapping[str, object]], audience: Audience) -> bool:

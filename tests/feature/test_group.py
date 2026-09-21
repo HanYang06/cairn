@@ -83,6 +83,19 @@ def test_move_reorders_children(tmp_path: Path) -> None:
     assert group.group == [str(second.oid), str(first.oid)]
 
 
+def test_move_requires_permutation(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    group = GroupData.create(vault, "排序")
+    notes = Note(vault)
+    group.add(notes.create("一"))
+    group.add(notes.create("二"))
+
+    with pytest.raises(GroupError):
+        group.move([0])
+    with pytest.raises(GroupError):
+        group.move([0, 0])
+
+
 def test_roundtrip(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     group = GroupData.create(vault, "持久", key="k")

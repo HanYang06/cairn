@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -35,7 +36,7 @@ def _digest(alg: str, author: str, created: int, prev: str, subject: str) -> str
     payload = {
         "alg": alg,
         "author": author,
-        "created": int(created),
+        "created": created,
         "prev": prev,
         "subject": subject,
     }
@@ -58,8 +59,13 @@ class Signature:
 
     @classmethod
     def from_data(cls, data: Any) -> Signature:
+        """由落盘数据还原；异形输入不崩，交由 ``verify`` 判定真伪。"""
+        if data is None:
+            return cls()
         if isinstance(data, str):  # 兼容旧的弱签名串
             return cls(value=str(data))
+        if not isinstance(data, Mapping):
+            raise TypeError(f"签名数据必须是映射，得到 {type(data).__name__}")
         known = {key: data[key] for key in cls.__dataclass_fields__ if key in data}
         return cls(**known)
 
@@ -84,8 +90,12 @@ class Signature:
         )
 
     def verify(self) -> bool:
-        """自校验：重算 value，对不上说明字段被改过。"""
-        return self.value == _digest(self.alg, self.author, self.created, self.prev, self.subject)
+        """自校验：重算 value，对不上说明字段被改过（脏数据一律判假，不抛异常）。"""
+        try:
+            expected = _digest(self.alg, self.author, self.created, self.prev, self.subject)
+        except (TypeError, ValueError):
+            return False
+        return self.value == expected
 
     def encoded(self) -> str:
         """落成人可读的复合串（自包含）。"""

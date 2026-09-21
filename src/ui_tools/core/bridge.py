@@ -26,9 +26,14 @@ class Bridge(QObject):
         super().__init__(parent)
         self._session = session
         self._cancel = session.watch(self._on_event)
+        # C++ 对象被销毁时自动退订，避免回调打到已删除的 QObject。
+        self.destroyed.connect(self._on_destroyed)
 
     def _on_event(self, event: object) -> None:
         self.changed.emit(event)
+
+    def _on_destroyed(self, _obj: object = None) -> None:
+        self.close()
 
     def close(self) -> None:
         """断开与 Session 的观察。"""

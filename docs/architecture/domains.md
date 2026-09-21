@@ -70,7 +70,7 @@ class NoteData(Block):
     tags: Attr = Attr(factory=dict, coerce=normalize_tags)  # 显式描述符
 ```
 
-- 容器分工：**内容** `body`（进内容池，按 `body.hash` 去重）/ **描述** `attrs`（随块行存）。
+- 容器分工：**内容** `body`（进内容池，按 `body_hash`＝落盘负载哈希去重）/ **描述** `attrs`（随块行存）。
 - 扩展方式只有两种：**加一个 `type` 子类**、或**给已有类加字段**（`Attr` / `Data` / `Body`）。
 - 关系是**一等 DB 行**（`relation` 表：`src` / `dst` / `kind` / `domain`），不是块。
 - 组：域身份 `gid`（≠ 块 `oid`）+ 有序子项 `group` 列表（可嵌套）；另存 `contains` 边做反查。

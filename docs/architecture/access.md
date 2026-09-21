@@ -139,7 +139,7 @@
 | 身份 | 未来传输身份；本地只认块的 `Signature` |
 | 密钥（传输 / 远端） | §7，本地明文；密钥不进桶 |
 | 分享目标 / 可见性 | 策略层 `core/policy.py`（`Audience` / `ShareKind`），不是存储字段 |
-| 块签名 / 版本链 | §4 `checksum = body.hash`；§9 `VersionStore` 的 `prev` 链 |
+| 块签名 / 版本链 | §4 `checksum = body_hash`；§9 `VersionStore` 的 `prev` 链 |
 | 去重范围 | §4 内容池（按 `body_hash`），本库内去重 |
 | GC / 历史保留 | §9（30 天惰性压实）、§11（删除与回收） |
 

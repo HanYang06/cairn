@@ -53,7 +53,7 @@ Composition 组装 —— 一种角色：正文里放节点引用的 note → �
 - **创作签名**：`Signature{alg, author, created, subject, prev, value}`（`feature/signature.py`），
   创建时锁在当时的 `body.hash` 上；当前 `alg="b3"` 是自包含的哈希链（改任一字段 `value` 即对不上），
   日后换 `ed25519` 不破格式。它证明"原始结构可找回 / 未被改写"，不是网络身份。
-- **不可篡改性由内容寻址保证**：`checksum = body.hash`，读回重算校验。
+- **不可篡改性由内容寻址保证**：`checksum = body_hash`（落盘负载哈希），读回重算校验。
 
 ---
 
@@ -111,7 +111,8 @@ style = { 行id: [ {区间(tuple): Style} ] }
 - **行 id 稳定**（ULID，生成即锁死）：行增删 / 重排不影响样式与版本（无下标漂移）。
 - **样式是叠加层，不是内容**：`{行id → 区间层}`；行内加粗只需加区间，不拆 body；后层压前层，
   规范化为不重叠、有序、去默认。
-- **内容签名（cID）剥离行 id**：同文同样式即同签名 → 可去重；改一字即不同（`p` 计入签名）。
+- **内容签名（`body.hash`）剥离行 id**：同文同样式即同签名（签名 / 版本用）；改一字即不同（`p` 计入）。
+  **去重键 `checksum = body_hash` 按落盘负载算、含行 id**，避免不同行 id 的笔记串内容。
 - **嵌入块**：图 / 视频 / 文件 / 画板都以占位元素表达，本体另存（`Asset` / `Canvas`）。
 - **超长行**：等效中文 > 300 字（`OVERLONG_WEIGHT`）时由 UI 关软换行、转横向滚动（逼硬回车），
   并在空白处给「到行末」按钮；**内核不强制拆行**。
@@ -189,7 +190,7 @@ style = { 行id: [ {区间(tuple): Style} ] }
 |---|---|
 | 节点 | 块（`type = notedata`），稳定 OID；创作 `Signature` 记署名 |
 | 基板 | `NoteBody`：`text`（行序列）+ `style`（行内区间样式）；`note.style` 代理 `body.style` |
-| 去重签名 | `checksum = body.hash`（剥离行 id、含行内样式；同文同样式即同哈希） |
+| 去重签名 | `checksum = body_hash`（落盘负载哈希、含行 id）；剥离行 id 的内容签名是 `body.hash` |
 | 关系 | **DB 行**（`relations` 表）：`src / dst / kind / at / attrs`（不是块） |
 | 组装 | 角色：正文里放节点引用的 note |
 | 版本路径 | 通用 `VersionStore`（`prev` 哈希链 + 反向补丁），域提供 Codec |

@@ -21,6 +21,19 @@ def _quote(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
 
 
+def _predicates(where: Mapping[str, Any]) -> tuple[str, list[Any]]:
+    """把等值过滤编成子句与参数；``None`` 用 ``IS NULL``（``= NULL`` 永不命中）。"""
+    clauses: list[str] = []
+    values: list[Any] = []
+    for key, value in where.items():
+        if value is None:
+            clauses.append(f"{_quote(key)} IS NULL")
+        else:
+            clauses.append(f"{_quote(key)} = ?")
+            values.append(value)
+    return " AND ".join(clauses), values
+
+
 class Table:
     """一张业务表的读写封装。"""
 
@@ -30,6 +43,8 @@ class Table:
 
     def insert(self, row: Mapping[str, Any]) -> None:
         columns = list(row)
+        if not columns:
+            raise ValueError("insert 需要至少一列")
         placeholders = ", ".join("?" for _ in columns)
         names = ", ".join(_quote(column) for column in columns)
         self.conn.execute(
@@ -38,42 +53,62 @@ class Table:
         )
 
     def upsert(self, row: Mapping[str, Any], *, conflict: str = "id") -> None:
+        """按 ``conflict`` 列做真 upsert（``ON CONFLICT DO UPDATE``），保留未列出的列。
+
+        ``conflict`` 不在行内时退回 ``INSERT OR REPLACE``（兼容按表自身主键去重的旧调用）。
+        """
         columns = list(row)
+        if not columns:
+            raise ValueError("upsert 需要至少一列")
         placeholders = ", ".join("?" for _ in columns)
         names = ", ".join(_quote(column) for column in columns)
-        self.conn.execute(
-            f"INSERT OR REPLACE INTO {_quote(self.name)} ({names}) VALUES({placeholders})",
-            [row[column] for column in columns],
-        )
-        _ = conflict
+        values = [row[column] for column in columns]
+        if conflict in columns:
+            updates = ", ".join(
+                f"{_quote(column)} = excluded.{_quote(column)}"
+                for column in columns
+                if column != conflict
+            )
+            action = f"DO UPDATE SET {updates}" if updates else "DO NOTHING"
+            sql = (
+                f"INSERT INTO {_quote(self.name)} ({names}) VALUES({placeholders}) "
+                f"ON CONFLICT({_quote(conflict)}) {action}"
+            )
+        else:
+            sql = f"INSERT OR REPLACE INTO {_quote(self.name)} ({names}) VALUES({placeholders})"
+        self.conn.execute(sql, values)
 
     def select(self, **where: Any) -> list[sqlite3.Row]:
-        clause = ""
         if where:
-            clause = " WHERE " + " AND ".join(f"{_quote(key)} = ?" for key in where)
-        cursor = self.conn.execute(
-            f"SELECT * FROM {_quote(self.name)}{clause}",
-            list(where.values()),
-        )
-        return list(cursor.fetchall())
+            clause, values = _predicates(where)
+            sql = f"SELECT * FROM {_quote(self.name)} WHERE {clause}"
+        else:
+            sql, values = f"SELECT * FROM {_quote(self.name)}", []
+        return list(self.conn.execute(sql, values).fetchall())
 
     def all(self) -> list[sqlite3.Row]:
         return self.select()
 
     def update(self, values: Mapping[str, Any], **where: Any) -> int:
+        if not values:
+            raise ValueError("update 需要至少一列")
+        if not where:
+            raise ValueError("update 需要至少一个过滤条件")
         assignments = ", ".join(f"{_quote(key)} = ?" for key in values)
-        clause = " AND ".join(f"{_quote(key)} = ?" for key in where)
+        clause, filter_values = _predicates(where)
         cursor = self.conn.execute(
             f"UPDATE {_quote(self.name)} SET {assignments} WHERE {clause}",
-            [*values.values(), *where.values()],
+            [*values.values(), *filter_values],
         )
         return cursor.rowcount
 
     def delete(self, **where: Any) -> int:
-        clause = " AND ".join(f"{_quote(key)} = ?" for key in where)
+        if not where:
+            raise ValueError("delete 需要至少一个过滤条件")
+        clause, values = _predicates(where)
         cursor = self.conn.execute(
             f"DELETE FROM {_quote(self.name)} WHERE {clause}",
-            list(where.values()),
+            values,
         )
         return cursor.rowcount
 

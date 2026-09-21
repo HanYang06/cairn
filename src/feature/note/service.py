@@ -82,8 +82,9 @@ class Note(Domain):
         data.tags = tags or {}
         if props:
             data.attrs["props"] = dict(props)
-        # 创作签名：锁在创建时的正文内容上（原始结构据此可找回）
-        data.signature = Signature.create(author=data.author or "", subject=data.body_hash())
+        # 创作签名：锁在创建时的正文内容上（原始结构据此可找回；剥离行 id）
+        subject = data.body.refresh().hash
+        data.signature = Signature.create(author=data.author or "", subject=subject)
         self.save(data, search_text=_search_text(title, text))
         return data
 
@@ -162,8 +163,10 @@ class Note(Domain):
         return blocks
 
     def reorder(self, data: NoteData, order: Sequence[int]) -> None:
-        """按旧下标顺序重排行；样式按行 id 自动跟随。"""
+        """按旧下标顺序重排行；样式按行 id 自动跟随。``order`` 须是完整排列。"""
         lines = list(data.body.text)
+        if sorted(order) != list(range(len(lines))):
+            raise ValueError(f"order 必须是 0..{len(lines) - 1} 的完整排列: {list(order)}")
         data.body.text = [lines[index] for index in order]
         data.body.refresh()
 
@@ -187,7 +190,13 @@ class Note(Domain):
         return data
 
     def split_line(self, data: NoteData, line_id: str, offset: int) -> str:
-        """在某行 ``offset`` 处拆行；样式按位置切开。返回新行 id。"""
+        """在某行 ``offset`` 处拆行；样式按位置切开。返回新行 id（无可拆目标返回原 id）。"""
+        target = next(
+            (line for line in data.body.text if line["id"] == line_id and not is_marker(line["v"])),
+            None,
+        )
+        if target is None:
+            return line_id
         data.body.text, new_lid, _, _ = split_line(data.body.text, line_id, offset)
         data.body.style = split_style(data.body.style, line_id, new_lid, int(offset))
         data.body.refresh()
@@ -298,7 +307,7 @@ class Note(Domain):
         state = VersionStore(self.vault.bucket).state_at(
             data.id,
             NOTE_CODEC,
-            data._state(),  # noqa: SLF001 — 域服务读取数据内部状态
+            data._saved_state or data._state(),  # noqa: SLF001 — 回放起点须为落盘基线
             str(version),
         )
         body: list[LineDict] = state["body"]
@@ -310,7 +319,7 @@ class Note(Domain):
         state = VersionStore(self.vault.bucket).state_at(
             data.id,
             NOTE_CODEC,
-            data._state(),  # noqa: SLF001 — 域服务读取数据内部状态
+            data._saved_state or data._state(),  # noqa: SLF001 — 回放起点须为落盘基线
             str(version),
         )
         data.body.text = normalize_body(state["body"])

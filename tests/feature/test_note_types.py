@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from core.types import Oid
 from feature.note import (
     CanvasBody,
@@ -220,3 +222,33 @@ def test_body_hash_tracks_style() -> None:
 
     assert left.body.hash != right.body.hash
     assert right.body.hash == right.body.hash
+
+
+def test_graphic_rejects_bad_point_count() -> None:
+    with pytest.raises(ValueError, match="点数"):
+        Graphic.from_seq([0, 0, 0, 0, 0, 0, 0, -1, 0])
+
+
+def test_link_requires_three_values() -> None:
+    with pytest.raises(ValueError, match="连线"):
+        Link.from_seq([0, 1])
+
+
+def test_paint_requires_eight_values() -> None:
+    with pytest.raises(ValueError, match="画法"):
+        Paint.from_seq([0, 1, 2])
+
+
+def test_normalize_body_bare_string_splits_lines() -> None:
+    note = NoteData()
+    note.body = "a\nb"
+
+    assert [line["v"] for line in note.body] == ["a", "b"]
+
+
+def test_references_skips_invalid_ids() -> None:
+    note = NoteData()
+    valid = Oid.new()
+    note.access = [str(valid), "not-an-oid", ""]
+
+    assert note.references == (valid,)

@@ -45,6 +45,10 @@ def entry(line_id: str, value: Any, para: Any = None) -> Line:
 
 def normalize_body(raw: Any) -> list[Line]:
     r"""把任意输入规范成带 id 的行序列；字符串按 ``\n`` 拆行，保留 ``p``（段落属性）。"""
+    if isinstance(raw, str):
+        raw = raw.split("\n")
+    elif isinstance(raw, Mapping) and "v" in raw:
+        raw = [raw]
     lines: list[Line] = []
     for item in raw or ():
         if is_marker(item):

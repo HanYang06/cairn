@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from core import Vault
 from core.storage import VersionStore, decode_canonical
+from core.types import now_ms
 from feature import Note
 
 if TYPE_CHECKING:
@@ -103,3 +104,49 @@ def test_lazy_compaction_drops_expired(tmp_path: Path) -> None:
     removed = VersionStore(vault.bucket).compact(note.id, retention_ms=0)
     assert removed == 2
     assert notes.history(note) == []
+
+
+def test_version_replay_restores_line_order(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    notes = Note(vault)
+    note = notes.create("a\nb\nc")
+    notes.remove_line(note, note.body[1]["id"])
+    notes.save(note)
+    assert note.text == "a\nc"
+
+    root = notes.history(note)[-1]["id"]
+    restored = notes.body_at(note, root)
+    assert [line["v"] for line in restored] == ["a", "b", "c"]
+
+
+def test_body_at_uses_persisted_baseline(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    notes = Note(vault)
+    note = notes.create("v1")
+    notes.update(note, text="v2")
+    root = notes.history(note)[-1]["id"]
+
+    notes.set_text(note, "dirty")  # 未落盘的脏改动
+    assert [line["v"] for line in notes.body_at(note, root)] == ["v1"]
+
+
+def test_compact_only_drops_contiguous_tail(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    notes = Note(vault)
+    note = notes.create("v1")
+    notes.update(note, text="v2")
+    notes.update(note, text="v3")
+
+    store = VersionStore(vault.bucket)
+    history = store.history(note.id)  # 最新在前
+    assert len(history) == 3
+    future = now_ms() + 10_000_000_000
+    # 链头 / 链尾推到未来、中间置为极旧：按时间戳逐行删会挖空中间、令祖先不可达
+    vault.bucket.execute("UPDATE version SET at = ? WHERE id = ?", (future, history[0]["id"]))
+    vault.bucket.execute("UPDATE version SET at = ? WHERE id = ?", (future, history[2]["id"]))
+    vault.bucket.execute("UPDATE version SET at = ? WHERE id = ?", (0, history[1]["id"]))
+
+    removed = store.compact(note.id, retention_ms=0)
+
+    assert removed == 0
+    assert len(store.history(note.id)) == 3

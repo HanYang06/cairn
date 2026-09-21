@@ -24,10 +24,9 @@ class Binding:
 
 
 class Bind:
-    """绑定登记处（作用域 = 持有者）。"""
+    """绑定登记处：只声明、不即时连接；真正连接在编译 / 挂载阶段。"""
 
-    def __init__(self, owner: object) -> None:
-        self._owner = owner
+    def __init__(self) -> None:
         self._items: list[Binding] = []
 
     def add(self, source: object, target: object) -> Binding:

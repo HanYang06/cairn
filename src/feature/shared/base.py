@@ -18,7 +18,12 @@ UNSET: Any = object()
 
 
 def normalize_tags(value: Iterable[str] | Mapping[str, Any]) -> dict[str, str | None]:
-    """标签统一成 ``{键: 值}``；纯标签的值为 ``None``（兼容旧的纯列表写法）。"""
+    """标签统一成 ``{键: 值}``；纯标签的值为 ``None``（兼容旧的纯列表写法）。
+
+    裸字符串按**单个标签**处理，避免 ``Iterable[str]`` 把 ``"abc"`` 拆成逐字符。
+    """
+    if isinstance(value, str):
+        return {value: None} if value else {}
     if isinstance(value, Mapping):
         return {str(key): (None if item is None else str(item)) for key, item in value.items()}
     return {str(tag): None for tag in value}
@@ -43,4 +48,5 @@ __all__ = [
     "KindMismatchError",
     "UnknownKindError",
     "known_kinds",
+    "normalize_tags",
 ]

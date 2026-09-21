@@ -124,3 +124,12 @@ def test_bridge_emits_qt_signal(tmp_path: Path) -> None:
     assert len(seen) == 1
     bridge.close()
     vault.close()
+
+
+def test_scroll_slot_keeps_stretch() -> None:
+    slot = Slot("nav", stretch=True, scroll=True)
+    slot.add(Label("hi"))
+
+    widget = build(slot)
+
+    assert widget.property("cairnStretch") is True

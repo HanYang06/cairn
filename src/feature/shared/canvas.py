@@ -80,7 +80,7 @@ class Paint:
     def from_seq(cls, seq: Sequence[float]) -> Paint:
         values = [float(value) for value in seq]
         if len(values) < 8:
-            return cls()
+            raise ValueError("画法序列过短")
         return cls(
             stroke=int(values[0]),
             width=values[1],
@@ -131,8 +131,12 @@ class Graphic:
             raise ValueError("图形序列过短")
         form, cx, cy, w, h, rot, scale = values[:7]
         point_count = int(values[7])
+        if point_count < 0 or 8 + point_count >= len(values):
+            raise ValueError("图形点数非法")
         points = values[8 : 8 + point_count]
         param_count = int(values[8 + point_count])
+        if param_count < 0 or 9 + point_count + param_count > len(values):
+            raise ValueError("图形参数个数非法")
         params = values[9 + point_count : 9 + point_count + param_count]
         paint = Paint.from_seq(values[9 + point_count + param_count :])
         return cls(int(form), cx, cy, w, h, rot, scale, points, params, paint)
@@ -152,6 +156,8 @@ class Link:
     @classmethod
     def from_seq(cls, seq: Sequence[float]) -> Link:
         values = [float(value) for value in seq]
+        if len(values) < 3:
+            raise ValueError("连线序列过短")
         return cls(int(values[0]), int(values[1]), int(values[2]))
 
 

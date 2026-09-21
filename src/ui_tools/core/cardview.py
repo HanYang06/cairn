@@ -81,6 +81,11 @@ class QtCardModel(QAbstractListModel):
         self._meta = meta
         self._badge = badge
         self._cancel = model.watch(self._reset)
+        # C++ 对象被销毁时自动退订，避免回调打到已删除的 QObject。
+        self.destroyed.connect(self._on_destroyed)
+
+    def _on_destroyed(self, _obj: object = None) -> None:
+        self.detach()
 
     def _reset(self) -> None:
         self.beginResetModel()

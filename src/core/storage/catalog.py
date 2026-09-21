@@ -88,11 +88,24 @@ class Catalog:
         self.conn = sqlite3.connect(str(self.path))
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(_SCHEMA)
-        self.conn.execute(
-            "INSERT OR REPLACE INTO meta(key, value) VALUES('catalog_version', ?)",
-            (str(CATALOG_VERSION),),
-        )
+        self._check_version()
         self.conn.commit()
+
+    def _check_version(self) -> None:
+        """校验目录版本：新建时写入；已存在则只读，**不降级**（fail closed）。"""
+        row = self.conn.execute("SELECT value FROM meta WHERE key = 'catalog_version'").fetchone()
+        if row is None:
+            self.conn.execute(
+                "INSERT INTO meta(key, value) VALUES('catalog_version', ?)",
+                (str(CATALOG_VERSION),),
+            )
+            return
+        try:
+            stored = int(row["value"])
+        except (TypeError, ValueError) as exc:
+            raise CairnError(f"目录版本损坏: {row['value']!r}") from exc
+        if stored > CATALOG_VERSION:
+            raise CairnError(f"目录版本过新: {stored} > {CATALOG_VERSION}，请升级程序")
 
     def close(self) -> None:
         self.conn.close()

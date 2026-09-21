@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from core.signal import Domain, action
 from core.storage import Attr, Block, BodyField
+from core.types import Oid
 
 from ..shared.base import UNSET, normalize_tags
 from ..shared.kinds import Kind
@@ -20,8 +21,6 @@ from ..shared.relation import Relation
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
-
-    from core.types import Oid
 
 PROJECT_KIND = Kind.Data.Projectdata
 PROJECT_SCHEMA = 1
@@ -120,7 +119,11 @@ class Project(Domain):
         *,
         relation: str = CONTAINS,
     ) -> Relation:
-        """把一个对象加为项目成员（建 ``contains`` 边）。"""
+        """把一个对象加为项目成员（已存在则返回既有边，保证幂等）。"""
+        target = Oid.parse(str(member))
+        for edge in Relation.outbound(self.vault, data.oid, relation=relation):
+            if edge.target == target:
+                return edge
         return Relation.create(self.vault, data.oid, member, relation=relation, domain="project")
 
     @action

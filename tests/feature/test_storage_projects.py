@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
+import io
 from typing import TYPE_CHECKING
+
+import pytest
 
 from core import Vault
 from feature import (
@@ -69,6 +72,12 @@ def test_asset_from_path(tmp_path: Path) -> None:
     assert asset.read() == b"binary payload"
 
 
+def test_asset_rejects_text_stream(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    with pytest.raises(TypeError, match="bytes"):
+        AssetData.create(vault, io.StringIO("text"), name="x.txt")
+
+
 def test_note_embed_and_link(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     image = AssetData.create(vault, b"img", name="a.png")
@@ -115,3 +124,40 @@ def test_provenance_lineage(tmp_path: Path) -> None:
 
     assert descendants(vault, original.oid) == (remix.oid, again.oid)
     assert ancestors(vault, again.oid) == (remix.oid, original.oid)
+
+
+def test_add_member_is_idempotent(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    projects = Project(vault)
+    project = projects.create("P")
+    member = Note(vault).create("a")
+
+    first = projects.add_member(project, member.oid)
+    again = projects.add_member(project, member.oid)
+
+    assert first.oid == again.oid
+    assert projects.members(project) == [member.oid]
+
+
+def test_provenance_cycle_excludes_origin(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    notes = Note(vault)
+    a = notes.create("a")
+    b = notes.create("b")
+    Relation.create(vault, b.oid, a.oid, relation="derived-from")
+    Relation.create(vault, a.oid, b.oid, relation="derived-from")
+
+    assert descendants(vault, a.oid) == (b.oid,)
+    assert ancestors(vault, a.oid) == (b.oid,)
+
+
+def test_relation_normalizes_id_case(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    notes = Note(vault)
+    a = notes.create("a")
+    b = notes.create("b")
+
+    edge = Relation.create(vault, str(a.oid).lower(), str(b.oid).lower(), relation="references")
+
+    assert edge.source == a.oid
+    assert [item.oid for item in Relation.outbound(vault, a.oid)] == [edge.oid]

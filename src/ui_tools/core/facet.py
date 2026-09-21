@@ -32,7 +32,7 @@ class Facet:
         self.domain = domain
         self.name = name or type(domain).__name__
         self.conf = Conf()
-        self.bind = Bind(self)
+        self.bind = Bind()
         self.root = Page("root")
         self._pages: dict[Page, object] = {}
         self._routes: dict[object, Page] = {}
@@ -53,7 +53,13 @@ class Facet:
         return {"page": self.root}
 
     def page(self, page: Page, route: object) -> Page:
-        """注册一个页面及其路由信号（重复注册以最后一次为准）。"""
+        """注册一个页面及其路由信号（重复注册以最后一次为准，清理陈旧映射）。"""
+        old_route = self._pages.get(page)
+        if old_route is not None and old_route is not route:
+            self._routes.pop(old_route, None)
+        stale = self._routes.get(route)
+        if stale is not None and stale is not page:
+            self._pages.pop(stale, None)
         self._pages[page] = route
         self._routes[route] = page
         return page
@@ -74,6 +80,8 @@ class Facet:
         result = self.bind.compile()
         result.extend(self.root.bind.compile())
         for page in self._pages:
+            if page is self.root:  # 默认页已单独编译，跳过以免绑定重复
+                continue
             result.extend(page.bind.compile())
         return result
 
