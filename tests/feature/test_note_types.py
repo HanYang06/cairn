@@ -237,3 +237,18 @@ def test_link_requires_three_values() -> None:
 def test_paint_requires_eight_values() -> None:
     with pytest.raises(ValueError, match="画法"):
         Paint.from_seq([0, 1, 2])
+
+
+def test_normalize_body_bare_string_splits_lines() -> None:
+    note = NoteData()
+    note.body = "a\nb"
+
+    assert [line["v"] for line in note.body] == ["a", "b"]
+
+
+def test_references_skips_invalid_ids() -> None:
+    note = NoteData()
+    valid = Oid.new()
+    note.access = [str(valid), "not-an-oid", ""]
+
+    assert note.references == (valid,)

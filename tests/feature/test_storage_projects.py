@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
+import io
 from typing import TYPE_CHECKING
+
+import pytest
 
 from core import Vault
 from feature import (
@@ -67,6 +70,12 @@ def test_asset_from_path(tmp_path: Path) -> None:
 
     asset = AssetData.create(vault, source, name="data.bin")
     assert asset.read() == b"binary payload"
+
+
+def test_asset_rejects_text_stream(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    with pytest.raises(TypeError, match="bytes"):
+        AssetData.create(vault, io.StringIO("text"), name="x.txt")
 
 
 def test_note_embed_and_link(tmp_path: Path) -> None:

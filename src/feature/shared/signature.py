@@ -36,7 +36,7 @@ def _digest(alg: str, author: str, created: int, prev: str, subject: str) -> str
     payload = {
         "alg": alg,
         "author": author,
-        "created": int(created),
+        "created": created,
         "prev": prev,
         "subject": subject,
     }

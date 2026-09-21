@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 from feature.note import Note, NoteData, Style, access_ref
 from feature.note.edit.body import OVERLONG_WEIGHT, text_weight
-from feature.note.edit.style import line_styles
+from feature.note.edit.style import line_styles, set_range_style
 
 SVC = Note(None)  # 操作在域服务；这些操作不碰存储，测试无需建库
 
@@ -222,3 +224,38 @@ def test_text_weight_counts_wide_as_one() -> None:
     assert text_weight("ab") == 1.0
     assert text_weight("a你") == 1.5
     assert OVERLONG_WEIGHT == 300.0
+
+
+def test_insert_line_after_unknown_id_appends() -> None:
+    note = NoteData()
+    note.body = ["甲", "乙"]
+
+    new_id = SVC.insert_line_after(note, "01ARZ3NDEKTSV4RRFFQ69G5FAV", "丙")
+
+    assert _texts(note) == ["甲", "乙", "丙"]  # 未知锚点 → 追加末尾，不插到最前
+    assert _ids(note)[-1] == new_id
+
+
+def test_reorder_rejects_non_permutation() -> None:
+    note = NoteData()
+    note.body = ["甲", "乙", "丙"]
+
+    with pytest.raises(ValueError, match="排列"):
+        SVC.reorder(note, [0, 1])
+
+
+def test_split_line_unknown_id_is_noop() -> None:
+    note = NoteData()
+    note.body = ["甲"]
+    unknown = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+
+    assert SVC.split_line(note, unknown, 1) == unknown
+    assert _texts(note) == ["甲"]
+
+
+def test_set_range_style_coerces_and_rejects_unknown() -> None:
+    out = set_range_style({}, "l1", 0, 3, {"size": "12", "bold": 1, "nope": 5})
+
+    style = out["l1"][0][(0, 3)]
+    assert style.size == 12.0
+    assert style.bold is True

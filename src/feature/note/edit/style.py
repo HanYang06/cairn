@@ -31,6 +31,8 @@ class Style:
 
     @classmethod
     def from_data(cls, data: Mapping[str, Any]) -> Style:
+        if not isinstance(data, Mapping):
+            return cls()
         known = {key: data[key] for key in cls.__dataclass_fields__ if key in data}
         return cls(**known)
 
@@ -144,8 +146,10 @@ def encode_style(smap: StyleMap) -> dict[str, list[list[Any]]]:
 
 
 def coerce_style(value: Any, lines: Sequence[Line]) -> StyleMap:
-    """统一入口：任意样式输入 → 规范化类型化样式表。"""
+    """统一入口：任意样式输入 → 规范化类型化样式表；异形输入退化为空表。"""
     if value is None:
+        return {}
+    if not isinstance(value, (Mapping, list, tuple)):
         return {}
     return decode_style(value, lines)
 
@@ -250,8 +254,14 @@ def set_range_style(
     current = _style_at(smap, line_id, int(start))
     data = current.to_data()
     for key, value in patch.items():
-        if key in data:
-            data[key] = value
+        if value is None or key not in data:
+            continue
+        if key in _BOOL_KEYS:
+            data[key] = bool(value)
+        elif key == "size":
+            data[key] = float(value)
+        elif key in ("font", "color"):
+            data[key] = str(value)
     layer: RangeStyle = {(int(start), int(end)): Style.from_data(data)}
     return {**smap, line_id: [*smap.get(line_id, []), layer]}
 

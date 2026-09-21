@@ -53,6 +53,8 @@ class Cid(str):
 
     @classmethod
     def from_digest(cls, digest: bytes) -> Cid:
+        if len(digest) != 32:
+            raise InvalidIdError(f"非法摘要长度: {len(digest)}（应为 32 字节）")
         return cls(digest.hex())
 
     @classmethod

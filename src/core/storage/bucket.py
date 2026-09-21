@@ -318,8 +318,8 @@ class Bucket:
             return BucketConfig()
         try:
             return BucketConfig(**json.loads(raw))
-        except (TypeError, ValueError):
-            return BucketConfig()
+        except (TypeError, ValueError) as exc:
+            raise CairnError(f"桶配置损坏: {raw!r}") from exc
 
     def _pack_path(self, pack_id: int) -> Path:
         return self.packs_dir / self.catalog.pack_name(pack_id)

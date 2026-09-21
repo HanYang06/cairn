@@ -19,7 +19,7 @@ from typing import Any, ClassVar
 from blake3 import blake3
 
 from core.storage import Attr, Block, Body, canonical
-from core.types import Oid
+from core.types import InvalidIdError, Oid
 
 from ..shared.base import normalize_tags
 from ..shared.canvas import CanvasBody, CanvasData, Form, Graphic, Line, Link, Paint
@@ -170,8 +170,16 @@ class NoteData(Block):
 
     @property
     def references(self) -> tuple[Oid, ...]:
-        """正文里引用到的外联资源（``access`` 里的 asset oid）。"""
-        return tuple(Oid.parse(str(oid)) for oid in self.access if oid)
+        """正文里引用到的外联资源（``access`` 里的 asset oid）；跳过解析失败的脏值。"""
+        refs: list[Oid] = []
+        for oid in self.access:
+            if not oid:
+                continue
+            try:
+                refs.append(Oid.parse(str(oid)))
+            except InvalidIdError:
+                continue
+        return tuple(refs)
 
     # ---- 版本状态（域服务用）----
     def _state(self) -> dict[str, Any]:

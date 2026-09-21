@@ -64,7 +64,10 @@ def _read_source(source: Source) -> bytes:
         return bytes(source)
     if isinstance(source, (str, Path)):
         return Path(source).read_bytes()
-    return source.read()
+    payload = source.read()
+    if not isinstance(payload, (bytes, bytearray, memoryview)):
+        raise TypeError("资产源必须返回 bytes（不要用文本模式打开）")
+    return bytes(payload)
 
 
 class AssetData(Block):
