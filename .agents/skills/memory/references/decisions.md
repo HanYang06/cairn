@@ -428,6 +428,10 @@
 - 已定 · **`note/` 职责归位**：`body.py`（`NoteBody`）/ `data.py`（`NoteData` 载体 + 读视图）/
   `service.py`（`Note` 域服务，**全部操作以 data 为首参**）；工具签名 `run(svc, data, ctx)` /
   `state(data, ctx)`。`NoteData` 只留字段 + `body_hash` / `text` / `style` / `paragraph` / `references` / `_state`。
-- 已定 · **类型枚举**：官方领域类型用 `feature.shared.Kind`（`StrEnum`，值即持久化字符串）；
-  类型表 `register` / `type_info` / `domain_of` 按 `str()` 归一（枚举与字符串可互换）；第三方仍可字符串。
+- 已定 · **类型枚举（重定）**：`feature/shared/kinds.py` 的 `Kind` 分两支——`Kind.Feature`（域：`note` /
+  `project`）与 `Kind.Data`（数据：`notedata` / `projectdata` / `canvas` / `asset` / `group`），
+  **plain `Enum`、值去 `cairn.` 前缀**；域与数据不再共用同一字符串。类型表键按值归一
+  （`core.types.type_name`），枚举 / 字符串可互换；第三方仍可用自有前缀字符串。
+- 已定 · **类型命名空间 `cairn.<domain>.<kind>` 作废**（无旧数据）；官方类型以 `Kind` 为准，
+  块落盘的 `type` 就是枚举值（如 `notedata`）；core 的 `block` / `part` / `index` 与关系 `relation` 同步去前缀。
 - 提醒 · 早先"撤销 `feature/_shared`"针对**跨域协作 / 编排**（归 App）；本条是**共享类型与设施**，不冲突。

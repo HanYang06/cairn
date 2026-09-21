@@ -29,6 +29,7 @@ from .kind import (
     domain_of,
     register,
     type_info,
+    type_name,
     types,
     unit_infos,
 )
@@ -56,6 +57,7 @@ __all__ = [
     "now_ms",
     "register",
     "type_info",
+    "type_name",
     "types",
     "unit_infos",
 ]

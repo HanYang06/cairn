@@ -28,7 +28,7 @@ from .signal import (
     Subscription,
 )
 from .storage import Block, Bucket
-from .types import ObjectInfo, Oid, VerifyReport, now_ms
+from .types import ObjectInfo, Oid, VerifyReport, now_ms, type_name
 
 
 class Vault:
@@ -80,7 +80,7 @@ class Vault:
         self._signal.events.emit(
             ObjectPut(
                 oid=Oid.parse(block.id),
-                type=block.type,
+                type=type_name(block.type),
                 seq=1,
                 created=created,
                 checksum=str(block.checksum or ""),
@@ -117,7 +117,7 @@ class Vault:
         wanted = _wanted_tags(tags)
         for block_id in self._block_ids(type):
             block = self.bucket.get(Block, block_id)
-            if type is not None and block.type != type:
+            if type is not None and block.type != type_name(type):
                 continue
             info = self._info(block)
             if wanted and not _matches_tags(info.tags, wanted):
@@ -191,7 +191,7 @@ class Vault:
         size = len(body) if isinstance(body, (bytes, bytearray)) else block.size
         return ObjectInfo(
             oid=Oid.parse(block.id),
-            type=block.type,
+            type=type_name(block.type),
             mime=attrs.get("mime"),
             size=size,
             created=block.created,

@@ -43,16 +43,18 @@ uv run pre-commit run --all-files         # 提交前全量门禁（ruff -> mypy
 ## 架构分层（别越界）
 
 - 顶层包在 `src/` 下、**一律去 `cairn.` 前缀**（`from core.storage import …`）：
-  `conf` / `core` / `feature` / `ui`（+ 实验 `net` / `server`）。
+  `core` / `feature` / `ui_tools` / `app`（实验 `net` / `server`）。
 - `src/core/`（L0 桶 / 块存储）是公共底座：**必须 Qt-free、传输无关**；
   存储原语在 `core/storage/`（桶 / 块 / 目录 / 表 / 版本引擎），基础类型在 `core/types/`。
-- `src/feature/`（L3 note/canvas/asset/project/relation）只依赖 core 公共 API；
-  领域之间互不依赖；领域结构**直接继承 `Block`**，不得改 `Block` 顶层字段，
-  扩展只走子类字段（`Attr` / `Data` / `Body`）、新 `type` 或新关系 `kind`；
-  `type` 命名空间为 `cairn.<domain>.<kind>`。
-- `src/ui/`：界面层，当前**整体移除、待重建**；重建后只经 facade / Session 消费内核，
-  不 import `feature`、不碰 `Vault`。
-- `src/conf/`：配置与常量。
+- `src/feature/`（L3）只依赖 core 公共 API，内部先分两支：**域**（`note` / `project`，`Domain` 子类，
+  管理型、单例、无 ID）与 **共享件**（`shared/`：数据结构 canvas / asset / group、值 signature、
+  设施 relation / provenance / base / kinds）。领域之间互不依赖；领域结构**直接继承 `Block`**，
+  不得改 `Block` 顶层字段，扩展只走子类字段（`Attr` / `Data` / `Body`）、新 `type` 或新关系 `kind`。
+- **类型词表 `feature.shared.Kind`**：`Kind.Feature`（域）/ `Kind.Data`（块类型），
+  plain `Enum`、值即落盘字符串（如 `notedata`），不用 `cairn.<domain>.<kind>` 旧命名空间；
+  第三方类型用自有前缀字符串。类型表按值归一（`core.types.type_name`）。
+- `src/app/` 是界面载体（按平台 `win` / `linux`）+ `ui_tools/` 界面工具层；
+  `core/conf/` 放配置与常量。
 - `src/net/`、`src/server/` 是 P2P / 服务端**实验顶层包**，不在 hatch wheel 中
   （仅靠 pytest 的 `pythonpath=["src"]` 可导入）。新内核代码放 `src/core` 或 `src/feature`。
 - `docs/architecture/*.md` 是设计事实来源（`storage.md` 为 L0 唯一事实来源，

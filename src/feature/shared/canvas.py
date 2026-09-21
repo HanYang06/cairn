@@ -24,7 +24,7 @@ from .kinds import Kind
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-CANVAS_KIND = Kind.CANVAS
+CANVAS_KIND = Kind.Data.Canvas
 CANVAS_MODE = ("diagram", "sketch")
 
 

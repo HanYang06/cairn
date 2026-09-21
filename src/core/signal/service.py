@@ -15,10 +15,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Self, overload
 
-from core.types import ROLE_DOMAIN, CairnError, TypeInfo, register
+from core.types import ROLE_DOMAIN, CairnError, TypeInfo, register, type_name
 
 if TYPE_CHECKING:
     import builtins
+    from enum import Enum
 
     from core.storage import Block
 
@@ -36,7 +37,7 @@ def _light_units(light: Any) -> tuple[str, ...]:
     items = light if isinstance(light, (list, tuple)) else (light,)
     names: list[str] = []
     for item in items:
-        name = str(getattr(item, "type", "") or "")
+        name = type_name(getattr(item, "type", "") or "")
         if name:
             names.append(name)
     return tuple(names)
@@ -84,7 +85,7 @@ class Domain:
     """
 
     name: ClassVar[str] = ""
-    type: ClassVar[str] = ""
+    type: ClassVar[str | Enum] = ""
     data: ClassVar[tuple[str, ...]] = ()
     # 最小数据单元：一个数据类，或它们的列表（都必须是 Block 子类——公共锚点）。
     light: ClassVar[list[builtins.type[Block]] | builtins.type[Block] | None] = None
@@ -96,11 +97,11 @@ class Domain:
         if not cls.__dict__.get("name"):
             cls.name = cls.__name__.removesuffix("Service")
         if not cls.__dict__.get("type"):
-            cls.type = f"cairn.{cls.__name__.lower()}"
-        units = _light_units(cls.__dict__.get("light")) or (cls.type,)
+            cls.type = cls.__name__.lower()
+        units = _light_units(cls.__dict__.get("light")) or (type_name(cls.type),)
         register(
             TypeInfo(
-                type=str(cls.type),
+                type=type_name(cls.type),
                 role=ROLE_DOMAIN,
                 cls=cls,
                 name=cls.name,

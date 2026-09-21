@@ -21,6 +21,7 @@ from typing import Any
 from blake3 import blake3
 
 from core.storage import canonical
+from core.types import type_name
 
 from .edit.body import is_marker
 from .model import NOTE_KIND
@@ -38,7 +39,7 @@ def digest(state: State) -> str:
             continue
         view.append([list(item) for item in (style.get(line["id"]) or ())])
     payload = {
-        "type": NOTE_KIND,
+        "type": type_name(NOTE_KIND),
         "body": [line["v"] for line in state.get("body") or ()],
         "para": [line.get("p") or {} for line in state.get("body") or ()],
         "style": view,

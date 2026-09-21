@@ -468,4 +468,9 @@
   canvas / asset / group）；`NOTE_KIND` 等常量与各数据类型 `type` 改指枚举；类型表
   `register` / `type_info` / `domain_of` 按 `str()` 归一（枚举与字符串可互换，第三方可继续用字符串）。
   219 测试通过、覆盖率 88%。
+- 2026-09-21 · 已定 · **Kind 重定（Feature / Data，去前缀）**：`Kind.Feature`（note / project）+
+  `Kind.Data`（notedata / projectdata / canvas / asset / group），plain `Enum`；域与数据不再共用
+  字符串。core 的 `block` / `part` / `index` 与 `relation` 同步去前缀；新增 `core.types.type_name`
+  归一（贯穿 block / catalog / vault / 类型表）；`NOTE_KIND` 等常量改指枚举。
+  AGENTS.md 架构分层同步。219 测试通过、覆盖率 88%。
 

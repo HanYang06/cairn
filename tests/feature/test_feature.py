@@ -25,7 +25,7 @@ def _vault(tmp_path: Path) -> Vault:
 
 
 def test_registry_has_builtin_kinds() -> None:
-    assert {"cairn.note", "cairn.asset", "cairn.project"} <= set(known_kinds())
+    assert {"notedata", "asset", "projectdata"} <= set(known_kinds())
 
 
 def test_note_roundtrip(tmp_path: Path) -> None:
@@ -36,7 +36,7 @@ def test_note_roundtrip(tmp_path: Path) -> None:
     assert note.text == "hello world"
     assert note.title == "Hi"
     assert note.tags == {"a": None, "b": None}
-    assert note.info.type == "cairn.note"
+    assert note.info.type == "notedata"
 
     loaded = notes.load(note.oid)
     assert loaded.text == "hello world"

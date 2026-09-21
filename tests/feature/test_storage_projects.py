@@ -27,9 +27,9 @@ def _vault(tmp_path: Path) -> Vault:
 
 def test_registry_includes_three_piece_kinds() -> None:
     assert {
-        "cairn.note",
-        "cairn.asset",
-        "cairn.project",
+        "notedata",
+        "asset",
+        "projectdata",
     } <= set(known_kinds())
 
 

@@ -140,7 +140,7 @@ def test_small_content_is_one_block(tmp_path: Path) -> None:
 
 def test_pack_seals_and_rolls_over(tmp_path: Path) -> None:
     bucket = _bucket(tmp_path, pack_max_blocks=2, block_max_bytes=1024)
-    ids = [bucket.put(Block(type="cairn.note", body=[str(i)])).id for i in range(5)]
+    ids = [bucket.put(Block(type="test.note", body=[str(i)])).id for i in range(5)]
     assert bucket.catalog.count_packs() == 3  # 2 + 2 + 1
     for block_id in ids:
         assert bucket.get(Block, block_id).id == block_id

@@ -42,6 +42,7 @@ from core.types import (
     KindMismatchError,
     ObjectNotFoundError,
     now_ms,
+    type_name,
 )
 
 from .block import INDEX_TYPE, PART_TYPE, Block, canonical, decode_canonical
@@ -251,7 +252,7 @@ class Bucket:
         self.catalog.save_block(
             block.id,
             body_id=checksum,
-            type=self.catalog.type_code(block.type),
+            type=self.catalog.type_code(type_name(block.type)),
             size=block.size,
             data=data,
             created=block.created,

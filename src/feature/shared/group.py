@@ -24,7 +24,7 @@ from .relation import Relation
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
 
-GROUP_KIND = Kind.GROUP
+GROUP_KIND = Kind.Data.Group
 GROUP_MIME = "application/x-cairn-group"
 GROUP_SCHEMA = 1
 

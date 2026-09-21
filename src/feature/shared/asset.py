@@ -23,7 +23,7 @@ from .kinds import Kind
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
-ASSET_KIND = Kind.ASSET
+ASSET_KIND = Kind.Data.Asset
 ASSET_SCHEMA = 1
 
 Source = bytes | bytearray | memoryview | str | Path | BinaryIO

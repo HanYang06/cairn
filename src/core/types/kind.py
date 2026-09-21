@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -20,6 +21,13 @@ if TYPE_CHECKING:
 
 ROLE_DOMAIN = "domain"
 ROLE_DATA = "data"
+
+
+def type_name(value: object) -> str:
+    """把类型输入归一成字符串：`Enum` 取值，其余 `str()`（枚举 / 字符串可互换）。"""
+    if isinstance(value, Enum):
+        return str(value.value)
+    return str(value)
 
 
 @dataclass(frozen=True)
@@ -44,16 +52,13 @@ _TYPES: dict[tuple[str, str], TypeInfo] = {}
 
 
 def register(info: TypeInfo) -> None:
-    """登记（同名同角色覆盖）一个类型；键按 `str()` 归一（枚举 / 字符串可互换）。"""
-    _TYPES[(str(info.type), info.role)] = info
+    """登记（同名同角色覆盖）一个类型；键按值归一（枚举 / 字符串可互换）。"""
+    _TYPES[(type_name(info.type), info.role)] = info
 
 
-def type_info(type_name: str, *, role: str | None = None) -> TypeInfo | None:
-    """按 `type`（可加 `role` 限定）取元数据；输入按 `str()` 归一。
-
-    同名同时有域与数据（如 `cairn.note`）时，不指定 `role` 默认取**域**。
-    """
-    key = str(type_name)
+def type_info(type_name_: object, *, role: str | None = None) -> TypeInfo | None:
+    """按 `type`（可加 `role` 限定）取元数据；输入按值归一。"""
+    key = type_name(type_name_)
     if role is not None:
         return _TYPES.get((key, role))
     return _TYPES.get((key, ROLE_DOMAIN)) or _TYPES.get((key, ROLE_DATA))
@@ -87,9 +92,9 @@ def unit_infos(domain_type: str) -> list[TypeInfo]:
     return result
 
 
-def domain_of(unit_type: str) -> TypeInfo | None:
-    """反查：某个数据类型的所属域（顺着公共锚点往上找）；输入按 `str()` 归一。"""
-    key = str(unit_type)
+def domain_of(unit_type: object) -> TypeInfo | None:
+    """反查：某个数据类型的所属域（顺着公共锚点往上找）；输入按值归一。"""
+    key = type_name(unit_type)
     for info in types(ROLE_DOMAIN):
         if key in info.units:
             return info
@@ -104,6 +109,7 @@ __all__ = [
     "domain_of",
     "register",
     "type_info",
+    "type_name",
     "types",
     "unit_infos",
 ]

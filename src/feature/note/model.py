@@ -19,7 +19,7 @@ from ..shared.kinds import Kind
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-NOTE_KIND = Kind.NOTE
+NOTE_KIND = Kind.Data.Notedata
 NOTE_MIME = "application/x-cairn-note"
 NOTE_SCHEMA = 1
 

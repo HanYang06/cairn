@@ -20,7 +20,7 @@ from typing import Any, ClassVar
 from core.storage import canonical, decode_canonical
 from core.types import KindMismatchError, Oid, now_ms
 
-RELATION_KIND = "cairn.relation"
+RELATION_KIND = "relation"
 RELATION_SCHEMA = 1
 
 DERIVED_FROM = "derived-from"

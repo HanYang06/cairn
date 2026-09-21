@@ -22,7 +22,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 
-from core.types import CairnError
+from core.types import CairnError, type_name
 
 CATALOG_VERSION = 2
 
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS block_type(
   name TEXT NOT NULL UNIQUE
 );
 INSERT OR IGNORE INTO block_type(code, name) VALUES
-  (0, 'cairn.block'), (1, 'cairn.part'), (2, 'cairn.index');
+  (0, 'block'), (1, 'part'), (2, 'index');
 CREATE TABLE IF NOT EXISTS block(
   oid TEXT PRIMARY KEY,
   body_id TEXT NOT NULL,
@@ -164,19 +164,21 @@ class Catalog:
 
     # ---- 块类型码表（整数枚举；名字 ↔ code 稳定映射）----
     def type_code(self, name: str) -> int:
-        row = self.conn.execute("SELECT code FROM block_type WHERE name = ?", (name,)).fetchone()
+        key = type_name(name)
+        row = self.conn.execute("SELECT code FROM block_type WHERE name = ?", (key,)).fetchone()
         if row is not None:
             return int(row["code"])
         assigned = self.conn.execute(
             "SELECT COALESCE(MAX(code), 15) + 1 AS code FROM block_type"
         ).fetchone()
         code = int(assigned["code"])
-        self.conn.execute("INSERT INTO block_type(code, name) VALUES(?, ?)", (code, name))
+        self.conn.execute("INSERT INTO block_type(code, name) VALUES(?, ?)", (code, key))
         return code
 
     def find_type_code(self, name: str) -> int | None:
         """查类型码；**不存在返回 None**（不登记、不污染码表）。"""
-        row = self.conn.execute("SELECT code FROM block_type WHERE name = ?", (name,)).fetchone()
+        key = type_name(name)
+        row = self.conn.execute("SELECT code FROM block_type WHERE name = ?", (key,)).fetchone()
         return None if row is None else int(row["code"])
 
     def type_name(self, code: int) -> str:

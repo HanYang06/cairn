@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
     from core.types import Oid
 
-PROJECT_KIND = Kind.PROJECT
+PROJECT_KIND = Kind.Data.Projectdata
 PROJECT_SCHEMA = 1
 CONTAINS = "contains"
 
@@ -52,7 +52,7 @@ class Project(Domain):
     """项目域服务（单例）：创建 / 载入 / 更新 / 成员关系。"""
 
     name = "项目"
-    type = PROJECT_KIND
+    type = Kind.Feature.Project
     light = ProjectData  # 最小数据单元（绑定既有类型，不复制字段）
 
     def __init__(self, vault: Any) -> None:

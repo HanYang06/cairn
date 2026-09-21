@@ -26,7 +26,7 @@ def test_session_observes_block_events(tmp_path: Path) -> None:
     vault.put_block(Block(body=b"x"))
 
     assert len(seen) == 1
-    assert getattr(seen[0], "type", None) == "cairn.block"
+    assert getattr(seen[0], "type", None) == "block"
 
 
 def test_projection_invalidated_on_change(tmp_path: Path) -> None:

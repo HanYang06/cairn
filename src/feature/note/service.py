@@ -14,6 +14,7 @@ from core.signal import Domain, Topic, action
 from core.storage import VersionStore
 
 from ..shared.base import UNSET
+from ..shared.kinds import Kind
 from ..shared.signature import Signature
 from .data import NoteData, access_ref, canvas_ref
 from .edit import (
@@ -55,8 +56,8 @@ class Note(Domain):
     """笔记域服务（单例）：创建 / 读写 / 落盘 / 版本 / 关系 / 编辑操作。"""
 
     name = "笔记"
-    type = NOTE_KIND
-    data = ("cairn.canvas", "cairn.asset")
+    type = Kind.Feature.Note
+    data = ("canvas", "asset")
     light = NoteData  # 最小数据单元（绑定既有类型，不复制字段）
 
     changed = Topic()

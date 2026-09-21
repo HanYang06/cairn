@@ -11,7 +11,7 @@
 
     id        稳定身份（OID，ULID），创建时分配，**锁死不可改**
     checksum  内容签名（BLAKE3 十六进制），由 ``content()`` 推出；子类可覆写口径
-    type      承载类型（str / Enum），如 ``cairn.note``
+    type     承载类型（str / Enum），如 ``notedata``
     body      主体，由子类用 ``Body(...)`` 重新描述（默认是裸 Body）
     attrs     原生属性，用 ``Attr`` 声明；**领域数据都放这里**（含 config 之外的一切）
     config    写入配置：驱动写入行为（如 ``isolated`` 独占载体）
@@ -68,8 +68,8 @@ if TYPE_CHECKING:
 
 BLOCK_VERSION = 1
 
-INDEX_TYPE = "cairn.index"
-PART_TYPE = "cairn.part"
+INDEX_TYPE = "index"
+PART_TYPE = "part"
 
 _MISSING = object()
 
@@ -224,7 +224,7 @@ class Block:
     子类通过**重新描述字段**来定义领域结构，而不是加新顶层字段。字段两种写法等价：
 
         class Note(Block):
-            type = "cairn.note"
+            type = "notedata"
             title: Attr[str] = ""            # 注解即类型，右边即值（自动包成字段）
             tags = Attr(factory=dict)        # 也可显式写描述符
 
@@ -236,8 +236,8 @@ class Block:
     ``decode`` 据此还原成正确的子类。
     """
 
-    type: str = "cairn.block"
-    kind: str = "cairn.block"
+    type: str | Enum = "block"
+    kind: str | Enum = "block"
     body: Any = BodyField()
     _REGISTRY: ClassVar[dict[str, builtins.type[Block]]] = {}
 
@@ -381,7 +381,7 @@ class Block:
         """
         try:
             raw = cbor2.loads(data) if data else None
-            kind = str(type) if type is not None else cls.type
+            kind = _type_name(type if type is not None else cls.type)
             target = Block._REGISTRY.get(kind, Block)
             body = _body_from_data(target, raw)
             block = target(id=id, body=body, attrs=dict(attrs or {}), type=kind)
@@ -467,7 +467,7 @@ class Block:
 
 register(
     TypeInfo(
-        type=Block.type,
+        type=_type_name(Block.type),
         role=ROLE_DATA,
         cls=Block,
         name="Block",
