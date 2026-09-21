@@ -445,4 +445,14 @@
   `Block` / `Domain` 定义时登记（`(type, role)` 分键，域与数据可同名）；`Note` / `Project` 声明
   `type` / `name` / `data`(依赖数据结构)。新增 `tests/feature/test_kind.py`。
   ruff / format / mypy 全绿，215 测试通过、覆盖率 88%。
+- 2026-09-21 · 已定 · **最小类型表补 `unit`（最小数据单元）**：`TypeInfo.unit` 指向既有数据类型的
+  `type`；域上 `light = XxxData` 显式绑定（`Note` / `Project`），缺省回落 `cls.type`；UI 顺指针取
+  `fields`，不复制字段表。216 测试通过、覆盖率 88%。
+- 2026-09-21 · 已定 · **最小数据单元改多值**：`light` 收单值或列表/元组 → `TypeInfo.units`（`type`
+  名元组）；新增 `unit_infos`（顺下取单元）/ `domain_of`（反查所属域），公共锚点 `Block`。
+  218 测试通过、覆盖率 88%。
+- 2026-09-21 · 已定 · **领域文件归位（第一批）**：新增 `feature/shared/`（asset / canvas / group /
+  signature / relation / provenance / base 迁入，`shared/__init__` 转出）；`feature/__init__` 改从
+  `.shared` 转出；删 `note/note.py` 残留；`note/edit.py` 拆成 `note/edit/`（body / text / style，
+  `__init__` 兼容转出）；调用方改子模块具名导入。218 测试通过、覆盖率 88%。
 

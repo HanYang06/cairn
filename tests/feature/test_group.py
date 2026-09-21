@@ -9,7 +9,7 @@ import pytest
 
 from core import Vault
 from feature import GroupData, Note, Relation
-from feature.group import GroupError, all_gids, list_groups, roots
+from feature.shared.group import GroupError, all_gids, list_groups, roots
 
 if TYPE_CHECKING:
     from pathlib import Path

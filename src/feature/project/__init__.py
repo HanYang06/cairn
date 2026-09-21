@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Any
 from core.signal import Domain, action
 from core.storage import Attr, Block, BodyField
 
-from ..base import UNSET, normalize_tags
-from ..relation import Relation
+from ..shared.base import UNSET, normalize_tags
+from ..shared.relation import Relation
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -52,6 +52,7 @@ class Project(Domain):
 
     name = "项目"
     type = PROJECT_KIND
+    light = ProjectData  # 最小数据单元（绑定既有类型，不复制字段）
 
     def __init__(self, vault: Any) -> None:
         self.vault = vault

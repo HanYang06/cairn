@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from .edit import bool_state, style_at
+from .edit.style import bool_state, style_at
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence

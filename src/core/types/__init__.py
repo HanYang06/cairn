@@ -26,9 +26,11 @@ from .kind import (
     ROLE_DOMAIN,
     TypeInfo,
     collect_fields,
+    domain_of,
     register,
     type_info,
     types,
+    unit_infos,
 )
 from .objects import ObjectInfo, VerifyReport
 
@@ -50,8 +52,10 @@ __all__ = [
     "VaultError",
     "VerifyReport",
     "collect_fields",
+    "domain_of",
     "now_ms",
     "register",
     "type_info",
     "types",
+    "unit_infos",
 ]

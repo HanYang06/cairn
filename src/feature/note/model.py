@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
-from ..canvas import CanvasBody, CanvasData, Form, Graphic, Line, Link, Paint
+from ..shared.canvas import CanvasBody, CanvasData, Form, Graphic, Line, Link, Paint
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

@@ -24,7 +24,12 @@ ROLE_DATA = "data"
 
 @dataclass(frozen=True)
 class TypeInfo:
-    """一个类型的元数据。"""
+    """一个类型的元数据。
+
+    `units` 只对域有意义：**最小数据单元**——一组既有数据类型的 `type`（通常一个，
+    也可多个），UI 顺着这些类型拿字段即可，**不另立字段表**（避免重复维护）。
+    所有单元都是 `Block` 子类，`Block` 就是那个**公共锚点**：任何单元都能顺着它往上找。
+    """
 
     type: str
     role: str
@@ -32,6 +37,7 @@ class TypeInfo:
     name: str = ""
     fields: tuple[str, ...] = ()
     deps: tuple[str, ...] = ()
+    units: tuple[str, ...] = ()
 
 
 _TYPES: dict[tuple[str, str], TypeInfo] = {}
@@ -67,12 +73,35 @@ def collect_fields(cls: type) -> tuple[str, ...]:
     )
 
 
+def unit_infos(domain_type: str) -> list[TypeInfo]:
+    """取域的最小数据单元类型（按 `units` 解析，优先 `data` 角色）。"""
+    domain = type_info(domain_type, role=ROLE_DOMAIN)
+    if domain is None:
+        return []
+    result: list[TypeInfo] = []
+    for name in domain.units:
+        info = type_info(name, role=ROLE_DATA) or type_info(name)
+        if info is not None:
+            result.append(info)
+    return result
+
+
+def domain_of(unit_type: str) -> TypeInfo | None:
+    """反查：某个数据类型的所属域（顺着公共锚点往上找）。"""
+    for info in types(ROLE_DOMAIN):
+        if unit_type in info.units:
+            return info
+    return None
+
+
 __all__ = [
     "ROLE_DATA",
     "ROLE_DOMAIN",
     "TypeInfo",
     "collect_fields",
+    "domain_of",
     "register",
     "type_info",
     "types",
+    "unit_infos",
 ]

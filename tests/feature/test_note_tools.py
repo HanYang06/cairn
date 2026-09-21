@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from feature.note.edit import line_styles
+from feature.note.edit.style import line_styles
 from feature.note.tools import (
     BASE_SIZE,
     PRESET_LAYOUT,

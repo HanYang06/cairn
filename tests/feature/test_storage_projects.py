@@ -15,7 +15,7 @@ from feature import (
     descendants,
     known_kinds,
 )
-from feature.asset import transcode, unified_target
+from feature.shared.asset import transcode, unified_target
 
 if TYPE_CHECKING:
     from pathlib import Path

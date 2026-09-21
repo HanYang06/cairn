@@ -405,10 +405,27 @@
 - 已定 · **真域目前只有 Note + Project（占位）**；`Asset` / `Canvas` / `Group` 是**存储数据结构**
   （**已降级**：`Domain` 服务删除，构造入口落在数据类 `AssetData.create` / `CanvasData.create` /
   `GroupData.create`，组操作成 `GroupData` 方法）。
-- 已定 · **最小类型表**：`core/types/kind.py` 登记 `TypeInfo{type, role, name, fields, deps}`；
+- 已定 · **最小类型表**：`core/types/kind.py` 登记 `TypeInfo{type, role, name, fields, deps, unit}`；
   `role` = `domain` / `data`；域与数据**可同名**（`Note` 与 `NoteData` 都是 `cairn.note`），按
   `(type, role)` 分键。定义时登记（`Block` / `Domain` 的 `__init_subclass__`），运行时只读。
+- 已定 · **最小数据 = 指针，不是字段表**：域上 `light = XxxData` 或 `light = (XxxData, …)` 绑定**既有
+  数据类**（最小数据单元，可多个）；`TypeInfo.units` 存其 `type` 名元组。**公共锚点 = `Block`**——
+  任何单元都能顺着往上找：`unit_infos(type)` 顺下取单元、`domain_of(unit)` 反查所属域。
+  **禁止另立最小字段表**（重复维护）。
 - 已定 · **类型以声明为锚，继承只做实现复用**：跨边界（落盘 / DB / UI）继承链不跟随，推理必须靠
   `type` 字符串（计划补 `role` / `fields` / `deps`）；不做通用类型系统，词表封闭即可。
 - 已定 · **`Attr` / `Data` 是通用字段描述符，归 `core.types`**（`core/types/attr.py`）；
   `core.storage` 继续 re-export 兼容。任何"属性"都能用 `Attr` 声明。
+
+## 领域文件组织（2026-09-21，方向定 + 第一批已落）
+
+- 已定 · **`feature/` = 域 + 共享件**：`note/`、`project/` 是**域**；其余全进 **`shared/`**——
+  数据结构（asset / canvas / group）、值（signature）、设施（relation / provenance / base）。
+- 已定 · **`note/edit/` 拆三块**：`body`（行身份 / 占位 / 规范化）/ `text`（文本增删拆合）/
+  `style`（行内区间样式），**不引类**（纯变换就该是函数）；`edit/__init__` 仅作兼容转出。
+- 已定 · **领域代码里别用 `from .edit import body, style, text`**：`text` / `style` / `body` 会与
+  方法的参数 / 局部名相撞（已踩）。用 `from . import edit` + `edit.<块>.<func>`，或子模块具名导入。
+- 待办 · **`note/types.py` 再拆** `body.py` / `data.py` / `service.py`：数据只管载体（字段 + 内容视图），
+  编辑操作全部归域服务 `Note`。
+- 待办 · **类型枚举**：官方 `cairn.*` 用 `StrEnum`（第三方仍可字符串）；类型表按 `str()` 归一。
+- 提醒 · 早先"撤销 `feature/_shared`"针对**跨域协作 / 编排**（归 App）；本条是**共享类型与设施**，不冲突。

@@ -20,9 +20,10 @@
 ### 领域 `feature`
 - [x] note 拆「数据 `NoteData(Block)` + 域服务 `Note(Domain)`」；行编辑 / 版本 / 关系。
 - [x] **降级**：`Asset` / `Canvas` / `Group` 去 `Domain`，回归纯 `Block` 数据结构（构造入口在数据类）。
-- [x] **最小类型表** `core/types/kind.py`：`TypeInfo{type, role, name, fields, deps}`，定义时登记。
-- [ ] 其余域服务按同口径拆（project 已是 `ProjectData` + `Project`；relation / signature / provenance
-  不是域）。
+- [x] **最小类型表** `core/types/kind.py`：`TypeInfo{type, role, name, fields, deps, units}`，定义时登记。
+- [x] **文件归位（第一批）**：`feature/shared/`（数据结构 / 值 / 设施）；`note/edit/` 三分（body/text/style）。
+- [ ] **`note/types.py` 再拆**：`body.py` / `data.py` / `service.py`（操作归域服务）——下一步。
+- [ ] **类型枚举**：官方 `cairn.*` 用 `StrEnum`，类型表 `str()` 归一。
 - [ ] 图片 / 音频转码（不传染库）；大正文透明分片（`Bucket.put_content`）。
 - [ ] **跨域编排**（域间关系 / 订阅）——交由 App 承担，尚未落地。
 - [ ] **变更签名**（非原作者 / `prev` 链；`alg` 日后换 `ed25519`）预留未实现。

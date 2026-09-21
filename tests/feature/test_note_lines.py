@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-from feature.note.edit import OVERLONG_WEIGHT, line_styles, text_weight
+from feature.note.edit.body import OVERLONG_WEIGHT, text_weight
+from feature.note.edit.style import line_styles
 from feature.note.types import NoteData, Style, access_ref
 
 

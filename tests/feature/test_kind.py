@@ -1,12 +1,13 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""最小类型表：域 / 数据结构的登记与字段 / 依赖元数据。"""
+"""最小类型表：域 / 数据结构的登记、字段 / 依赖 / 最小数据单元。"""
 
 from __future__ import annotations
 
-from core.types import ROLE_DATA, ROLE_DOMAIN, type_info, types
-from feature import Note, NoteData
+from core.signal import Domain
+from core.types import ROLE_DATA, ROLE_DOMAIN, domain_of, type_info, types, unit_infos
+from feature import CanvasData, Note, NoteData
 
 
 def test_domain_and_data_share_type_but_differ_by_role() -> None:
@@ -36,6 +37,38 @@ def test_data_fields_registered() -> None:
     assert info is not None
     assert "title" in info.fields
     assert "tags" in info.fields
+
+
+def test_domain_units_point_at_data_types() -> None:
+    info = type_info("cairn.note", role=ROLE_DOMAIN)
+
+    assert info is not None
+    assert info.units == ("cairn.note",)
+
+    units = unit_infos("cairn.note")
+
+    assert [unit.cls for unit in units] == [NoteData]
+    assert "title" in units[0].fields
+
+
+def test_domain_of_finds_owner_by_unit() -> None:
+    owner = domain_of("cairn.note")
+
+    assert owner is not None
+    assert owner.cls is Note
+
+
+def test_light_accepts_a_list_of_types() -> None:
+    class Multi(Domain):
+        name = "多单元"
+        type = "cairn.test.multi"
+        light = (NoteData, CanvasData)
+
+    info = type_info("cairn.test.multi", role=ROLE_DOMAIN)
+
+    assert info is not None
+    assert info.units == ("cairn.note", "cairn.canvas")
+    assert [unit.cls for unit in unit_infos("cairn.test.multi")] == [NoteData, CanvasData]
 
 
 def test_degraded_structures_are_data_not_domain() -> None:

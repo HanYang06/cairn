@@ -1,118 +1,24 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""笔记正文的编辑原语：**行身份** + **行内区间样式**。
-
-正文 = 有序行序列，每行有稳定 id：
-
-    body  = [ {"id": lid, "v": "第一行"}, {"id": lid2, "v": {"canvas": 0}} ]
-
-行内样式按「行 id → 区间层」叠加（后者覆盖前者）：
-
-    style = { lid: [ {(0, 3): Style(bold=True)} ] }
-
-约定：
-- 行 id 生成即锁死；行增删 / 重排只动序列，样式不受影响（不漂移）。
-- 区间可叠加，规范化为**不重叠、有序、去掉默认**。
-- 内容签名按行顺序取「行值 + 解析后样式」，**丢掉行 id**——同文同样式即同签名，
-  这样"纯复制"能去重，改一个字就不同。
-"""
+"""行内区间样式：规范化、编解码、读写（后层压前层；规范化为不重叠、有序、去默认）。"""
 
 from __future__ import annotations
 
-import unicodedata
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from blake3 import blake3
 
-from core.types import Oid
+from ..model import Style
+from .body import Line, is_marker
 
-from .model import Style
-
-Line = dict[str, Any]
-Marker = dict[str, int]
 RangeStyle = dict[tuple[int, int], Style]
 StyleMap = dict[str, list[RangeStyle]]
 
-_MARKER_KEYS = ("canvas", "access")
+_BOOL_KEYS = ("bold", "italic", "underline", "strike")
 
 
-def new_id() -> str:
-    """生成一个行身份（ULID）。"""
-    return str(Oid.new())
-
-
-def is_marker(value: Any) -> bool:
-    """是否是嵌入占位（画板 / 多媒体）。"""
-    return isinstance(value, Mapping) and any(key in value for key in _MARKER_KEYS)
-
-
-# 超长行阈值：等效中文字数（见 ``text_weight``）。
-OVERLONG_WEIGHT = 300.0
-
-
-def text_weight(text: str) -> float:
-    """等效中文字数：全角 / 宽字符记 1，半角记 0.5（用于超长行判定）。"""
-    return sum(1.0 if unicodedata.east_asian_width(ch) in ("W", "F") else 0.5 for ch in text)
-
-
-def _entry(line_id: str, value: Any, para: Any = None) -> Line:
-    entry: Line = {"id": line_id, "v": value}
-    if para:
-        entry["p"] = dict(para)
-    return entry
-
-
-# ---- 正文（行序列）----
-def normalize_body(raw: Any) -> list[Line]:
-    r"""把任意输入规范成带 id 的行序列；字符串按 ``\n`` 拆行，保留 ``p``（段落属性）。"""
-    lines: list[Line] = []
-    for item in raw or ():
-        if is_marker(item):
-            lines.append(_entry(new_id(), dict(item)))
-            continue
-        if isinstance(item, Mapping) and "v" in item:
-            lid = str(item.get("id") or new_id())
-            para = item.get("p")
-            value = item["v"]
-            if isinstance(value, str):
-                for offset, part in enumerate(value.split("\n")):
-                    lines.append(_entry(lid if offset == 0 else new_id(), part, para))
-            else:
-                lines.append(_entry(lid, value, para))
-            continue
-        lines.extend(_entry(new_id(), part) for part in str(item).split("\n"))
-    return lines or [_entry(new_id(), "")]
-
-
-def flatten_text(lines: Sequence[Line]) -> str:
-    """把行序列拍平成纯文本（嵌入占位不占字符）。"""
-    return "\n".join(str(line["v"]) for line in lines if not is_marker(line["v"]))
-
-
-def apply_text(lines: Sequence[Line], text: str) -> list[Line]:
-    """整段替换文字，尽量保留行身份、嵌入占位与段落属性。
-
-    文字行按位复用原有行 id 与 ``p``；多出的新行另分配；占位行原地保留。
-    """
-    values = text.split("\n")
-    out: list[Line] = []
-    cursor = 0
-    for line in lines:
-        if is_marker(line["v"]):
-            out.append(_entry(line["id"], dict(line["v"]), line.get("p")))
-            continue
-        if cursor < len(values):
-            out.append(_entry(line["id"], values[cursor], line.get("p")))
-            cursor += 1
-    while cursor < len(values):
-        out.append(_entry(new_id(), values[cursor]))
-        cursor += 1
-    return out or [_entry(new_id(), "")]
-
-
-# ---- 行内区间样式 ----
 def _overlay(
     segments: list[tuple[int, int, Style]], start: int, end: int, style: Style
 ) -> list[tuple[int, int, Style]]:
@@ -220,89 +126,6 @@ def coerce_style(value: Any, lines: Sequence[Line]) -> StyleMap:
     if value is None:
         return {}
     return decode_style(value, lines)
-
-
-_BOOL_KEYS = ("bold", "italic", "underline", "strike")
-
-
-def _index_of(lines: Sequence[Line], line_id: str) -> int:
-    for index, line in enumerate(lines):
-        if line["id"] == line_id:
-            return index
-    return -1
-
-
-def _copy_lines(lines: Sequence[Line]) -> list[Line]:
-    return [_entry(line["id"], line["v"], line.get("p")) for line in lines]
-
-
-# ---- 行级编辑原语（返回新序列，不改原值）----
-def set_line_text(lines: Sequence[Line], line_id: str, text: str) -> list[Line]:
-    r"""改写某一行文字；含换行时按 ``\n`` 就地拆成多行（新行另分配 id，沿用 ``p``）。"""
-    parts = str(text).split("\n")
-    out: list[Line] = []
-    for line in lines:
-        if line["id"] != line_id or is_marker(line["v"]):
-            out.append(_entry(line["id"], line["v"], line.get("p")))
-            continue
-        out.append(_entry(line["id"], parts[0], line.get("p")))
-        out.extend(_entry(new_id(), part, line.get("p")) for part in parts[1:])
-    return out
-
-
-def insert_line(
-    lines: Sequence[Line], after_id: str | None, value: str = ""
-) -> tuple[list[Line], str]:
-    """在 ``after_id`` 之后插入一行（``None`` 追加到末尾）；返回新行 id。"""
-    out = _copy_lines(lines)
-    lid = new_id()
-    position = len(out) if after_id is None else _index_of(out, after_id) + 1
-    out.insert(max(0, position), _entry(lid, str(value)))
-    return out, lid
-
-
-def remove_line(lines: Sequence[Line], line_id: str) -> list[Line]:
-    """删除一行；删空时保留一个空行，保证正文至少一行。"""
-    out = [_entry(line["id"], line["v"], line.get("p")) for line in lines if line["id"] != line_id]
-    return out or [_entry(new_id(), "")]
-
-
-def split_line(
-    lines: Sequence[Line], line_id: str, offset: int
-) -> tuple[list[Line], str, str, int]:
-    """在 ``offset`` 处把一行拆成两行；返回 ``(新序列, 新行 id, 原行 id, 原行长度)``。"""
-    out: list[Line] = []
-    new_lid = new_id()
-    old_len = 0
-    for line in lines:
-        if line["id"] != line_id or is_marker(line["v"]):
-            out.append(_entry(line["id"], line["v"], line.get("p")))
-            continue
-        text = str(line["v"])
-        old_len = len(text)
-        cut = max(0, min(int(offset), old_len))
-        out.append(_entry(line["id"], text[:cut], line.get("p")))
-        out.append(_entry(new_lid, text[cut:], line.get("p")))
-    return out, new_lid, line_id, old_len
-
-
-def merge_line(lines: Sequence[Line], line_id: str) -> tuple[list[Line], str | None, int]:
-    """把 ``line_id`` 并入上一行；返回 ``(新序列, 上一行 id, 上一行长度)``。
-
-    已是首行、或涉及嵌入占位时不合并，返回 ``(原序列, None, 0)``。
-    """
-    out = _copy_lines(lines)
-    index = _index_of(out, line_id)
-    if index <= 0:
-        return out, None, 0
-    previous = out[index - 1]
-    current = out[index]
-    if is_marker(previous["v"]) or is_marker(current["v"]):
-        return _copy_lines(lines), None, 0
-    previous_text = str(previous["v"])
-    out[index - 1] = _entry(previous["id"], previous_text + str(current["v"]), previous.get("p"))
-    del out[index]
-    return out, previous["id"], len(previous_text)
 
 
 def drop_style(smap: StyleMap, line_id: str) -> StyleMap:
@@ -459,12 +282,8 @@ def content_signature(kind: str, lines: Sequence[Line], smap: StyleMap) -> str:
 
 
 __all__ = [
-    "OVERLONG_WEIGHT",
-    "Line",
-    "Marker",
     "RangeStyle",
     "StyleMap",
-    "apply_text",
     "bool_state",
     "canonicalize_style",
     "clear_range_style",
@@ -473,21 +292,11 @@ __all__ = [
     "decode_style",
     "drop_style",
     "encode_style",
-    "flatten_text",
-    "insert_line",
-    "is_marker",
     "line_styles",
-    "merge_line",
     "merge_style",
-    "new_id",
-    "normalize_body",
-    "remove_line",
-    "set_line_text",
     "set_range_style",
     "signature_style",
-    "split_line",
     "split_style",
     "style_at",
-    "text_weight",
     "toggle_range_style",
 ]

@@ -18,11 +18,28 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, overload
 from core.types import ROLE_DOMAIN, CairnError, TypeInfo, register
 
 if TYPE_CHECKING:
+    import builtins
+
+    from core.storage import Block
+
     from .bus import Signal
     from .events import Subscription
 
 SignalHandler = Callable[[Any], None]
 ActionFunc = Callable[..., Any]
+
+
+def _light_units(light: Any) -> tuple[str, ...]:
+    """把 `light`（单个数据类或它们的列表）归一化成 `type` 名元组。"""
+    if light is None:
+        return ()
+    items = light if isinstance(light, (list, tuple)) else (light,)
+    names: list[str] = []
+    for item in items:
+        name = str(getattr(item, "type", "") or "")
+        if name:
+            names.append(name)
+    return tuple(names)
 
 
 class SignalError(CairnError):
@@ -69,6 +86,8 @@ class Domain:
     name: ClassVar[str] = ""
     type: ClassVar[str] = ""
     data: ClassVar[tuple[str, ...]] = ()
+    # 最小数据单元：一个数据类，或它们的列表（都必须是 Block 子类——公共锚点）。
+    light: ClassVar[list[builtins.type[Block]] | builtins.type[Block] | None] = None
 
     _signal: Signal | None = None
 
@@ -78,6 +97,7 @@ class Domain:
             cls.name = cls.__name__.removesuffix("Service")
         if not cls.__dict__.get("type"):
             cls.type = f"cairn.{cls.__name__.lower()}"
+        units = _light_units(cls.__dict__.get("light")) or (cls.type,)
         register(
             TypeInfo(
                 type=cls.type,
@@ -85,6 +105,7 @@ class Domain:
                 cls=cls,
                 name=cls.name,
                 deps=tuple(cls.data),
+                units=units,
             )
         )
 

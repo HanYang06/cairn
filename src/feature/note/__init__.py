@@ -5,18 +5,17 @@
 
 from __future__ import annotations
 
-from .edit import (
+from .edit.body import (
     Line as LineDict,
 )
-from .edit import (
+from .edit.body import (
     Marker,
-    StyleMap,
-    content_signature,
-    flatten_text,
     is_marker,
     new_id,
     normalize_body,
 )
+from .edit.style import StyleMap, content_signature
+from .edit.text import flatten_text
 from .model import (
     NOTE_KIND,
     NOTE_MIME,
