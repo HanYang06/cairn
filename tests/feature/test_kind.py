@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from core.signal import Domain
 from core.types import ROLE_DATA, ROLE_DOMAIN, domain_of, type_info, types, unit_infos
-from feature import CanvasData, Note, NoteData
+from feature import CanvasData, Kind, Note, NoteData
 
 
 def test_domain_and_data_share_type_but_differ_by_role() -> None:
@@ -82,6 +82,17 @@ def test_project_is_domain() -> None:
 
     assert info is not None
     assert info.name == "项目"
+
+
+def test_kind_enum_and_string_are_interchangeable() -> None:
+    assert Kind.NOTE == "cairn.note"
+    assert str(Kind.NOTE) == "cairn.note"
+
+    assert type_info(Kind.NOTE, role=ROLE_DOMAIN) is not None
+    assert type_info(Kind.NOTE, role=ROLE_DATA) is not None
+    assert domain_of(Kind.NOTE) is not None
+    assert Kind.NOTE in {info.type for info in types(ROLE_DOMAIN)}
+    assert Kind.CANVAS in {info.type for info in types(ROLE_DATA)}
 
 
 def test_types_filter_by_role() -> None:

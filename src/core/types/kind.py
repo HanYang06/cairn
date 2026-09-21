@@ -44,18 +44,19 @@ _TYPES: dict[tuple[str, str], TypeInfo] = {}
 
 
 def register(info: TypeInfo) -> None:
-    """登记（同名同角色覆盖）一个类型。"""
-    _TYPES[(info.type, info.role)] = info
+    """登记（同名同角色覆盖）一个类型；键按 `str()` 归一（枚举 / 字符串可互换）。"""
+    _TYPES[(str(info.type), info.role)] = info
 
 
 def type_info(type_name: str, *, role: str | None = None) -> TypeInfo | None:
-    """按 `type`（可加 `role` 限定）取元数据。
+    """按 `type`（可加 `role` 限定）取元数据；输入按 `str()` 归一。
 
     同名同时有域与数据（如 `cairn.note`）时，不指定 `role` 默认取**域**。
     """
+    key = str(type_name)
     if role is not None:
-        return _TYPES.get((type_name, role))
-    return _TYPES.get((type_name, ROLE_DOMAIN)) or _TYPES.get((type_name, ROLE_DATA))
+        return _TYPES.get((key, role))
+    return _TYPES.get((key, ROLE_DOMAIN)) or _TYPES.get((key, ROLE_DATA))
 
 
 def types(role: str | None = None) -> list[TypeInfo]:
@@ -87,9 +88,10 @@ def unit_infos(domain_type: str) -> list[TypeInfo]:
 
 
 def domain_of(unit_type: str) -> TypeInfo | None:
-    """反查：某个数据类型的所属域（顺着公共锚点往上找）。"""
+    """反查：某个数据类型的所属域（顺着公共锚点往上找）；输入按 `str()` 归一。"""
+    key = str(unit_type)
     for info in types(ROLE_DOMAIN):
-        if unit_type in info.units:
+        if key in info.units:
             return info
     return None
 

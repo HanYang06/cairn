@@ -428,5 +428,6 @@
 - 已定 · **`note/` 职责归位**：`body.py`（`NoteBody`）/ `data.py`（`NoteData` 载体 + 读视图）/
   `service.py`（`Note` 域服务，**全部操作以 data 为首参**）；工具签名 `run(svc, data, ctx)` /
   `state(data, ctx)`。`NoteData` 只留字段 + `body_hash` / `text` / `style` / `paragraph` / `references` / `_state`。
-- 待办 · **类型枚举**：官方 `cairn.*` 用 `StrEnum`（第三方仍可字符串）；类型表按 `str()` 归一。
+- 已定 · **类型枚举**：官方领域类型用 `feature.shared.Kind`（`StrEnum`，值即持久化字符串）；
+  类型表 `register` / `type_info` / `domain_of` 按 `str()` 归一（枚举与字符串可互换）；第三方仍可字符串。
 - 提醒 · 早先"撤销 `feature/_shared`"针对**跨域协作 / 编排**（归 App）；本条是**共享类型与设施**，不冲突。

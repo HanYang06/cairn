@@ -19,10 +19,12 @@ from typing import TYPE_CHECKING, Any
 
 from core.storage import Block, Body
 
+from .kinds import Kind
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-CANVAS_KIND = "cairn.canvas"
+CANVAS_KIND = Kind.CANVAS
 CANVAS_MODE = ("diagram", "sketch")
 
 

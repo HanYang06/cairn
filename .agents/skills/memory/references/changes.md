@@ -464,4 +464,8 @@
   `NoteData` 只留字段 + 读视图（`body_hash` / `text` / `style` / `paragraph` / `references` / `_state`）；
   `note/tools.py` 改 `run(svc, data, ctx)` / `state(data, ctx)`，测试同步。
   218 测试通过、覆盖率 88%。
+- 2026-09-21 · 已定 · **类型枚举落地**：新增 `feature/shared/kinds.py`（`Kind(StrEnum)`：note / project /
+  canvas / asset / group）；`NOTE_KIND` 等常量与各数据类型 `type` 改指枚举；类型表
+  `register` / `type_info` / `domain_of` 按 `str()` 归一（枚举与字符串可互换，第三方可继续用字符串）。
+  219 测试通过、覆盖率 88%。
 

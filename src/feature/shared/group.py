@@ -17,13 +17,14 @@ from core.storage import Attr, Block, BodyField
 from core.types import Oid
 
 from .base import DomainError
+from .kinds import Kind
 from .relation import CONTAINS as _CONTAINS
 from .relation import Relation
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
 
-GROUP_KIND = "cairn.group"
+GROUP_KIND = Kind.GROUP
 GROUP_MIME = "application/x-cairn-group"
 GROUP_SCHEMA = 1
 

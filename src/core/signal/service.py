@@ -100,7 +100,7 @@ class Domain:
         units = _light_units(cls.__dict__.get("light")) or (cls.type,)
         register(
             TypeInfo(
-                type=cls.type,
+                type=str(cls.type),
                 role=ROLE_DOMAIN,
                 cls=cls,
                 name=cls.name,

@@ -23,6 +23,7 @@ from .base import (
 )
 from .canvas import CanvasBody, CanvasData, Form, Graphic, Line, Link, Paint
 from .group import GroupData, GroupError, all_gids, list_groups, roots
+from .kinds import Kind
 from .provenance import ancestors, derivatives, descendants, lineage
 from .relation import Relation
 from .signature import Signature
@@ -37,6 +38,7 @@ __all__ = [
     "Graphic",
     "GroupData",
     "GroupError",
+    "Kind",
     "KindMismatchError",
     "Line",
     "Link",

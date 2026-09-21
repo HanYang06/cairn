@@ -15,6 +15,7 @@ from core.signal import Domain, action
 from core.storage import Attr, Block, BodyField
 
 from ..shared.base import UNSET, normalize_tags
+from ..shared.kinds import Kind
 from ..shared.relation import Relation
 
 if TYPE_CHECKING:
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
 
     from core.types import Oid
 
-PROJECT_KIND = "cairn.project"
+PROJECT_KIND = Kind.PROJECT
 PROJECT_SCHEMA = 1
 CONTAINS = "contains"
 

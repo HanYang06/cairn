@@ -18,11 +18,12 @@ from typing import TYPE_CHECKING, Any, BinaryIO, ClassVar
 from core.storage import Attr, Block, BodyField
 
 from .base import normalize_tags
+from .kinds import Kind
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
-ASSET_KIND = "cairn.asset"
+ASSET_KIND = Kind.ASSET
 ASSET_SCHEMA = 1
 
 Source = bytes | bytearray | memoryview | str | Path | BinaryIO

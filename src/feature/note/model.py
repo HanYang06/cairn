@@ -14,11 +14,12 @@ from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
 from ..shared.canvas import CanvasBody, CanvasData, Form, Graphic, Line, Link, Paint
+from ..shared.kinds import Kind
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-NOTE_KIND = "cairn.note"
+NOTE_KIND = Kind.NOTE
 NOTE_MIME = "application/x-cairn-note"
 NOTE_SCHEMA = 1
 
