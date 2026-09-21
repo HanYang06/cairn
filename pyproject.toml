@@ -36,6 +36,7 @@ dev = [
     "pyinstaller>=6.11",
     "pytest-cov>=7.1.0",
     "pre-commit>=4.6.2",
+    "modelscope>=1.40.1",
 ]
 
 [build-system]
