@@ -69,6 +69,7 @@ class Session:
 
     def release(self, model: Model[Any]) -> None:
         """注销一个由 ``model()`` 建的模型；主干变更不再重算它。"""
+        self._require_open()
         self._models = [(loader, item) for loader, item in self._models if item is not model]
 
     def close(self) -> None:
