@@ -3,6 +3,17 @@
 
 # 变更
 
+- 2026-09-22 · 已定 · **OCR 评审（open-code-review）真问题批修**（分支 `fix/ocr-review-batch1`）：
+  存储——`catalog` 版本 fail-closed（不降级覆写）、`bucket` 校验改用目录 checksum、块元数据损坏报错、
+  事务回滚截断已写 pack 字节、`table.upsert` 真 upsert（`ON CONFLICT DO UPDATE`）、`version.compact` 只裁链尾；
+  `Vault`——重存不带检索文本不再清索引、`LIKE` 转义 `%/_`、`rebuild_index` 必填 `text_of` 并返回写入数；
+  `feature/shared`——裸字符串标签按单标签、`relation` 的 `src/dst` 经 `Oid.parse` 归一、canvas 序列校验、
+  `group.move` 校验排列、`signature.from_data` fail-closed、`provenance` 起点入 `seen` 防环；
+  `note`——版本 diff 有增删即补 `@order`（修回放乱序）、回放起点用 `_saved_state`、去重键改落盘负载哈希（见 decisions）；
+  `project.add_member` 幂等；`app_theme` 损坏 / 非法名退回内置默认；
+  `ui_tools`——槽重复 expects / 挂载原子、`schema` 重复路径报错、`facet.page` 清理陈旧路由、
+  `compile_bindings` 跳过 root、`Node.add/clear` 维护父指针、`Slot(addable=)`、scroll 槽保留 stretch、
+  Qt 模型 / Bridge 随 C++ 销毁退订。ruff/format/mypy/pytest 全绿，251 通过、覆盖率 89%。
 - 2026-09-14 · 已定 · 建立规则 / 记忆机制，新增 `rules`、`memory` 技能与 `.agents/skills/` 约定 | 见 `AGENTS.md`
 - 2026-09-14 · 已定 · 安装 `skill-creator`（`anthropics/skills`，Apache-2.0）与 `git-commit`（`github/awesome-copilot`，MIT） | skills.sh CLI
 - 2026-09-14 · 已定 · 修复热重载：`HotReloader` 原被 GC（watcher 失效）+ 重载脆弱；改为绑定 `Loader.source` 到带版本号的 URL，保留引用并挂到 engine | 见 `ui/app.py`
