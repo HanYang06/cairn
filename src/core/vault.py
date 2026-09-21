@@ -222,12 +222,16 @@ def _tags_of(attrs: Mapping[str, Any]) -> dict[str, Any]:
     raw = attrs.get("tags") or {}
     if isinstance(raw, Mapping):
         return {str(key): value for key, value in raw.items()}
+    if isinstance(raw, str):
+        return {raw: None} if raw else {}
     return {str(tag): None for tag in raw}
 
 
 def _wanted_tags(tags: Iterable[str] | Mapping[str, Any] | None) -> dict[str, Any]:
     if tags is None:
         return {}
+    if isinstance(tags, str):
+        return {tags: None} if tags else {}
     if isinstance(tags, Mapping):
         return {str(key): value for key, value in tags.items()}
     return {str(tag): None for tag in tags}

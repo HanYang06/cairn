@@ -379,21 +379,24 @@ class Block:
         body 与 attrs 分开存（body 进内容池、attrs 随块行），这里拼合后按子类口径重算
         ``checksum``，保证读回与写入一致。
         """
+        if id is None:
+            raise CorruptObjectError("decode 需要块 id")
         try:
             raw = cbor2.loads(data) if data else None
+        except (cbor2.CBORDecodeError, cbor2.CBOREncodeError) as exc:
+            raise CorruptObjectError("块解析失败") from exc
+        try:
             kind = _type_name(type if type is not None else cls.type)
             target = Block._REGISTRY.get(kind, Block)
             body = _body_from_data(target, raw)
-            block = target(id=id, body=body, attrs=dict(attrs or {}), type=kind)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise CorruptObjectError("块内容解析失败") from exc
+        block = target(id=id, body=body, attrs=dict(attrs or {}), type=kind)
+        try:
             block.checksum = block.compute_checksum()
-        except (
-            cbor2.CBORDecodeError,
-            cbor2.CBOREncodeError,
-            KeyError,
-            TypeError,
-            ValueError,
-        ) as exc:
-            raise CorruptObjectError("块解析失败") from exc
+        except cbor2.CBOREncodeError as exc:
+            # 解出的 body 无法再编码（如损坏得到的 CBOR 特殊值）→ 视为损坏
+            raise CorruptObjectError("块内容不可编码") from exc
         return block
 
     def verify(self) -> bool:

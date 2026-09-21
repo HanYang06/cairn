@@ -8,6 +8,7 @@ from dataclasses import FrozenInstanceError
 import pytest
 
 from core.types import (
+    Attr,
     Cid,
     InvalidIdError,
     ObjectInfo,
@@ -58,6 +59,30 @@ def test_cid_parse_rejects() -> None:
         Cid.parse("abc")
     with pytest.raises(InvalidIdError):
         Cid.parse("g" * 64)
+
+
+def test_cid_from_digest_rejects_wrong_length() -> None:
+    with pytest.raises(InvalidIdError):
+        Cid.from_digest(b"short")
+
+
+class _AttrsBox:
+    def __init__(self) -> None:
+        self.attrs: dict[str, object] = {}
+
+
+class _Point:
+    def __init__(self, x: int) -> None:
+        self.x = x
+
+
+def test_attr_item_decode_rejects_non_mapping() -> None:
+    attr: Attr = Attr(item=_Point)
+    attr.__set_name__(_AttrsBox, "p")
+    box = _AttrsBox()
+    box.attrs["p"] = [5]
+    with pytest.raises(TypeError, match="映射形态"):
+        _ = attr.__get__(box, _AttrsBox)
 
 
 def test_value_types_are_frozen() -> None:

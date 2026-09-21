@@ -156,6 +156,12 @@ def test_signature_from_data_fails_closed() -> None:
         Signature.from_data([1])
 
 
+def test_signature_created_type_is_strict() -> None:
+    signature = Signature.create(author="韩", subject="abc", created=1000)
+    tampered = Signature.from_data({**signature.to_data(), "created": "1000"})
+    assert not tampered.verify()
+
+
 def test_relation_backlinks_and_outbound(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     notes = Note(vault)

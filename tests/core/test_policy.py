@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from core import Audience, ShareKind
-from core.policy import is_private, target_audience, visible_to
+from core.policy import is_private, parse_kind, target_audience, visible_to
 
 _HOMEPAGE = {"kind": "homepage", "name": ""}
 _COMMUNITY = {"kind": "community", "name": "Cairn 中文"}
@@ -34,3 +34,14 @@ def test_targets_are_additive() -> None:
     shares = [_COMMUNITY, _PERSON]
     assert visible_to(shares, Audience.COMMUNITY)
     assert not visible_to(shares, Audience.PUBLIC)
+
+
+def test_parse_kind_accepts_enum_and_string() -> None:
+    assert parse_kind(ShareKind.HOMEPAGE) is ShareKind.HOMEPAGE
+    assert parse_kind("community") is ShareKind.COMMUNITY
+    assert parse_kind("nope") is None
+
+
+def test_is_private_short_circuits_on_generator() -> None:
+    assert is_private(iter(()))
+    assert not is_private(iter([_HOMEPAGE]))

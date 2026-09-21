@@ -49,7 +49,8 @@ class ShapeSpec:
     params: tuple[Param, ...] = ()
 
     def defaults(self) -> dict[str, Any]:
-        return {param.key: param.default for param in self.params}
+        """参数默认值；未声明默认的参数**不入表**，让生成器能命中自己的 fallback。"""
+        return {param.key: param.default for param in self.params if param.default is not None}
 
 
 @dataclass(frozen=True, slots=True)

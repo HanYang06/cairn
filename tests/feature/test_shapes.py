@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from feature.note import Form, Line
-from feature.note.shapes import build_vertices, graphic_from, load_shape_set
+from feature.note.shapes import Param, ShapeSpec, build_vertices, graphic_from, load_shape_set
 
 
 def test_load_shape_set() -> None:
@@ -31,6 +31,21 @@ def test_by_key_and_defaults() -> None:
     spec = load_shape_set().by_key("parallelogram")
     assert spec is not None
     assert spec.defaults() == {"slant": 0.5}
+
+
+def test_defaults_skip_undeclared_params() -> None:
+    spec = ShapeSpec(
+        id=99,
+        key="k",
+        name="n",
+        desc="",
+        gen="polygon",
+        params=(
+            Param(key="a", name="a", type="float", default=None),
+            Param(key="b", name="b", type="float", default=2.0),
+        ),
+    )
+    assert spec.defaults() == {"b": 2.0}
 
 
 def test_build_polygon_vertex_count() -> None:

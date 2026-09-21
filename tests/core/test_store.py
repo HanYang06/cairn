@@ -362,3 +362,36 @@ def test_upsert_preserves_unlisted_columns(tmp_path: Path) -> None:
     row = table.select(id="1")[0]
     assert row["a"] == "z"
     assert row["b"] == "y"
+
+
+def test_table_none_predicate_and_arg_validation(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    table = bucket.table("kv", id="TEXT PRIMARY KEY", note="TEXT")
+    table.insert({"id": "1", "note": None})
+    assert len(table.select(note=None)) == 1  # `= NULL` 会零命中，必须 IS NULL
+    assert table.select(note="x") == []
+    table.update({"note": "y"}, id="1")
+    assert table.select(note=None) == []
+
+    with pytest.raises(ValueError, match="至少一列"):
+        table.insert({})
+    with pytest.raises(ValueError, match="至少一列"):
+        table.update({})
+    with pytest.raises(ValueError, match="过滤条件"):
+        table.update({"note": "z"})
+    with pytest.raises(ValueError, match="过滤条件"):
+        table.delete()
+
+
+def test_block_decode_requires_id() -> None:
+    with pytest.raises(CorruptObjectError):
+        Block.decode(b"")
+
+
+def test_corrupt_bucket_config_fails_closed(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    bucket.catalog.set_meta("config", "{not json")
+    bucket.catalog.commit()
+    bucket.close()
+    with pytest.raises(CairnError, match="配置损坏"):
+        Bucket.open(tmp_path / "bucket")

@@ -58,6 +58,8 @@ class Attr[T = Any]:
             return value
         if hasattr(self._item, "from_data"):
             return self._item.from_data(value)
+        if not isinstance(value, Mapping):
+            raise TypeError(f"字段 {self.key!r} 期望映射形态数据，得到 {type(value).__name__}")
         return self._item(**value)
 
     def _encode(self, value: Any) -> Any:
