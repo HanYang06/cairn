@@ -30,7 +30,7 @@ from .edit.style import bool_state, style_at
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from .types import NoteData
+    from .data import NoteData
 
 # 字号基准（与 UI 正文一致）；``Style.size == 0`` 表示用默认。
 BASE_SIZE = 13.0

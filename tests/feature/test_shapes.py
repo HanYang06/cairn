@@ -3,8 +3,8 @@
 
 from __future__ import annotations
 
+from feature.note import Form, Line
 from feature.note.shapes import build_vertices, graphic_from, load_shape_set
-from feature.note.types import Form, Line
 
 
 def test_load_shape_set() -> None:

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from core.types import Oid
-from feature.note.types import (
+from feature.note import (
     CanvasBody,
     CanvasData,
     Form,

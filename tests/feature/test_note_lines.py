@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
+from feature.note import NoteData, Style, access_ref
 from feature.note.edit.body import OVERLONG_WEIGHT, text_weight
 from feature.note.edit.style import line_styles
-from feature.note.types import NoteData, Style, access_ref
 
 
 def _texts(note: NoteData) -> list[str]:

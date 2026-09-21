@@ -11,7 +11,7 @@ import pytest
 
 from core import ObjectNotFoundError, Vault
 from feature import AssetData, CanvasData, Note, Relation
-from feature.note.types import Form, Graphic
+from feature.note import Form, Graphic
 
 if TYPE_CHECKING:
     from pathlib import Path

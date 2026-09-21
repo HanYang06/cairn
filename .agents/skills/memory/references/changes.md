@@ -455,4 +455,8 @@
   signature / relation / provenance / base 迁入，`shared/__init__` 转出）；`feature/__init__` 改从
   `.shared` 转出；删 `note/note.py` 残留；`note/edit.py` 拆成 `note/edit/`（body / text / style，
   `__init__` 兼容转出）；调用方改子模块具名导入。218 测试通过、覆盖率 88%。
+- 2026-09-21 · 已定 · **note/types.py 拆包**：→ `body.py`（`NoteBody`）/ `data.py`（`NoteData` +
+  `canvas_ref` / `access_ref`）/ `service.py`（`Note` + `_search_text`）；纯搬运、行为不变；
+  `note/__init__` 与 tests 改从 `feature.note` 顶层导入；删 `types.py`。
+  218 测试通过、覆盖率 88%。
 

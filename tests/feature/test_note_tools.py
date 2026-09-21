@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from feature.note import NoteData, Style
 from feature.note.edit.style import line_styles
 from feature.note.tools import (
     BASE_SIZE,
@@ -13,7 +14,6 @@ from feature.note.tools import (
     run_tool,
     tool_info,
 )
-from feature.note.types import NoteData, Style
 
 
 def _note(text: str = "abcdef") -> NoteData:

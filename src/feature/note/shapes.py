@@ -259,7 +259,7 @@ def graphic_from(  # noqa: PLR0913 — 生成入口：几何参数均有默认�
     params: dict[str, Any] | None = None,
 ) -> Any:
     """由预制图形生成一个 ``Graphic``：点已算好，``form`` / ``params`` 只留作来源记录。"""
-    from .types import Graphic  # noqa: PLC0415 — 延迟导入，避免与 types 的加载期环
+    from .model import Graphic  # noqa: PLC0415 — 延迟导入，避免与 model 的加载期环
 
     values = spec.defaults()
     if params:

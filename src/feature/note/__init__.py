@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from .body import NoteBody
+from .data import NoteData, access_ref, canvas_ref
 from .edit.body import (
     Line as LineDict,
 )
@@ -34,8 +36,8 @@ from .model import (
 from .model import (
     Line as LineKind,
 )
+from .service import Note
 from .shapes import ShapeSet, ShapeSpec, build_vertices, graphic_from, load_shape_set
-from .types import Note, NoteBody, NoteData, access_ref, canvas_ref
 from .versions import NOTE_CODEC
 
 __all__ = [
