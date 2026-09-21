@@ -13,15 +13,15 @@
 
 from __future__ import annotations
 
+from core.types import Attr, Data
+
 from .block import (
     BLOCK_VERSION,
     INDEX_TYPE,
     PART_TYPE,
-    Attr,
     Block,
     Body,
     BodyField,
-    Data,
     canonical,
     decode_canonical,
 )

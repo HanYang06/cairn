@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, ClassVar, Self, overload
 
-from core.types import CairnError
+from core.types import ROLE_DOMAIN, CairnError, TypeInfo, register
 
 if TYPE_CHECKING:
     from .bus import Signal
@@ -60,9 +60,15 @@ class Action:
 
 
 class Domain:
-    """域服务基类：单例处理器；对外只暴露 ``@action`` 动作与 ``Topic`` 信号。"""
+    """域服务基类：单例处理器；对外只暴露 ``@action`` 动作与 ``Topic`` 信号。
+
+    域是**管理型对象**：每 App / Vault 一个，**无 ID**；`type` / `name` / `data`(依赖的
+    数据结构) 用类属性声明，基类填默认、子类只写差异。定义时登记进最小类型表。
+    """
 
     name: ClassVar[str] = ""
+    type: ClassVar[str] = ""
+    data: ClassVar[tuple[str, ...]] = ()
 
     _signal: Signal | None = None
 
@@ -70,6 +76,17 @@ class Domain:
         super().__init_subclass__(**kwargs)
         if not cls.__dict__.get("name"):
             cls.name = cls.__name__.removesuffix("Service")
+        if not cls.__dict__.get("type"):
+            cls.type = f"cairn.{cls.__name__.lower()}"
+        register(
+            TypeInfo(
+                type=cls.type,
+                role=ROLE_DOMAIN,
+                cls=cls,
+                name=cls.name,
+                deps=tuple(cls.data),
+            )
+        )
 
     def bind(self, signal: Signal) -> Self:
         """绑定通信主干（组合根显式调用；非字符串注册）。"""

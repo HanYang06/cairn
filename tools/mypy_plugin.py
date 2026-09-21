@@ -4,10 +4,10 @@
 """Cairn 的 mypy 插件：把 ``field: Attr[T] = 值`` 的字段可见类型识别为 ``T``。
 
 框架在运行时把裸值自动包成 ``Attr`` 描述符（见 ``core/storage/block.py`` 的
-``__init_subclass__``），但 mypy 看不到这层包装，于是会把 ``str`` 赋给 ``Attr[str]``
-判为类型错误（`assignment`）。本插件在类的语义分析阶段把这类字段的**可见类型**改写成
-类型参数 ``T``：于是 ``note.title`` 是 ``str``、赋值也合法——与 dataclasses / attrs
-官方插件是同一条路数。
+``__init_subclass__``；``Attr`` 本体在 ``core/types/attr.py``），但 mypy 看不到这层包装，
+于是会把 ``str`` 赋给 ``Attr[str]`` 判为类型错误（`assignment`）。本插件在类的语义分析阶段
+把这类字段的**可见类型**改写成类型参数 ``T``：于是 ``note.title`` 是 ``str``、赋值也合法——
+与 dataclasses / attrs 官方插件是同一条路数。
 
 范围与约定：
 - **简单形式**：``field: Attr[T] = 值`` → 插件把可见类型改写为 ``T``。
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 BLOCK_FULLNAME = "core.storage.block.Block"
-ATTR_FULLNAME = "core.storage.block.Attr"
+ATTR_FULLNAME = "core.types.attr.Attr"
 
 
 def _is_descriptor_rhs(expr: object) -> bool:

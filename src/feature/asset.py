@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""资产领域：**数据**（``AssetData``）与**域服务**（``Asset``）分离。
+"""资产：**存储数据结构**（``AssetData(Block)``），不是域。
 
-- ``AssetData(Block)``：非文本内容（图 / 声 / 视等）纯数据 + 属性。
-- ``Asset(Domain)``：域服务——入库/载入，入库第一件事是**转码**（草案：恒等），再交桶存储。
+- ``AssetData``：非文本内容（图 / 声 / 视等）纯数据 + 属性；构造入口 ``create`` 先转码再落盘。
+- 它只是数据形态，由需要的域（Note / Project…）在用到时使用。
 
 分片不由资产处理——``Block`` / 桶已自带。
 """
@@ -15,15 +15,12 @@ import mimetypes
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, BinaryIO, ClassVar
 
-from core.signal import Domain, action
 from core.storage import Attr, Block, BodyField
 
 from .base import normalize_tags
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
-
-    from core.types import Oid
 
 ASSET_KIND = "cairn.asset"
 ASSET_SCHEMA = 1
@@ -87,18 +84,10 @@ class AssetData(Block):
         value = self.attrs.get("mime")
         return None if value is None else str(value)
 
-
-class Asset(Domain):
-    """资产域服务（单例）：入库（转码）/ 载入。"""
-
-    name = "Asset"
-
-    def __init__(self, vault: Any) -> None:
-        self.vault = vault
-
-    @action
-    def create(
-        self,
+    @classmethod
+    def create(  # noqa: PLR0913 — 构造入口参数面，均有默认值
+        cls,
+        vault: Any,
         source: Source,
         *,
         name: str | None = None,
@@ -106,9 +95,9 @@ class Asset(Domain):
         tags: Iterable[str] | Mapping[str, Any] | None = None,
         props: dict[str, Any] | None = None,
     ) -> AssetData:
-        """入库一个资产：先转码，再落盘。"""
-        data = AssetData()
-        data._vault = self.vault  # noqa: SLF001 — 服务为数据绑定库
+        """入库一个资产：先转码，再落盘（数据结构的构造入口）。"""
+        data = cls()
+        data._vault = vault
         raw = _read_source(source)
         original = mime or (mimetypes.guess_type(name)[0] if name else None)
         encoded, unified = transcode(raw, original)  # ← 入库先转码
@@ -123,18 +112,11 @@ class Asset(Domain):
         data.save()
         return data
 
-    @action
-    def load(self, oid: Oid | str) -> AssetData:
-        """按 oid 载入资产数据。"""
-        data: AssetData = AssetData.load(self.vault, oid)
-        return data
-
 
 __all__ = [
     "ASSET_KIND",
     "ASSET_SCHEMA",
     "UNIFIED_CODECS",
-    "Asset",
     "AssetData",
     "transcode",
     "unified_target",

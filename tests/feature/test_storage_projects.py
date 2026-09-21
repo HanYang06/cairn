@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from core import Vault
 from feature import (
-    Asset,
+    AssetData,
     Note,
     Project,
     Relation,
@@ -35,12 +35,12 @@ def test_registry_includes_three_piece_kinds() -> None:
 
 def test_asset_from_bytes(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    asset = Asset(vault).create(b"\x89PNG...", name="logo.png")
+    asset = AssetData.create(vault, b"\x89PNG...", name="logo.png")
 
     assert asset.name == "logo.png"
     assert asset.content_type == "image/png"
     assert asset.size == len(b"\x89PNG...")
-    assert Asset(vault).load(asset.oid).read() == b"\x89PNG..."
+    assert AssetData.load(vault, asset.oid).read() == b"\x89PNG..."
 
 
 def test_unified_target_and_identity_transcode() -> None:
@@ -56,7 +56,7 @@ def test_unified_target_and_identity_transcode() -> None:
 
 def test_asset_records_origin_mime(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    asset = Asset(vault).create(b"raw", name="clip.mp4", mime="video/mp4")
+    asset = AssetData.create(vault, b"raw", name="clip.mp4", mime="video/mp4")
     assert asset.attrs["origin_mime"] == "video/mp4"
 
 
@@ -65,13 +65,13 @@ def test_asset_from_path(tmp_path: Path) -> None:
     source = tmp_path / "data.bin"
     source.write_bytes(b"binary payload")
 
-    asset = Asset(vault).create(source, name="data.bin")
+    asset = AssetData.create(vault, source, name="data.bin")
     assert asset.read() == b"binary payload"
 
 
 def test_note_embed_and_link(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
-    image = Asset(vault).create(b"img", name="a.png")
+    image = AssetData.create(vault, b"img", name="a.png")
     notes = Note(vault)
     other = notes.create("target")
 

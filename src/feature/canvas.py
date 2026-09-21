@@ -6,7 +6,7 @@
 - 数据（``CanvasBody``）：``mode``（diagram 逻辑图 / sketch 自由手绘）+ 图形 + 连线。
   图形 = 点路径 + 变换 + 画法（数值序列）；连线只记下标 + 线型，走线派生。
 - 身份：作为块有 ``id`` / ``oid``，内容寻址、全局去重；笔记用 oid 引用它。
-- ``CanvasData(Block)`` = 数据；``Canvas(Domain)`` = 域服务（创建 / 载入）。
+- ``CanvasData(Block)`` = **存储数据结构**（创建 / 载入是它自己的构造入口），不是域。
 
 这里也定义渲染用的基础值对象：``Form`` / ``Line`` / ``Paint`` / ``Graphic`` / ``Link``。
 """
@@ -17,13 +17,10 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any
 
-from core.signal import Domain, action
 from core.storage import Block, Body
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-    from core.types import Oid
 
 CANVAS_KIND = "cairn.canvas"
 CANVAS_MODE = ("diagram", "sketch")
@@ -226,40 +223,25 @@ class CanvasData(Block):
     def links(self) -> list[Link]:
         return self.body.links
 
-
-class Canvas(Domain):
-    """画板域服务（单例）：创建 / 载入。"""
-
-    name = "Canvas"
-
-    def __init__(self, vault: Any) -> None:
-        self.vault = vault
-
-    @action
+    @classmethod
     def create(
-        self,
+        cls,
+        vault: Any,
         *,
         graphics: Sequence[Graphic] | None = None,
         links: Sequence[Link] | None = None,
         mode: str = "diagram",
     ) -> CanvasData:
-        """新建一块画板并落盘。"""
-        data = CanvasData(graphics=graphics, links=links, mode=mode)
-        data._vault = self.vault  # noqa: SLF001 — 服务为数据绑定库
+        """新建一块画板并落盘（数据结构的构造入口）。"""
+        data = cls(graphics=graphics, links=links, mode=mode)
+        data._vault = vault
         data.save()
-        return data
-
-    @action
-    def load(self, oid: Oid | str) -> CanvasData:
-        """按 oid 载入画板数据。"""
-        data: CanvasData = CanvasData.load(self.vault, oid)
         return data
 
 
 __all__ = [
     "CANVAS_KIND",
     "CANVAS_MODE",
-    "Canvas",
     "CanvasBody",
     "CanvasData",
     "Form",

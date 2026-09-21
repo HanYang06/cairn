@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from .attr import Attr, Data
 from .common import now_ms
 from .errors import (
     AuthError,
@@ -20,19 +21,37 @@ from .errors import (
     VaultError,
 )
 from .ids import Cid, Oid
+from .kind import (
+    ROLE_DATA,
+    ROLE_DOMAIN,
+    TypeInfo,
+    collect_fields,
+    register,
+    type_info,
+    types,
+)
 from .objects import ObjectInfo, VerifyReport
 
 __all__ = [
+    "ROLE_DATA",
+    "ROLE_DOMAIN",
+    "Attr",
     "AuthError",
     "CairnError",
     "Cid",
     "CorruptObjectError",
+    "Data",
     "InvalidIdError",
     "KindMismatchError",
     "ObjectInfo",
     "ObjectNotFoundError",
     "Oid",
+    "TypeInfo",
     "VaultError",
     "VerifyReport",
+    "collect_fields",
     "now_ms",
+    "register",
+    "type_info",
+    "types",
 ]

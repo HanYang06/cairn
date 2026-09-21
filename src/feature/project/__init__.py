@@ -50,7 +50,8 @@ class ProjectData(Block):
 class Project(Domain):
     """项目域服务（单例）：创建 / 载入 / 更新 / 成员关系。"""
 
-    name = "Project"
+    name = "项目"
+    type = PROJECT_KIND
 
     def __init__(self, vault: Any) -> None:
         self.vault = vault

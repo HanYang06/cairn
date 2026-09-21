@@ -1,19 +1,18 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""组：**数据**（``GroupData``）与**域服务**（``Group``）分离。
+"""组：**存储数据结构**（``GroupData(Block)``），不是域。
 
-- ``GroupData(Block)``：域身份 ``gid``（≠ 块 ``oid``）+ 有序子项 ``group`` 列表（结构）。
-- ``Group(Domain)``：域服务——创建 / 载入 / 增删 / 重排 / 嵌套解析；成员关系落 ``contains`` 边。
+- ``GroupData``：域身份 ``gid``（≠ 块 ``oid``）+ 有序子项 ``group`` 列表（结构）。
+- 增删 / 重排 / 嵌套解析都是**数据结构自身的操作**，由需要它的域（Note / Project…）使用。
 
 成员关系**两套都存**：``group`` 列表存结构（顺序），``relation`` 表存 ``contains``（反查）。
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
-from core.signal import Domain, action
 from core.storage import Attr, Block, BodyField
 from core.types import Oid
 
@@ -49,6 +48,40 @@ class GroupData(Block):
     group: list[str] = []  # noqa: RUF012  # 有序子项 ID 列表（结构）
     member: list[str] = []  # noqa: RUF012  # 预留：社区成员（User 系统落地后换类型）
 
+    # ---- 创建 / 查 ----
+    @classmethod
+    def create(  # noqa: PLR0913 — 构造入口参数面，均有默认值
+        cls,
+        vault: Any,
+        title: str = "",
+        *,
+        parent: GroupData | None = None,
+        key: str = "",
+        owner: str = "",
+        member: Iterable[str] | None = None,
+    ) -> Self:
+        """新建一个组并落盘；给了 ``parent`` 则同时加入父组。"""
+        data = cls()
+        data._vault = vault
+        data.gid = str(Oid.new())
+        data.title = title
+        data.key = key
+        data.owner = owner
+        data.member = [str(item) for item in member or ()]
+        data.save()
+        if parent is not None:
+            parent.add(data)
+        return data
+
+    @classmethod
+    def by_gid(cls, vault: Any, gid: str) -> GroupData | None:
+        """按域 ID 找组。"""
+        for group in cls.list(vault):
+            if group.gid == gid:
+                return group
+        return None
+
+    # ---- 子项 ----
     def require_unlocked(self) -> None:
         """锁定则拒绝编辑。"""
         if self.lock:
@@ -63,92 +96,40 @@ class GroupData(Block):
             return str(child.oid)
         return str(child)
 
-
-class Group(Domain):
-    """组域服务（单例）：创建 / 增删 / 重排 / 嵌套解析。"""
-
-    name = "Group"
-
-    def __init__(self, vault: Any) -> None:
-        self.vault = vault
-
-    # ---- 创建 / 载入 ----
-    @action
-    def create(
-        self,
-        title: str = "",
-        *,
-        parent: GroupData | None = None,
-        key: str = "",
-        owner: str = "",
-        member: Iterable[str] | None = None,
-    ) -> GroupData:
-        """新建一个组并落盘；给了 ``parent`` 则同时加入父组。"""
-        data = GroupData()
-        data._vault = self.vault  # noqa: SLF001 — 服务为数据绑定库
-        data.gid = str(Oid.new())
-        data.title = title
-        data.key = key
-        data.owner = owner
-        data.member = [str(item) for item in member or ()]
-        data.save()
-        if parent is not None:
-            self.add(parent, data)
-        return data
-
-    @action
-    def load(self, oid: Oid | str) -> GroupData:
-        """按 oid 载入组数据。"""
-        data: GroupData = GroupData.load(self.vault, oid)
-        return data
-
-    # ---- 子项 ----
-    @action
-    def add(self, data: GroupData, child: Block | str) -> GroupData:
+    def add(self, child: Block | str) -> Self:
         """把笔记 / 项目 / 组加进本组（去重、保序），并落一条 ``contains`` 关系。"""
-        data.require_unlocked()
-        ref = GroupData.ref_of(child)
-        if ref and ref not in data.group:
-            data.group = [*data.group, ref]
-            self._link(data, child)
-            data.save()
-        return data
+        self.require_unlocked()
+        ref = self.ref_of(child)
+        if ref and ref not in self.group:
+            self.group = [*self.group, ref]
+            self._link(child)
+            self.save()
+        return self
 
-    @action
-    def remove(self, data: GroupData, child: Block | str) -> GroupData:
+    def remove(self, child: Block | str) -> Self:
         """从本组移除子项（只摘列表；关系行留给后续清理策略）。"""
-        data.require_unlocked()
-        data.group = [ref for ref in data.group if ref != GroupData.ref_of(child)]
-        data.save()
-        return data
+        self.require_unlocked()
+        self.group = [ref for ref in self.group if ref != self.ref_of(child)]
+        self.save()
+        return self
 
-    @action
-    def move(self, data: GroupData, order: Sequence[int]) -> GroupData:
+    def move(self, order: Sequence[int]) -> Self:
         """按旧下标重排子项。"""
-        data.require_unlocked()
-        items = list(data.group)
-        data.group = [items[index] for index in order]
-        data.save()
-        return data
-
-    def _link(self, data: GroupData, child: Block | str) -> None:
-        target = str(child.oid) if isinstance(child, Block) else str(child)
-        Relation.create(self.vault, data.oid, target, relation=_CONTAINS, domain="group")
+        self.require_unlocked()
+        items = list(self.group)
+        self.group = [items[index] for index in order]
+        self.save()
+        return self
 
     # ---- 解析 ----
-    @action
-    def subgroups(self, data: GroupData) -> list[GroupData]:
+    def subgroups(self) -> list[GroupData]:
         """按 ``gid`` 解析出子组（引用不到的忽略），保持列表顺序。"""
-        index = {group.gid: group for group in GroupData.list(self.vault)}
-        return [index[ref] for ref in data.group if ref in index]
+        index = {group.gid: group for group in GroupData.list(self._require_vault())}
+        return [index[ref] for ref in self.group if ref in index]
 
-    @action
-    def by_gid(self, gid: str) -> GroupData | None:
-        """按域 ID 找组。"""
-        for group in GroupData.list(self.vault):
-            if group.gid == gid:
-                return group
-        return None
+    def _link(self, child: Block | str) -> None:
+        target = str(child.oid) if isinstance(child, Block) else str(child)
+        Relation.create(self._require_vault(), self.oid, target, relation=_CONTAINS, domain="group")
 
 
 def list_groups(vault: Any) -> Iterator[GroupData]:
@@ -174,7 +155,6 @@ __all__ = [
     "GROUP_KIND",
     "GROUP_MIME",
     "GROUP_SCHEMA",
-    "Group",
     "GroupData",
     "GroupError",
     "all_gids",
