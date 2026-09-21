@@ -19,7 +19,10 @@
 
 ### 领域 `feature`
 - [x] note 拆「数据 `NoteData(Block)` + 域服务 `Note(Domain)`」；行编辑 / 版本 / 关系。
-- [ ] 其余领域按同口径拆（asset / canvas / group / project / relation / signature / provenance）。
+- [x] **降级**：`Asset` / `Canvas` / `Group` 去 `Domain`，回归纯 `Block` 数据结构（构造入口在数据类）。
+- [x] **最小类型表** `core/types/kind.py`：`TypeInfo{type, role, name, fields, deps}`，定义时登记。
+- [ ] 其余域服务按同口径拆（project 已是 `ProjectData` + `Project`；relation / signature / provenance
+  不是域）。
 - [ ] 图片 / 音频转码（不传染库）；大正文透明分片（`Bucket.put_content`）。
 - [ ] **跨域编排**（域间关系 / 订阅）——交由 App 承担，尚未落地。
 - [ ] **变更签名**（非原作者 / `prev` 链；`alg` 日后换 `ed25519`）预留未实现。
@@ -33,8 +36,14 @@
 - [ ] 多页 Tab 宿主；配置 item 词表校验；主题文件系统（`config/theme/*.json`）；QML 岛承载器。
 
 ### App `src/app`
-- [x] `Feature` / `build` / `NoteFacet`；`win` 入口；`__main__` 平台分发。
-- [ ] `win/backend`（会话 / 桥）、`win/windows`（真外壳部件：标题栏 / 导航 / 编辑器 / 检查器）。
+- [x] `Feature`（领域容器）；`win` 组合根 `CairnApp.open()/run()`；`__main__` 平台分发。
+- [x] **根结构 = 大方框 + 格子 + 槽**：`CairnApp` 自己搭结构（顶带 / 主体 / 底栏 + `nav`/`main` 槽）；
+  `NoteFacet` 提供 `nav`/`page` 部件、内容工具条 + 卡片舞台；真实笔记投影（`win/backend`）；
+  卡片 / 详细两密度；主题从 `config/theme` 加载。
+- [ ] **对象驱动生成**：领域对象 → `Facet` 自动出 `parts()`（nav / page / 卡片…；当前手写）。
+- [ ] 顶带抽屉（搜索 / 命令之外的功能）；任务栏真实任务；边板（检查器 / 关系 / 版本）。
+- [ ] 笔记编辑页（专注态）；镜头筛选（笔记 / 项目混排 + 颜色区分）。
+- [ ] 毛玻璃真 Acrylic（DWM）与字体策略。
 - [ ] 桌面打包：`packaging/cairn.spec` + 构建脚本。
 
 ## 编辑器 / 工具线（待 UI 外壳恢复后）

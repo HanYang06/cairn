@@ -406,4 +406,43 @@
   `Session`（消费主干：订阅 `Signal.events`，维护投影缓存，变更即整体失效并通知观察者；`watch` 返回取消函数；
   `close` 收订阅）与 `App`（组合根，持 `Session`）。**不 import `feature`、不碰 `Vault`**，只吃 `Signal`；
   不带 Qt。新增 `tests/ui/test_session.py`（3 例）。ruff / format / mypy / pytest 全绿，166 通过。
+- 2026-09-21 · 已定 · **Windows 壳骨架首片**：新增 `src/app/win/windows/`——`theme.py`（软质感 token → QSS）、
+  `shell.py`（顶带 / 舞台 / 任务栏三带 + 卡片 / 详细两种密度 + 软卡片 delegate）、`samples.py`（样例卡片）；
+  `win/main.py` 入口切到 `Shell`（暂用样例数据）；`tools/preview_shell.py` 渲染 PNG 自检；
+  `tests/app/test_shell.py`（4 例）。ruff / format / mypy 全绿，209 测试通过、覆盖率 87%。
+- 2026-09-21 · 已定 · **壳重构：回到 `ui_tools` 管线 + 真实数据 + config 主题**（修正上一版裸 Qt 壳）：
+  部件进 `ui_tools`——`Heading` 原子、`component/structure.py`（`TopBar` / `TaskBar` / `CardStage`）、
+  `core/cardview.py`（卡片视图 + 委托）、`core/node.py` 加 `Node.action` / `NodeAction`、
+  `core/theme.py` 加 `load_theme`、`core/qt.py` 加 `topbar`/`taskbar`/`stage` 翻译器与 stretch，
+  `SuperLayout` 加 `topbar` / `taskbar` 区域；`app/win` 改为 `windows/ShellFacet`（声明三带）+
+  `backend`（笔记卡投影）+ `__init__.build` 组合根；`config/theme/github-{dark,light}.json` 改为当前
+  部件词汇与壳样式；删 `app/facets.py` 与裸 Qt 壳（`windows/shell.py` 重写、`samples.py` 删）。
+  ruff / format / mypy 全绿，209 测试通过、覆盖率 87%。
+- 2026-09-21 · 已定 · **层级校正：`App` = 根、`Facet` = 子件**：`ui_tools.core.App` 暴露区域句柄
+  （`self.topbar` / `content` / `taskbar`…）+ App 级 `self.bind`；`SuperLayout` 的 `TopBar`/`TaskBar`
+  成为根壳区域（`core/app.py`），`WindowHost` 直接编译区域节点（`node` → VBox 兜底）；`CardStage`
+  留作内容组件。`app/win` 重排：`windows/app.py`（`CairnApp`，App 级定义顶带 / 任务栏并 `mount` 笔记域）、
+  `windows/notes.py`（`NoteFacet`，内容工具条 + 卡片舞台）、删 `windows/shell.py`；密度切换移入笔记
+  `Facet`（不跨层）。ruff / format / mypy 全绿，209 测试通过、覆盖率 87%。
+- 2026-09-21 · 已定 · **App 收口启动样板**：`ui_tools.core.qt.run(app)`（套主题 / 建窗 / `exec`）；
+  `CairnApp.__init__(vault)` 内部完成 Feature / Session / 根布局 / `mount`，并加 `CairnApp.open(root)`；
+  `app/win/main.py` 收成一行 `CairnApp.open().run()`；`app/win/__init__` 去 `build`，测试与
+  `tools/preview_shell.py` 改用 `CairnApp(vault)`。ruff / format / mypy 全绿，209 测试通过、覆盖率 87%。
+- 2026-09-21 · 已定 · **根结构重定：大方框 + 格子 + 槽**：删 `SuperLayout` / `TopBar` / `TaskBar`
+  与全部预置区域；新增 `core/slot.py`（`Slot`：`expects` + 行为 `stretch`/`scroll`/`align`/`hidden`/
+  `locked`/`capacity`）；`App` 改为持 `root` 大框 + `slots()` + `add(facet)`（按 `expects` 填
+  `facet.parts()`）；`Node.add` / `Page.add` / `Facet.add` 泛型化（免 cast）；`Facet` 加 `parts()`；
+  新增 `Surface` 组件（带外观容器）；`WindowHost` 改为编译 `app.root`。`CairnApp` 自己搭结构与槽，
+  `NoteFacet.parts()` 供 `nav` / `page`；主题 `widget.topbar`/`taskbar` → `widget.surface`。
+  ruff / format / mypy 全绿，209 测试通过、覆盖率 87%。
+- 2026-09-21 · 已定 · **`Attr` / `Data` 迁入 `core.types`**：从 `core/storage/block.py` 移到
+  `core/types/attr.py`（去掉对 `Block` 的注解依赖，改 `Any`）；`core.types` 转出，`core.storage`
+  re-export 兼容；mypy 插件 `ATTR_FULLNAME` 跟着改（`core.types.attr.Attr`）。
+  ruff / format / mypy 全绿，209 测试通过、覆盖率 87%。
+- 2026-09-21 · 已定 · **领域降级 + 最小类型表**：删 `Asset` / `Canvas` / `Group` 的 `Domain` 服务
+  （构造入口改为 `AssetData.create` / `CanvasData.create` / `GroupData.create`，组操作成 `GroupData`
+  方法）；新增 `core/types/kind.py`（`TypeInfo` + `register` / `type_info` / `types` / `collect_fields`），
+  `Block` / `Domain` 定义时登记（`(type, role)` 分键，域与数据可同名）；`Note` / `Project` 声明
+  `type` / `name` / `data`(依赖数据结构)。新增 `tests/feature/test_kind.py`。
+  ruff / format / mypy 全绿，215 测试通过、覆盖率 88%。
 
