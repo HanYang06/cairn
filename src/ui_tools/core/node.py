@@ -29,6 +29,26 @@ class Placed:
     at: object | None = None
 
 
+class NodeAction:
+    """节点动作句柄：调用时解析到该节点**已编译控件的同名方法**。
+
+    给「UI 信号 → UI 自身行为」的绑定一个**句柄对象**目标（而非字符串或裸函数），
+    从而不把 Qt 控件泄进声明层。
+    """
+
+    def __init__(self, node: Node, method: str) -> None:
+        self._node = node
+        self._method = method
+
+    def __call__(self, *_args: object, **_kwargs: object) -> None:
+        handler = getattr(self._node.widget, self._method, None)
+        if callable(handler):
+            handler()
+
+    def __repr__(self) -> str:
+        return f"NodeAction({self._node.name or self._node.kind}.{self._method})"
+
+
 class Node:
     """声明节点基类。"""
 
@@ -81,6 +101,10 @@ class Node:
         """本节点对应的目标控件（未编译为 `None`）。"""
         return self._widget
 
+    def action(self, method: str) -> NodeAction:
+        """指向本节点控件的同名方法（供 UI → UI 绑定）。"""
+        return NodeAction(self, method)
+
     # ---- 父子 / 路径 ----
     @property
     def parent(self) -> Node | None:
@@ -105,8 +129,8 @@ class Node:
                 yield from placed.component.walk()
 
     # ---- 子件 ----
-    def add(self, component: object, *, at: object | None = None) -> object:
-        """放入一个子件；不可增 / 超容量即报错。"""
+    def add[T](self, component: T, *, at: object | None = None) -> T:
+        """放入一个子件（返回它自身，泛型便于链式 / 类型推断）；不可增 / 超容量即报错。"""
         if not self.addable:
             raise LayoutError(f"槽不可增: {self.name or self.kind}")
         if self.capacity is not None and len(self._children) >= self.capacity:
@@ -137,4 +161,4 @@ def registered_kinds() -> dict[str, type[Node]]:
     return dict(_KINDS)
 
 
-__all__ = ["Node", "Placed", "registered_kinds"]
+__all__ = ["Node", "NodeAction", "Placed", "registered_kinds"]

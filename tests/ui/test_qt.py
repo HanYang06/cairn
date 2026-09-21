@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 from core import Vault
 from core.storage import Block
 from ui_tools.component import Button, Component, Label
-from ui_tools.core import App, Facet
+from ui_tools.core import App, Facet, Slot
 from ui_tools.core.bridge import Bridge
 from ui_tools.core.qt import WindowHost, build, build_window
 from ui_tools.core.session import Session
@@ -71,12 +71,9 @@ class _Domain:
     pass
 
 
-def test_build_window_regions() -> None:
+def test_build_window_root() -> None:
     app = App(session=None)  # type: ignore[arg-type]
-    facet = Facet(_Domain(), name="note")
-    facet.set(VBox)
-    facet.add(Label("hi"))
-    app.mount(facet)
+    app.root.add(HBox("body"))
 
     window = build_window(app)
 
@@ -84,31 +81,28 @@ def test_build_window_regions() -> None:
     assert window.centralWidget() is not None
 
 
-def test_window_host_routes_pages() -> None:
+def test_slot_fills_facet_page() -> None:
     app = App(session=None)  # type: ignore[arg-type]
+    slot = app.root.add(Slot("main", expects="page"))
     facet = Facet(_Domain(), name="note")
-    facet.root.set(VBox)
-    page = Page("edit")
-    page.set(VBox)
-    facet.page(page, "edit")
-    app.mount(facet)
+    facet.set(VBox)
+    facet.add(Label("hi"))
 
-    host = WindowHost(app)
-    host.show("edit")
+    app.add(facet)
 
-    assert app.active is page
-    assert host.stack.currentWidget() is not None
+    assert facet.root in [placed.component for placed in slot.children()]
 
 
 def test_button_binding_clicks() -> None:
     app = App(session=None)  # type: ignore[arg-type]
+    app.root.add(Slot("main", expects="page"))
     facet = Facet(_Domain(), name="demo")
     facet.set(VBox)
     button = Button("go")
     calls: list[int] = []
     facet.bind.add(button.clicked, lambda: calls.append(1))
     facet.add(button)
-    app.mount(facet)
+    app.add(facet)
 
     host = WindowHost(app)
     qt_button = host.window.findChild(QPushButton)

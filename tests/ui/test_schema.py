@@ -26,7 +26,7 @@ def _app() -> App:
     page.add(Component("editor"))
     facet.page(page, "edit")
 
-    app.mount(facet)
+    app.add(facet)
     return app
 
 

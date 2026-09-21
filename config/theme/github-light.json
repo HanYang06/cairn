@@ -3,30 +3,62 @@
   "name": "github-light",
   "dark": false,
   "token": {
-    "bg": "#FFFFFF",
-    "chrome": "#F6F8FA",
+    "bg": "#F6F8FA",
+    "chrome": "#FFFFFF",
     "surface": "#FFFFFF",
     "elevated": "#FFFFFF",
+    "glass": "rgba(255, 255, 255, 0.86)",
     "border": "#D0D7DE",
+    "border_soft": "#E6EAEF",
     "border_strong": "#AFB8C1",
     "border_faint": "#E6EAEF",
     "text": "#1F2328",
     "muted": "#656D76",
     "faint": "#6E7781",
     "accent": "#0969DA",
+    "accent_soft": "#DDF4FF",
     "accent_alt": "#1A7F37",
     "accent_text": "#FFFFFF",
+    "ochre": "#BC6C15",
+    "green": "#1A7F37",
     "selection": "#DDF4FF",
     "hover": "#F3F4F6",
     "danger": "#CF222E",
-    "shadow_color": "#14000000"
+    "radius": "12px",
+    "radius_lg": "16px",
+    "radius_sm": "8px",
+    "shadow_color": "#000000",
+    "shadow_alpha": "26"
   },
   "style": {
-    "widget.TitleBar": { "background": "token.chrome" },
-    "widget.StatusBar": { "background": "token.chrome" },
-    "widget.NavigatorPanel": { "background": "token.surface" },
-    "widget.InspectorPanel": { "background": "token.surface" },
-    "widget.TabBar": { "background": "token.bg" },
-    "widget.FormatToolbar": { "background": "token.bg" }
+    "widget.shell": { "background": "token.bg" },
+    "widget.surface": {
+      "background": "token.glass",
+      "border_width": "1px",
+      "border_style": "solid",
+      "border_color": "token.border_soft",
+      "border_radius": "token.radius_lg"
+    },
+    "widget.heading": { "color": "token.text", "font_size": "15px", "font_weight": "700" },
+    "widget.label": { "color": "token.muted", "font_size": "12px" },
+    "widget.field": {
+      "background": "token.elevated",
+      "color": "token.text",
+      "border_width": "1px",
+      "border_style": "solid",
+      "border_color": "token.border",
+      "border_radius": "token.radius",
+      "padding": "7px 12px"
+    },
+    "widget.field:focus": { "border_color": "token.accent" },
+    "widget.button": {
+      "background": "transparent",
+      "color": "token.muted",
+      "border_radius": "token.radius_sm",
+      "padding": "7px 10px"
+    },
+    "widget.button:hover": { "background": "token.hover", "color": "token.text" },
+    "widget.button:checked": { "background": "token.accent_soft", "color": "token.accent" },
+    "widget.stage": { "background": "token.bg", "color": "token.text" }
   }
 }

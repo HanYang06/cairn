@@ -10,6 +10,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -86,4 +88,12 @@ def _selector(selector: str) -> str:
     return selector
 
 
-__all__ = ["Theme"]
+def load_theme(path: Path) -> Theme:
+    """从主题文件（JSON：`token` + `style` 两段）加载；其余键忽略。"""
+    data: dict[str, Any] = json.loads(Path(path).read_text(encoding="utf-8"))
+    tokens = data.get("token") or {}
+    styles = data.get("style") or {}
+    return Theme(tokens, styles)
+
+
+__all__ = ["Theme", "load_theme"]

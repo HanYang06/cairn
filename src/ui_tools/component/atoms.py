@@ -32,6 +32,17 @@ class Label(Component):
         self.text = text
 
 
+class Heading(Component):
+    """标题 / 强调文本（比 `Label` 更重，用于品牌与区块标题）。"""
+
+    kind = "heading"
+    STYLABLE = frozenset({"color", "font_size", "font_weight", "align"})
+
+    def __init__(self, text: str = "", *, name: str = "", **opts: Any) -> None:
+        super().__init__(name, **opts)
+        self.text = text
+
+
 class Button(Component):
     """按钮。"""
 
@@ -103,4 +114,4 @@ class List(Component):
         self.row: Callable[[Any], str] = row if row is not None else _default_row
 
 
-__all__ = ["Button", "Chip", "Divider", "Field", "Label", "List"]
+__all__ = ["Button", "Chip", "Divider", "Field", "Heading", "Label", "List"]

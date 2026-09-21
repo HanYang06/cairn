@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from .app import App, SuperLayout
+from .app import App
 from .bind import Bind, Binding
 from .compile import Compiler, Translator
 from .conf import Conf, ConfGroup
@@ -13,12 +13,13 @@ from .config import apply_config
 from .errors import LayoutError, UiError
 from .facet import Facet
 from .model import Model, Notify
-from .node import Node, Placed, registered_kinds
+from .node import Node, NodeAction, Placed, registered_kinds
 from .registry import kinds, vocabulary
 from .schema import Schema
 from .session import Session
 from .signal import UiSignal
-from .theme import Theme
+from .slot import Slot
+from .theme import Theme, load_theme
 
 __all__ = [
     "App",
@@ -31,17 +32,19 @@ __all__ = [
     "LayoutError",
     "Model",
     "Node",
+    "NodeAction",
     "Notify",
     "Placed",
     "Schema",
     "Session",
-    "SuperLayout",
+    "Slot",
     "Theme",
     "Translator",
     "UiError",
     "UiSignal",
     "apply_config",
     "kinds",
+    "load_theme",
     "registered_kinds",
     "vocabulary",
 ]

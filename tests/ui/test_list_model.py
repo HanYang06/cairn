@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QListView
 from core import Vault
 from feature import Note
 from ui_tools.component import List
-from ui_tools.core import App, Facet, Session
+from ui_tools.core import App, Facet, Session, Slot
 from ui_tools.core.qt import WindowHost
 from ui_tools.layout import VBox
 
@@ -33,7 +33,8 @@ def test_list_refreshes_on_change(tmp_path: Path) -> None:
     facet.set(VBox)
     facet.add(List(model))
     app = App(session)
-    app.mount(facet)
+    app.root.add(Slot("main", expects="page"))
+    app.add(facet)
 
     host = WindowHost(app)
     view = host.window.findChild(QListView)

@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from ui_tools.component import Component
-from ui_tools.core import App, Facet, LayoutError
+from ui_tools.core import App, Facet, LayoutError, Slot
 from ui_tools.layout import Grid
 from ui_tools.page import Page
 
@@ -57,37 +57,33 @@ def test_facet_set_layout_and_add() -> None:
     assert len(layout.children()) == 1
 
 
-def test_app_mount_and_navigate() -> None:
-    app = App(session=None)  # type: ignore[arg-type]
+def test_facet_parts_default_page() -> None:
     facet = Facet(FakeDomain())
-    page = Page("edit")
-    facet.page(page, "edit")
 
-    app.mount(facet)
-
-    host = [placed.component for placed in app.layout.content.children()]
-    assert app.facets() == [facet]
-    assert facet.root in host
-    assert page in host
-    assert app.navigate("edit") is page
-    assert app.active is page
+    assert facet.parts() == {"page": facet.root}
 
 
-def test_navigate_unknown_route_raises() -> None:
+def test_app_add_fills_matching_slots() -> None:
     app = App(session=None)  # type: ignore[arg-type]
-    with pytest.raises(Exception, match="未挂载的路由"):
-        app.navigate("nope")
+    slot = app.root.add(Slot("main", expects="page"))
+    facet = Facet(FakeDomain())
+
+    app.add(facet)
+
+    assert app.facets() == [facet]
+    assert facet.root in [placed.component for placed in slot.children()]
 
 
 def test_slot_capacity_enforced() -> None:
-    app = App(session=None)  # type: ignore[arg-type]
-    app.layout.inspector.add(FakeButton("a"))
+    slot = Slot("main", capacity=1)
+    slot.add(FakeButton("a"))
 
     with pytest.raises(LayoutError):
-        app.layout.inspector.add(FakeButton("b"))
+        slot.add(FakeButton("b"))
 
 
-def test_super_layout_not_addable() -> None:
-    app = App(session=None)  # type: ignore[arg-type]
+def test_slot_locked_rejects_add() -> None:
+    slot = Slot("fixed", locked=True)
+
     with pytest.raises(LayoutError):
-        app.layout.add(FakeButton("x"))
+        slot.add(FakeButton("x"))

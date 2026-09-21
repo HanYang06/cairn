@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 from PySide6.QtWidgets import QMainWindow
 
-from app import build
+from app.win import CairnApp
 from core import Vault
 from ui_tools.core.qt import build_window
 
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.usefixtures("qapp")
 def test_app_builds_window(tmp_path: Path) -> None:
     vault = Vault.create(tmp_path / "vault")
 
-    app = build(vault)
+    app = CairnApp(vault)
     window = build_window(app)
 
     assert isinstance(window, QMainWindow)

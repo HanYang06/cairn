@@ -41,9 +41,16 @@ class Facet:
         """设定默认页的根布局形态。"""
         return self.root.set(layout, **opts)
 
-    def add(self, component: object, *, at: object | None = None) -> object:
+    def add[T](self, component: T, *, at: object | None = None) -> T:
         """往默认页添加部件。"""
         return self.root.add(component, at=at)
+
+    def parts(self) -> dict[str, object]:
+        """本组织器对外提供的**命名部件**（领域语言；App 按槽的 `expects` 取用）。
+
+        默认提供一个 `page`；子类按需追加（如 `nav`）。
+        """
+        return {"page": self.root}
 
     def page(self, page: Page, route: object) -> Page:
         """注册一个页面及其路由信号（重复注册以最后一次为准）。"""

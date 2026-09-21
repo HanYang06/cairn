@@ -34,7 +34,7 @@ class Page(Node):
         super().add(self.layout)
         return self.layout
 
-    def add(self, component: object, *, at: object | None = None) -> object:
+    def add[T](self, component: T, *, at: object | None = None) -> T:
         """把部件放进根布局（`add` = 加持有）。"""
         return self.layout.add(component, at=at)
 
