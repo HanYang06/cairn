@@ -109,6 +109,10 @@
   keyed CID）不再复活，架构文档与 `README.md` / `AGENTS.md` 已同步。
 - 2026-09-19 · 已定 · **导入面必须统一、直观**：同一件事的代码收在同一个目录 / 包下、从一处可导入，
   不许散落。判据 =「外部开发者懒得研究内部，散乱就导入不了，只会骂作者」。布包时按"使用者视角"归拢。
+- 2026-09-21 · 已定 · **AI 评审用 `alibaba/open-code-review`（OCR，Apache-2.0）**：确定性工程 + Agent
+  混合架构，只作开发 / CI 工具，不进运行期依赖；本地走 `ocr` CLI + OpenCode 插件，CI 走
+  `alibaba/open-code-review` composite action，模型 DeepSeek `deepseek-flash`，key 走环境变量
+  `OCR_LLM_TOKEN`（本地）/ 仓库 secret（CI）。许可与 GPL/AGPL 红线不冲突。
 
 ## 目录结构（2026-09-19，重定；同日再调）
 

@@ -482,4 +482,10 @@
   字符串。core 的 `block` / `part` / `index` 与 `relation` 同步去前缀；新增 `core.types.type_name`
   归一（贯穿 block / catalog / vault / 类型表）；`NOTE_KIND` 等常量改指枚举。
   AGENTS.md 架构分层同步。219 测试通过、覆盖率 88%。
+- 2026-09-21 · 已定 · **接入 AI 评审工具 OpenCodeReview**（`alibaba/open-code-review`，Apache-2.0，
+  许可兼容；非运行期依赖、纯开发工具）：① 本地 `ocr` CLI（v1.12.8，npm 全局；postinstall 下载
+  二进制需手动放置 `bin/opencodereview.exe`）；② 本地 OpenCode 全局插件
+  `~/.config/opencode/plugins/open-code-review.ts`（+ `@opencode-ai/plugin`）；③ 新增
+  `.github/workflows/ocr-review.yml`（`pull_request_target` + `/open-code-review` 评论触发，
+  DeepSeek `deepseek-flash`，secret `OCR_LLM_TOKEN`，输出中文）。
 
