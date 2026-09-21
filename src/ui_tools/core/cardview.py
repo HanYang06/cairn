@@ -105,16 +105,20 @@ class QtCardModel(QAbstractListModel):
     ) -> Any:
         if not index.isValid():
             return None
-        item = self._model.items()[index.row()]
+        row = index.row()
+        if not 0 <= row < len(self._model):
+            return None
+        item = self._model[row]
+        result: Any = None
         if role == Qt.ItemDataRole.DisplayRole:
-            return self._title(item)
-        if role in (int(Qt.ItemDataRole.ToolTipRole), ROLE_PREVIEW):
-            return self._preview(item)
-        if role == ROLE_META:
-            return self._meta(item)
-        if role == ROLE_BADGE:
-            return self._badge(item)
-        return None
+            result = self._title(item)
+        elif role in (int(Qt.ItemDataRole.ToolTipRole), ROLE_PREVIEW):
+            result = self._preview(item)
+        elif role == ROLE_META:
+            result = self._meta(item)
+        elif role == ROLE_BADGE:
+            result = self._badge(item)
+        return result
 
     def detach(self) -> None:
         """断开对 `Model` 的观察。"""

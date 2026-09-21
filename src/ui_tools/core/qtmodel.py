@@ -63,7 +63,10 @@ class QtListModel(QAbstractListModel):
     ) -> Any:
         if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
             return None
-        return self._row(self._model.items()[index.row()])
+        row = index.row()
+        if not 0 <= row < len(self._model):
+            return None
+        return self._row(self._model[row])
 
     def detach(self) -> None:
         """断开对 `Model` 的观察。"""

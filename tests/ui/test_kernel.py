@@ -69,3 +69,42 @@ def test_vocabulary_shape() -> None:
 
     assert "component" in vocab
     assert set(vocab["component"]) == {"stylable", "states"}
+
+
+class _Widget:
+    def __init__(self) -> None:
+        self.seen: list[object] = []
+        self.hit = False
+
+    def take(self, *args: object) -> None:
+        self.seen = list(args)
+
+    def noargs(self) -> None:
+        self.hit = True
+
+
+def test_node_action_forwards_payload() -> None:
+    node = Component("c")
+    widget = _Widget()
+    node.bind_widget(widget)
+
+    node.action("take")(1, 2)
+    node.action("noargs")()  # 无参方法忽略信号载荷
+
+    assert widget.seen == [1, 2]
+    assert widget.hit is True
+
+
+def test_node_action_missing_method_raises() -> None:
+    node = Component("c")
+    node.bind_widget(_Widget())
+
+    with pytest.raises(LayoutError, match="动作方法不存在"):
+        node.action("nope")()
+
+
+def test_node_action_uncompiled_raises() -> None:
+    node = Component("c")
+
+    with pytest.raises(LayoutError, match="尚未编译"):
+        node.action("take")()

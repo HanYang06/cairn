@@ -36,6 +36,19 @@ def test_bind_compile_rejects_bad_target() -> None:
         bind.compile()
 
 
+def test_bind_add_deduplicates() -> None:
+    bind = Bind()
+    signal = UiSignal("clicked")
+
+    def target() -> None:
+        return None
+
+    bind.add(signal, target)
+    bind.add(signal, target)
+
+    assert len(bind.items()) == 1
+
+
 def test_facet_compile_bindings() -> None:
     facet = Facet(FakeDomain())
     facet.bind.add(UiSignal("save"), facet.domain.save)
@@ -64,3 +77,47 @@ def test_model_watch_cancel() -> None:
     model.append(1)
 
     assert calls == []
+
+
+def test_model_replace_skips_equal() -> None:
+    model: Model[int] = Model([1, 2])
+    seen: list[int] = []
+    model.watch(lambda: seen.append(1))
+
+    model.replace([1, 2])
+    assert seen == []
+
+    model.replace([1, 3])
+    assert seen == [1]
+
+
+def test_model_watch_dedup_and_cancel_all() -> None:
+    model: Model[int] = Model()
+    calls: list[int] = []
+
+    def callback() -> None:
+        calls.append(1)
+
+    model.watch(callback)
+    cancel = model.watch(callback)  # 重复注册去重
+    model.append(1)
+    assert calls == [1]
+
+    cancel()
+    model.append(2)
+    assert calls == [1]
+
+
+def test_model_notify_isolates_failing_observer() -> None:
+    model: Model[int] = Model()
+    seen: list[int] = []
+
+    def boom() -> None:
+        raise RuntimeError("boom")
+
+    model.watch(boom)
+    model.watch(lambda: seen.append(1))
+
+    model.append(1)
+
+    assert seen == [1]

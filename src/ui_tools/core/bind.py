@@ -30,9 +30,10 @@ class Bind:
         self._items: list[Binding] = []
 
     def add(self, source: object, target: object) -> Binding:
-        """登记一条绑定：`source` = UI 信号，`target` = 领域动作或本类方法。"""
+        """登记一条绑定：`source` = UI 信号，`target` = 领域动作或本类方法（重复登记去重）。"""
         binding = Binding(source=source, target=target)
-        self._items.append(binding)
+        if binding not in self._items:
+            self._items.append(binding)
         return binding
 
     def items(self) -> list[Binding]:

@@ -95,3 +95,35 @@ def test_apply_config_bad_group_raises() -> None:
 
     with pytest.raises(UiError, match="未知配置组"):
         apply_config(schema, {}, group="nope")
+
+
+def test_node_unknown_returns_none() -> None:
+    schema = _app().schema()
+
+    assert schema.node("note.nope") is None
+
+
+def test_contains_accepts_suffix_forms() -> None:
+    schema = _app().schema()
+
+    assert "note.edit.grid.editor" in schema
+    assert "edit.grid.editor" in schema
+    assert "note.nope" not in schema
+
+
+def test_apply_config_rejects_non_mapping_items() -> None:
+    schema = _app().schema()
+
+    with pytest.raises(UiError, match="必须是映射"):
+        apply_config(schema, {"note": 5})  # type: ignore[arg-type]
+
+
+def test_apply_config_is_atomic() -> None:
+    schema = _app().schema()
+
+    with pytest.raises(UiError, match="未找到配置路径"):
+        apply_config(schema, {"note": {"color": "#fff"}, "note.nope": {"x": 1}})
+
+    node = schema.node("note")
+    assert node is not None
+    assert node.conf.attr.get("color") is None  # 坏路径让整批不落

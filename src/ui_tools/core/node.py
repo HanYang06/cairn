@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -40,9 +41,20 @@ class NodeAction:
         self._node = node
         self._method = method
 
-    def __call__(self, *_args: object, **_kwargs: object) -> None:
-        handler = getattr(self._node.widget, self._method, None)
-        if callable(handler):
+    def __call__(self, *args: object, **kwargs: object) -> None:
+        widget = self._node.widget
+        if widget is None:
+            raise LayoutError(f"动作目标尚未编译: {self}")
+        handler = getattr(widget, self._method, None)
+        if not callable(handler):
+            raise LayoutError(f"动作方法不存在: {self}")
+        try:
+            takes_args = bool(inspect.signature(handler).parameters)
+        except (TypeError, ValueError):
+            takes_args = True
+        if takes_args:
+            handler(*args, **kwargs)
+        else:
             handler()
 
     def __repr__(self) -> str:
