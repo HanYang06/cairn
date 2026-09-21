@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from ui_tools.component import Component
-from ui_tools.core import App, Facet, LayoutError, Slot
+from ui_tools.core import App, Facet, LayoutError, Node, Slot, UiError, UiSignal
 from ui_tools.layout import Grid
 from ui_tools.page import Page
 
@@ -87,3 +87,80 @@ def test_slot_locked_rejects_add() -> None:
 
     with pytest.raises(LayoutError):
         slot.add(FakeButton("x"))
+
+
+def test_slot_accepts_explicit_addable() -> None:
+    slot = Slot("s", locked=True, addable=True)  # 显式覆盖锁定默认
+    slot.add(FakeButton("x"))
+    assert len(slot.children()) == 1
+
+    locked = Slot("l", addable=False)
+    with pytest.raises(LayoutError):
+        locked.add(FakeButton("y"))
+
+
+def test_app_rejects_duplicate_slot_expects() -> None:
+    app = App(session=None)  # type: ignore[arg-type]
+    app.root.add(Slot("a", expects="page"))
+    app.root.add(Slot("b", expects="page"))
+
+    with pytest.raises(UiError, match="同一部件"):
+        app.add(Facet(FakeDomain()))
+
+
+def test_page_reregister_cleans_stale_routes() -> None:
+    facet = Facet(FakeDomain())
+    first = Page("one")
+    second = Page("two")
+    facet.page(first, "edit")
+    facet.page(first, "view")  # 同一页换路由
+    facet.page(second, "edit")  # 路由被别的页接管
+
+    assert facet.pages() == {first: "view", second: "edit"}
+    assert facet.navigate("view") is first
+    assert facet.navigate("edit") is second
+    with pytest.raises(UiError):
+        facet.navigate("gone")
+
+
+def test_compile_bindings_skips_root_page() -> None:
+    facet = Facet(FakeDomain())
+    facet.page(facet.root, "root")
+    facet.root.bind.add(UiSignal("clicked"), lambda: None)
+
+    assert len(facet.compile_bindings()) == 1
+
+
+def test_node_reparent_detaches_from_old_parent() -> None:
+    first = Node("p1")
+    second = Node("p2")
+    child = FakeButton("c")
+
+    first.add(child)
+    second.add(child)
+
+    assert first.children() == []
+    assert [placed.component for placed in second.children()] == [child]
+    assert child.parent is second
+
+
+def test_page_clear_keeps_root_layout() -> None:
+    page = Page("p")
+    layout = page.layout
+    page.add(FakeButton("a"))
+
+    page.clear()
+
+    assert page.layout is layout
+    assert page.layout.children() == []
+
+
+def test_page_set_replaces_root_layout() -> None:
+    page = Page("p")
+    old = page.layout
+
+    new = page.set(Grid, rows=1, cols=1)
+
+    assert page.layout is new
+    assert [placed.component for placed in page.children()] == [new]
+    assert old.parent is None

@@ -27,7 +27,9 @@ class Schema:
         self._nodes: dict[str, Node] = {}
 
     def add(self, path: str, node: Node | None = None) -> None:
-        """登记一条规范路径（可附带其节点）。"""
+        """登记一条规范路径（可附带其节点）；重复登记即报错，避免静默覆盖。"""
+        if path in self._paths:
+            raise UiError(f"配置路径重复: {path!r}")
         self._paths.add(path)
         if node is not None:
             self._nodes[path] = node

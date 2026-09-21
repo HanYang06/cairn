@@ -4,7 +4,7 @@
 """组件原子：最小可复用部件（声明 + 词汇元数据）。
 
 `STYLABLE` 是可样式化属性、`STATES` 是可表达状态——主题 schema 据此校验。
-Qt 实现在 `ui/core/qt.py`；此处不依赖 Qt。
+Qt 实现在 `ui_tools/core/qt.py`；此处不依赖 Qt。
 """
 
 from __future__ import annotations

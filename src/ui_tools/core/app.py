@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .bind import Bind
+from .errors import LayoutError, UiError
 from .node import Node
 from .schema import Schema
 from .slot import Slot
@@ -40,11 +41,28 @@ class App:
         return [node for node in self.root.walk() if isinstance(node, Slot)]
 
     def add(self, facet: Facet) -> Facet:
-        """挂一个组织器：按槽的 `expects` 取 `parts()` 同名部件填入。"""
+        """挂一个组织器：按槽的 `expects` 取 `parts()` 同名部件填入。
+
+        先整体校验（重复 expects / 槽不可增 / 容量），再统一写入——避免挂到一半失败。
+        """
+        if facet in self._facets:
+            return facet
         parts = facet.parts()
+        targets: list[tuple[Slot, object]] = []
+        used: set[str] = set()
         for slot in self.slots():
-            if slot.expects is not None and slot.expects in parts:
-                slot.add(parts[slot.expects])
+            if slot.expects is None or slot.expects not in parts:
+                continue
+            if slot.expects in used:
+                raise UiError(f"多个槽期待同一部件: {slot.expects!r}")
+            if not slot.addable:
+                raise LayoutError(f"槽不可增: {slot.name or slot.kind}")
+            if slot.capacity is not None and len(slot.children()) >= slot.capacity:
+                raise LayoutError(f"槽已满（上限 {slot.capacity}）: {slot.name or slot.kind}")
+            used.add(slot.expects)
+            targets.append((slot, parts[slot.expects]))
+        for slot, part in targets:
+            slot.add(part)
         self._facets.append(facet)
         return facet
 

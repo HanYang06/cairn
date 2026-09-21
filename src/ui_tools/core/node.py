@@ -136,6 +136,10 @@ class Node:
         if self.capacity is not None and len(self._children) >= self.capacity:
             raise LayoutError(f"槽已满（上限 {self.capacity}）: {self.name or self.kind}")
         if isinstance(component, Node):
+            previous = component._parent  # noqa: SLF001 — 建树，同模块强耦合
+            if previous is not None and previous is not self:
+                kept = [p for p in previous._children if p.component is not component]  # noqa: SLF001
+                previous._children = kept  # noqa: SLF001 — 摘旧父，同模块强耦合
             component._parent = self  # noqa: SLF001 — 建树，同模块强耦合
         self._children.append(Placed(component=component, at=at))
         return component
@@ -145,7 +149,10 @@ class Node:
         return list(self._children)
 
     def clear(self) -> None:
-        """清空子件。"""
+        """清空子件，并解除子件的父指针。"""
+        for placed in self._children:
+            if isinstance(placed.component, Node):
+                placed.component._parent = None  # noqa: SLF001 — 拆树，同模块强耦合
         self._children.clear()
 
     def __repr__(self) -> str:

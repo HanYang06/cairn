@@ -210,6 +210,7 @@ def _slot(node: Node, children: list[object]) -> QWidget:
         area.setFrameShape(QFrame.Shape.NoFrame)
         area.setWidget(widget)
         area.setProperty("cairnClass", "scroll")
+        area.setProperty("cairnStretch", node.stretch)
         area.setObjectName(node.name or "scroll")
         node.bind_widget(area)
         widget = area
