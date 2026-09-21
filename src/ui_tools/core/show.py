@@ -30,6 +30,9 @@ _FIELD_KINDS: tuple[tuple[type, str], ...] = (
     (float, "number"),
 )
 
+# 块硬件字段：不属领域字段，但显示（时间 / 作者 / 大小）常用，一并归集。
+_HARDWARE_FIELDS = ("created", "updated", "author", "size")
+
 
 def _one(value: Any) -> list[Any]:
     if value is None:
@@ -126,9 +129,9 @@ class Show:
         info = type_info(type_)
         body = getattr(item, "body", None)
         names = info.fields if info is not None else ()
-        attrs = {name: _attr_of(item, name) for name in names}
+        attrs = {name: _attr_of(item, name) for name in (*names, *_HARDWARE_FIELDS)}
         if not names:
-            attrs = dict(getattr(item, "attrs", None) or {})
+            attrs = {**dict(getattr(item, "attrs", None) or {}), **attrs}
         return ShowPart(
             type=type_,
             info=info,

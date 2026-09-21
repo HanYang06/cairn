@@ -47,7 +47,13 @@ _ALIGN_VCENTER = int(Qt.AlignmentFlag.AlignVCenter)
 _ALIGN_TOP = int(Qt.AlignmentFlag.AlignTop)
 _TEXT_WRAP = int(Qt.TextFlag.TextWordWrap)
 
-_BADGE_TOKENS = {"project": "ochre", "note": "accent"}
+_BADGE_TOKENS = {
+    "notedata": "accent",
+    "projectdata": "ochre",
+    "canvas": "green",
+    "asset": "green",
+    "group": "ochre",
+}
 
 
 def _badge_color(theme: Theme, badge: str) -> QColor:

@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""Windows 后端：把领域数据投影成界面可用的中立卡片。
+"""Windows 后端：领域数据 → 中立卡片（经 `Show` 投影）。
 
-不 import Qt；输出普通 DTO，供 `Facet` 声明卡片舞台时取用。
+**呈现映射在 App 侧**：`Show` 给中立的归集结果，这里定义"卡片 = 哪些字段 → 哪些槽"。
 """
 
 from __future__ import annotations
@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+
+from ui_tools.core import Show
 
 
 @dataclass(frozen=True)
@@ -20,7 +22,7 @@ class NoteCard:
     title: str
     preview: str
     meta: str
-    badge: str = "note"
+    badge: str = "notedata"
 
 
 def fmt_time(ms: int) -> str:
@@ -40,22 +42,30 @@ def fmt_time(ms: int) -> str:
     return moment.strftime("%Y-%m-%d")
 
 
-def _preview(data: Any) -> str:
-    plain = getattr(getattr(data, "body", None), "plain", "") or ""
-    return " ".join(str(plain).split())[:80]
+def _preview(show: Show) -> str:
+    for body in show.bodies:
+        plain = str(getattr(body, "plain", "") or "")
+        text = " ".join(plain.split())
+        if text:
+            return text[:80]
+    return ""
+
+
+def note_card(note: Any) -> NoteCard:
+    """一条笔记（数据对象）→ 卡片。"""
+    show = Show(note)
+    title = str(show.attrs.get("title") or "").strip()
+    return NoteCard(
+        title=title or "（无标题）",
+        preview=_preview(show),
+        meta=fmt_time(int(show.attrs.get("updated") or 0)),
+        badge=show.parts[0].type if show.parts else "notedata",
+    )
 
 
 def note_cards(notes: Any) -> list[NoteCard]:
     """把笔记域服务列出的笔记投影成卡片。"""
-    return [
-        NoteCard(
-            title=str(getattr(data, "title", "") or "（无标题）"),
-            preview=_preview(data),
-            meta=fmt_time(int(getattr(data, "updated", 0) or 0)),
-            badge="note",
-        )
-        for data in notes.list_notes()
-    ]
+    return [note_card(data) for data in notes.list_notes()]
 
 
-__all__ = ["NoteCard", "fmt_time", "note_cards"]
+__all__ = ["NoteCard", "fmt_time", "note_card", "note_cards"]
