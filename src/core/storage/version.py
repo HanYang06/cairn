@@ -139,14 +139,20 @@ class VersionStore:
 
     # ---- 维护 ----
     def compact(self, oid: Any, *, retention_ms: int | None = None) -> int:
-        """惰性压实：丢掉超出保留窗的链尾节点。"""
+        """惰性压实：从链尾（最旧）连续丢弃超出保留窗的节点。
+
+        链顺序由 ``prev`` 决定（不依赖时间），故**只从最旧一端删连续的一段**，
+        避免把中间节点挖空导致祖先不可达。
+        """
         window = RETENTION_MS if retention_ms is None else retention_ms
         cutoff = now_ms() - window
+        entries = self.history(oid)  # 最新在前
         removed = 0
-        for row in self._table.select(oid=str(oid)):
-            if int(row["at"]) < cutoff:
-                self._table.delete(id=str(row["id"]))
-                removed += 1
+        for entry in reversed(entries):  # 从链尾（最旧）开始
+            if int(entry["at"]) >= cutoff:
+                break
+            self._table.delete(id=entry["id"])
+            removed += 1
         if removed:
             self._bucket.commit()
         return removed

@@ -76,7 +76,8 @@ class Vault:
         """存储一个块（含领域块），可选更新其检索文本；写入后发 ``ObjectPut``。"""
         created = not self.bucket.has(block.id)
         self.bucket.put(block)
-        self._set_search(block.id, search_text)
+        if search_text is not None:
+            self._set_search(block.id, search_text)
         self._signal.events.emit(
             ObjectPut(
                 oid=Oid.parse(block.id),
@@ -143,26 +144,34 @@ class Vault:
         query = query.strip()
         if not query:
             return []
-        rows = self.bucket.query("SELECT oid FROM search WHERE body LIKE ?", (f"%{query}%",))
+        escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        rows = self.bucket.query(
+            "SELECT oid FROM search WHERE body LIKE ? ESCAPE '\\'", (f"%{escaped}%",)
+        )
         return [Oid.parse(str(row["oid"])) for row in rows]
 
     def index_is_empty(self) -> bool:
         return self._search.count() == 0
 
     def rebuild_index(self, *, text_of: Any = None) -> int:
+        """重建检索索引；``text_of`` 从对象信息提取检索文本，必填（否则会清空索引）。
+
+        返回实际写入的条目数。
+        """
+        if text_of is None:
+            raise ValueError("rebuild_index 需要 text_of 提取检索文本")
         rows = self.bucket.query("SELECT oid FROM search")
         for row in rows:
             self._search.delete(oid=str(row["oid"]))
-        count = 0
+        written = 0
         for block_id in self.bucket.iter_block_ids():
             block = self.bucket.get(Block, block_id)
-            info = self._info(block)
-            text = text_of(info) if text_of is not None else None
+            text = text_of(self._info(block))
             if text:
                 self._search.insert({"oid": block_id, "body": text})
-            count += 1
+                written += 1
         self.bucket.commit()
-        return count
+        return written
 
     # ---- 维护 ----
     def gc(self, *, retention_ms: int | None = None) -> int:

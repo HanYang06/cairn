@@ -80,6 +80,8 @@ class Bucket:
         self.catalog = Catalog(self.root / CATALOG_NAME)
         self._tx_depth = 0
         self._mounted: set[type[Block]] = set()
+        # 事务内已追加到载体的 (path, offset)；回滚时截断，保证文件与目录一致。
+        self._pending_appends: list[tuple[Path, int]] = []
 
     # ---- 生命周期 ----
     @classmethod
@@ -117,6 +119,7 @@ class Bucket:
     def _commit(self) -> None:
         if self._tx_depth == 0:
             self.catalog.commit()
+            self._pending_appends.clear()
 
     def commit(self) -> None:
         """显式提交当前挂起的变更（事务内为延后，交由 ``transaction`` 统一提交）。"""
@@ -132,6 +135,7 @@ class Bucket:
             self._tx_depth -= 1
             if self._tx_depth == 0:
                 self.catalog.conn.rollback()
+                self._rollback_appends()
             raise
         self._tx_depth -= 1
         if self._tx_depth == 0:
@@ -268,16 +272,21 @@ class Bucket:
         if location is None:
             raise CorruptObjectError(f"内容缺失: {checksum}")
         payload = self._read_pack(location)
-        raw = decode_canonical(bytes(row["data"])) if row["data"] else {}
-        params = raw if isinstance(raw, dict) else {}
-        type_name = self.catalog.type_name(int(row["type"]))
+        try:
+            raw: Any = decode_canonical(bytes(row["data"])) if row["data"] else {}
+        except Exception as exc:
+            raise CorruptObjectError(f"块元数据解析失败: {block_id}") from exc
+        if not isinstance(raw, dict):
+            raise CorruptObjectError(f"块元数据非法: {block_id}")
+        params = raw
+        stored_type = self.catalog.type_name(int(row["type"]))
         block = Block.decode(
             payload,
             id=block_id,
             attrs=dict(params.get("attrs") or {}),
-            type=type_name,
+            type=stored_type,
         )
-        if not block.verify():
+        if block.compute_checksum() != checksum:
             raise CorruptObjectError(f"块校验失败: {block_id}")
         block.size = int(row["size"])
         block.author = str(params.get("author") or "")
@@ -342,10 +351,24 @@ class Bucket:
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())
+        self._pending_appends.append((path, offset))
         self.catalog.grow_pack(pack_id, len(payload))
         if isolated:
             self.catalog.seal_pack(pack_id)
         return pack_id, offset
+
+    def _rollback_appends(self) -> None:
+        """回滚目录事务时，把已追加的载体字节退回去，保持文件与目录一致。"""
+        for path, offset in reversed(self._pending_appends):
+            try:
+                if offset == 0:
+                    path.unlink(missing_ok=True)
+                else:
+                    with path.open("r+b") as handle:
+                        handle.truncate(offset)
+            except OSError:
+                pass
+        self._pending_appends.clear()
 
 
 __all__ = ["CATALOG_NAME", "Bucket", "BucketConfig"]

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from core.storage import INDEX_TYPE, Attr, Block, BodyField, Bucket, BucketConfig
+from core.storage import INDEX_TYPE, Attr, Block, BodyField, Bucket, BucketConfig, canonical
 from core.types import CairnError, CorruptObjectError, ObjectNotFoundError
 
 if TYPE_CHECKING:
@@ -315,3 +315,50 @@ def test_isolated_config_gets_own_pack(tmp_path: Path) -> None:
     other.body.append("x")
     bucket.put(other)
     assert bucket.catalog.count_packs() == 2
+
+
+def test_newer_catalog_version_fails_closed(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    bucket.catalog.set_meta("catalog_version", "999")
+    bucket.catalog.commit()
+    bucket.close()
+    with pytest.raises(CairnError, match="目录版本过新"):
+        Bucket.open(tmp_path / "bucket")
+
+
+def test_corrupt_block_metadata_is_reported(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = Note(body=["x"])
+    bucket.put(note)
+    # 元数据本应是 CBOR 映射；写成数组即损坏
+    bucket.execute("UPDATE block SET data = ? WHERE oid = ?", (canonical([1, 2, 3]), note.id))
+    with pytest.raises(CorruptObjectError, match="元数据非法"):
+        bucket.get(Note, note.id)
+
+
+def test_transaction_rollback_reverts_pack_bytes(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = bucket.new(Note)
+
+    def boom() -> None:
+        with bucket.transaction():
+            note.body.append("rolled")
+            bucket.put(note)
+            raise RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        boom()
+    size = sum(path.stat().st_size for path in bucket.packs_dir.iterdir())
+    assert size == 0
+    assert bucket.catalog.count_bodies() == 0
+    assert bucket.catalog.count_packs() == 0
+
+
+def test_upsert_preserves_unlisted_columns(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    table = bucket.table("kv", id="TEXT PRIMARY KEY", a="TEXT", b="TEXT")
+    table.insert({"id": "1", "a": "x", "b": "y"})
+    table.upsert({"id": "1", "a": "z"})  # 未提供 b，应保留
+    row = table.select(id="1")[0]
+    assert row["a"] == "z"
+    assert row["b"] == "y"

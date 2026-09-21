@@ -38,14 +38,30 @@ class Table:
         )
 
     def upsert(self, row: Mapping[str, Any], *, conflict: str = "id") -> None:
+        """按 ``conflict`` 列做真 upsert（``ON CONFLICT DO UPDATE``），保留未列出的列。
+
+        ``conflict`` 不在行内时退回 ``INSERT OR REPLACE``（兼容按表自身主键去重的旧调用）。
+        """
         columns = list(row)
+        if not columns:
+            raise ValueError("upsert 需要至少一列")
         placeholders = ", ".join("?" for _ in columns)
         names = ", ".join(_quote(column) for column in columns)
-        self.conn.execute(
-            f"INSERT OR REPLACE INTO {_quote(self.name)} ({names}) VALUES({placeholders})",
-            [row[column] for column in columns],
-        )
-        _ = conflict
+        values = [row[column] for column in columns]
+        if conflict in columns:
+            updates = ", ".join(
+                f"{_quote(column)} = excluded.{_quote(column)}"
+                for column in columns
+                if column != conflict
+            )
+            action = f"DO UPDATE SET {updates}" if updates else "DO NOTHING"
+            sql = (
+                f"INSERT INTO {_quote(self.name)} ({names}) VALUES({placeholders}) "
+                f"ON CONFLICT({_quote(conflict)}) {action}"
+            )
+        else:
+            sql = f"INSERT OR REPLACE INTO {_quote(self.name)} ({names}) VALUES({placeholders})"
+        self.conn.execute(sql, values)
 
     def select(self, **where: Any) -> list[sqlite3.Row]:
         clause = ""

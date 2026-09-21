@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from core import Vault
 from core.storage import Block
 
@@ -40,3 +42,26 @@ def test_rebuild_index_populates_search(tmp_path: Path) -> None:
 
     vault.rebuild_index(text_of=lambda _manifest: "seeded body")
     assert oid in {str(item) for item in vault.search("seeded")}
+
+
+def test_resave_without_search_text_keeps_index(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    oid = vault.put_block(Block(body=b"", type="test.note"), search_text="keep me").id
+    vault.put_block(Block(id=oid, body=b"", type="test.note"))  # 不带检索文本
+    assert oid in {str(item) for item in vault.search("keep")}
+
+
+def test_rebuild_index_requires_text_of(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    with pytest.raises(ValueError, match="text_of"):
+        vault.rebuild_index()
+
+
+def test_search_treats_like_wildcards_literally(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    oid = vault.put_block(Block(body=b"", type="test.note"), search_text="100% real_value").id
+    found = {str(item) for item in vault.search("%")}
+    assert oid in found
+    assert oid in {str(item) for item in vault.search("_value")}
+    assert vault.search("%_") == []  # 组合通配不当作匹配
+    assert oid not in {str(item) for item in vault.search("realXvalue")}
