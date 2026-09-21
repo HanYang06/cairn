@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from core.signal import Domain
 from core.types import ROLE_DATA, ROLE_DOMAIN, domain_of, type_info, types, unit_infos
-from feature import CanvasData, Kind, Note, NoteData
+from feature import CanvasData, Kind, Note, NoteData, Project
 
 
 def test_domain_and_data_have_distinct_types() -> None:
@@ -27,8 +27,8 @@ def test_type_info_defaults_to_domain() -> None:
 
     assert info is not None
     assert info.role == ROLE_DOMAIN
-    assert info.name == "笔记"
-    assert info.deps == ("canvas", "asset")
+    assert info.name == Note.__module__
+    assert info.deps == ("notedata", "asset", "canvas", "group")
 
 
 def test_data_fields_registered() -> None:
@@ -81,7 +81,7 @@ def test_project_is_domain() -> None:
     info = type_info(Kind.Feature.Project, role=ROLE_DOMAIN)
 
     assert info is not None
-    assert info.name == "项目"
+    assert info.name == Project.__module__
 
 
 def test_kind_values_are_short_names() -> None:

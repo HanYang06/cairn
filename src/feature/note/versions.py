@@ -23,8 +23,8 @@ from blake3 import blake3
 from core.storage import canonical
 from core.types import type_name
 
+from .data import NOTE_KIND
 from .edit.body import is_marker
-from .model import NOTE_KIND
 
 State = dict[str, Any]  # {"body": [{"id","v"}], "style": {lid: [[s, e, data], ...]}}
 

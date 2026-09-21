@@ -23,6 +23,7 @@ from .body import (
     text_weight,
 )
 from .style import (
+    Style,
     StyleMap,
     clear_range_style,
     coerce_style,
@@ -50,6 +51,7 @@ __all__ = [
     "OVERLONG_WEIGHT",
     "Line",
     "Marker",
+    "Style",
     "StyleMap",
     "apply_text",
     "clear_range_style",

@@ -30,11 +30,11 @@ SignalHandler = Callable[[Any], None]
 ActionFunc = Callable[..., Any]
 
 
-def _light_units(light: Any) -> tuple[str, ...]:
-    """把 `light`（单个数据类或它们的列表）归一化成 `type` 名元组。"""
-    if light is None:
+def _type_units(declared: Any) -> tuple[str, ...]:
+    """把声明（单个数据类，或它们的列表 / 元组）归一化成 `type` 名元组。"""
+    if declared is None:
         return ()
-    items = light if isinstance(light, (list, tuple)) else (light,)
+    items = declared if isinstance(declared, (list, tuple)) else (declared,)
     names: list[str] = []
     for item in items:
         name = type_name(getattr(item, "type", "") or "")
@@ -84,10 +84,9 @@ class Domain:
     数据结构) 用类属性声明，基类填默认、子类只写差异。定义时登记进最小类型表。
     """
 
-    name: ClassVar[str] = ""
+    name: ClassVar[str] = ""  # 解析键；缺省 = 定义它的模块路径（不是显示名）
     type: ClassVar[str | Enum] = ""
-    data: ClassVar[tuple[str, ...]] = ()
-    # 最小数据单元：一个数据类，或它们的列表（都必须是 Block 子类——公共锚点）。
+    data: ClassVar[tuple[builtins.type[Block], ...]] = ()  # 本域用到的数据类
     light: ClassVar[list[builtins.type[Block]] | builtins.type[Block] | None] = None
 
     _signal: Signal | None = None
@@ -95,17 +94,17 @@ class Domain:
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         if not cls.__dict__.get("name"):
-            cls.name = cls.__name__.removesuffix("Service")
+            cls.name = cls.__module__
         if not cls.__dict__.get("type"):
             cls.type = cls.__name__.lower()
-        units = _light_units(cls.__dict__.get("light")) or (type_name(cls.type),)
+        units = _type_units(cls.__dict__.get("light")) or (type_name(cls.type),)
         register(
             TypeInfo(
                 type=type_name(cls.type),
                 role=ROLE_DOMAIN,
                 cls=cls,
                 name=cls.name,
-                deps=tuple(cls.data),
+                deps=_type_units(cls.data),
                 units=units,
             )
         )

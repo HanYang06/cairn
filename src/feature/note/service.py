@@ -13,10 +13,13 @@ from typing import TYPE_CHECKING, Any
 from core.signal import Domain, Topic, action
 from core.storage import VersionStore
 
+from ..shared.asset import AssetData
 from ..shared.base import UNSET
+from ..shared.canvas import CanvasData
+from ..shared.group import GroupData
 from ..shared.kinds import Kind
 from ..shared.signature import Signature
-from .data import NoteData, access_ref, canvas_ref
+from .data import NOTE_KIND, NoteData, access_ref, canvas_ref
 from .edit import (
     OVERLONG_WEIGHT,
     apply_text,
@@ -41,7 +44,6 @@ from .edit import (
 from .edit import (
     Line as LineDict,
 )
-from .model import NOTE_KIND
 from .versions import NOTE_CODEC
 
 if TYPE_CHECKING:
@@ -49,16 +51,13 @@ if TYPE_CHECKING:
 
     from core.types import Oid
 
-    from ..shared.canvas import CanvasData
-
 
 class Note(Domain):
     """笔记域服务（单例）：创建 / 读写 / 落盘 / 版本 / 关系 / 编辑操作。"""
 
-    name = "笔记"
     type = Kind.Feature.Note
-    data = ("canvas", "asset")
-    light = NoteData  # 最小数据单元（绑定既有类型，不复制字段）
+    data = (NoteData, AssetData, CanvasData, GroupData)  # 本域用到的数据类（body 免列）
+    light = [NoteData]  # noqa: RUF012 — 最小数据单元（可多个）
 
     changed = Topic()
 

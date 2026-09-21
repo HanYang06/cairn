@@ -51,9 +51,9 @@ class ProjectData(Block):
 class Project(Domain):
     """项目域服务（单例）：创建 / 载入 / 更新 / 成员关系。"""
 
-    name = "项目"
     type = Kind.Feature.Project
-    light = ProjectData  # 最小数据单元（绑定既有类型，不复制字段）
+    data = (ProjectData,)  # 本域用到的数据类
+    light = [ProjectData]  # noqa: RUF012 — 最小数据单元（可多个）
 
     def __init__(self, vault: Any) -> None:
         self.vault = vault

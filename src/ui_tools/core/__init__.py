@@ -17,6 +17,7 @@ from .node import Node, NodeAction, Placed, registered_kinds
 from .registry import kinds, vocabulary
 from .schema import Schema
 from .session import Session
+from .show import Show, ShowPart, body_kind, field_kind
 from .signal import UiSignal
 from .slot import Slot
 from .theme import Theme, load_theme
@@ -37,12 +38,16 @@ __all__ = [
     "Placed",
     "Schema",
     "Session",
+    "Show",
+    "ShowPart",
     "Slot",
     "Theme",
     "Translator",
     "UiError",
     "UiSignal",
     "apply_config",
+    "body_kind",
+    "field_kind",
     "kinds",
     "load_theme",
     "registered_kinds",

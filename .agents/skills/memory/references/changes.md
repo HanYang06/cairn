@@ -468,6 +468,11 @@
   canvas / asset / group）；`NOTE_KIND` 等常量与各数据类型 `type` 改指枚举；类型表
   `register` / `type_info` / `domain_of` 按 `str()` 归一（枚举与字符串可互换，第三方可继续用字符串）。
   219 测试通过、覆盖率 88%。
+- 2026-09-21 · 已定 · **数据描述合并 + Domain 声明重定 + `Show`**：`note/body.py` + `data.py` +
+  `model.py` 并成 `note/data.py`（`Style` 挪 `edit/style.py`，避免 edit↔data 环）；`Domain` 的
+  `name` 改为模块路径（解析键，非显示名）、`data` 收**数据类元组**、`light` 改 list；新增
+  `ui_tools/core/show.py`（L0 归集 / L1 分组 / L2 字段呈现 / L3 body 感知；L4 不做）。
+  222 测试通过、覆盖率 88%。
 - 2026-09-21 · 已定 · **Kind 重定（Feature / Data，去前缀）**：`Kind.Feature`（note / project）+
   `Kind.Data`（notedata / projectdata / canvas / asset / group），plain `Enum`；域与数据不再共用
   字符串。core 的 `block` / `part` / `index` 与 `relation` 同步去前缀；新增 `core.types.type_name`

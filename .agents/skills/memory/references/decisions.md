@@ -425,9 +425,15 @@
   `style`（行内区间样式），**不引类**（纯变换就该是函数）；`edit/__init__` 仅作兼容转出。
 - 已定 · **领域代码里别用 `from .edit import body, style, text`**：`text` / `style` / `body` 会与
   方法的参数 / 局部名相撞（已踩）。用 `from . import edit` + `edit.<块>.<func>`，或子模块具名导入。
-- 已定 · **`note/` 职责归位**：`body.py`（`NoteBody`）/ `data.py`（`NoteData` 载体 + 读视图）/
-  `service.py`（`Note` 域服务，**全部操作以 data 为首参**）；工具签名 `run(svc, data, ctx)` /
-  `state(data, ctx)`。`NoteData` 只留字段 + `body_hash` / `text` / `style` / `paragraph` / `references` / `_state`。
+- 已定 · **`note/` 职责归位**：`data.py`（数据描述：值类型转出 + `NoteBody` + `NoteData` 载体 + 读视图）/
+  `edit/`（纯操作原语）/ `service.py`（`Note` 域服务，**全部操作以 data 为首参**）；工具签名
+  `run(svc, data, ctx)` / `state(data, ctx)`。`NoteData` 只留字段 + `body_hash` / `text` / `style` /
+  `paragraph` / `references` / `_state`；值类型 `Style` 在 `edit/style.py`。
+- 已定 · **`Domain` 声明**：`name` = **模块路径（解析键，不是显示名）**、`type` = `Kind.Feature.*`、
+  `data` = 本域用到的**数据类元组**（`body` 免列）、`light` = **最小数据单元列表**。显示名归 UI（不写死）。
+- 已定 · **`Show`（UI 侧投影，`ui_tools/core/show.py`）**：最小数据单元（可多个）→ 显示素材；
+  L0 归集（attrs 合并 / ids 全并 / body 收集）→ L1 按来源类型分组 → L2 字段默认呈现 →
+  L3 body 感知；**L4 语义推断不做**。由 `Facet` 内部使用，开发者不直接碰。
 - 已定 · **类型枚举（重定）**：`feature/shared/kinds.py` 的 `Kind` 分两支——`Kind.Feature`（域：`note` /
   `project`）与 `Kind.Data`（数据：`notedata` / `projectdata` / `canvas` / `asset` / `group`），
   **plain `Enum`、值去 `cairn.` 前缀**；域与数据不再共用同一字符串。类型表键按值归一

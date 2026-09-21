@@ -1,17 +1,39 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""行内区间样式：规范化、编解码、读写（后层压前层；规范化为不重叠、有序、去默认）。"""
+"""行内区间样式：值类型 + 规范化 / 编解码 / 读写（后层压前层；规范化为不重叠、有序、去默认）。"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from blake3 import blake3
 
-from ..model import Style
 from .body import Line, is_marker
+
+
+@dataclass(slots=True)
+class Style:
+    """一段文字的样式；全默认即"无修饰"。"""
+
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    strike: bool = False
+    font: str = ""
+    color: str = ""
+    size: float = 0.0
+
+    def to_data(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_data(cls, data: Mapping[str, Any]) -> Style:
+        known = {key: data[key] for key in cls.__dataclass_fields__ if key in data}
+        return cls(**known)
+
 
 RangeStyle = dict[tuple[int, int], Style]
 StyleMap = dict[str, list[RangeStyle]]
@@ -283,6 +305,7 @@ def content_signature(kind: str, lines: Sequence[Line], smap: StyleMap) -> str:
 
 __all__ = [
     "RangeStyle",
+    "Style",
     "StyleMap",
     "bool_state",
     "canonicalize_style",

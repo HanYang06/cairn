@@ -1,24 +1,11 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""笔记领域：类型与行为都在 ``types`` / ``model`` / ``edit``，这里只做转出。"""
+"""笔记领域：数据描述在 ``data``、操作在 ``edit`` / ``service``，这里只做转出。"""
 
 from __future__ import annotations
 
-from .body import NoteBody
-from .data import NoteData, access_ref, canvas_ref
-from .edit.body import (
-    Line as LineDict,
-)
-from .edit.body import (
-    Marker,
-    is_marker,
-    new_id,
-    normalize_body,
-)
-from .edit.style import StyleMap, content_signature
-from .edit.text import flatten_text
-from .model import (
+from .data import (
     NOTE_KIND,
     NOTE_MIME,
     NOTE_SCHEMA,
@@ -28,13 +15,29 @@ from .model import (
     Graphic,
     Line,
     Link,
+    NoteBody,
+    NoteData,
     Paint,
     Segment,
-    Style,
     Text,
+    access_ref,
+    canvas_ref,
 )
-from .model import (
+from .data import (
     Line as LineKind,
+)
+from .edit import (
+    Line as LineDict,
+)
+from .edit import (
+    Marker,
+    Style,
+    StyleMap,
+    content_signature,
+    flatten_text,
+    is_marker,
+    new_id,
+    normalize_body,
 )
 from .service import Note
 from .shapes import ShapeSet, ShapeSpec, build_vertices, graphic_from, load_shape_set
