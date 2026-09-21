@@ -187,7 +187,7 @@ style = { 行id: [ {区间(tuple): Style} ] }
 
 | 概念 | 内核落点 |
 |---|---|
-| 节点 | 块（`type = cairn.note`），稳定 OID；创作 `Signature` 记署名 |
+| 节点 | 块（`type = notedata`），稳定 OID；创作 `Signature` 记署名 |
 | 基板 | `NoteBody`：`text`（行序列）+ `style`（行内区间样式）；`note.style` 代理 `body.style` |
 | 去重签名 | `checksum = body.hash`（剥离行 id、含行内样式；同文同样式即同哈希） |
 | 关系 | **DB 行**（`relations` 表）：`src / dst / kind / at / attrs`（不是块） |

@@ -27,7 +27,8 @@
 - [x] **类型枚举**：`feature/shared/kinds.py` 的 `Kind` 分 `Feature` / `Data` 两支（去前缀、plain Enum）。
 - [x] **数据描述合并**：`note/data.py`（`Style` 在 `edit/style.py`）；`Domain` 声明重定（name 模块路径、
   data 数据类、light 列表）；`Show` 落 `ui_tools/core/show.py`。
-- [ ] **文档回写**：`docs/architecture/*.md` 里的 `cairn.*` 类型名与五域描述改成 `Kind` / 两分支口径。
+- [x] **文档回写**：`domains.md` 重写（域 / 数据两分支 + `Kind`）；`data-model.md` 类型名与 §12.2 映射表；
+  storage / access / note-model / ui-kernel / ui-theme 的类型名与信号命名同步。
 - [ ] 图片 / 音频转码（不传染库）；大正文透明分片（`Bucket.put_content`）。
 - [ ] **跨域编排**（域间关系 / 订阅）——交由 App 承担，尚未落地。
 - [ ] **变更签名**（非原作者 / `prev` 链；`alg` 日后换 `ed25519`）预留未实现。

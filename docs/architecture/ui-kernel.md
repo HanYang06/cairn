@@ -74,7 +74,7 @@ ui  ✗  Vault 内部（body / attrs / checksum / catalog …）
 
 - **Bucket / Block 为存储实现，与 UI 无耦合**：UI 不导入、不复用、不感知。二者职责正交——
   前者负责字节存储、去重与版本化，后者负责对象的呈现、能力与变更通知。
-- UI 代码不得出现 `bucket` / `block` / `body` / `attrs` / `checksum` / `type=cairn.note` 等存储词汇。
+- UI 代码不得出现 `bucket` / `block` / `body` / `attrs` / `checksum` / `type=notedata` 等存储词汇。
 - **边界判据**：若理解 UI 需先掌握 Bucket / Block，则边界已失效。
   UI 的心智模型应为：**领域对象 → 契约 → 界面**。
 - 数据内核**不导入 Qt**；领域对象不认识界面。
@@ -108,7 +108,7 @@ ui  ✗  Vault 内部（body / attrs / checksum / catalog …）
 | 层 | 内容 | 示例 |
 |---|---|---|
 | **存储事件（已实现）** | 块级事实：`ObjectPut` / `ObjectDeleted` | 块写入 / 删除 |
-| **语义信号（新增）** | 各域声明的语义通知 | project 发出 `cairn.project.members.changed` |
+| **语义信号（新增）** | 各域声明的语义通知（`Topic` 句柄，零字符串） | project 的 `members_changed` |
 
 四项动作：**声明**（本域发出与关注的信号）、**发出**（`emit(名称, 数据)`）、
 **订阅**（`subscribe(名称, 处理)`）、**投递**（沿用原总线语义）。
@@ -117,8 +117,8 @@ ui  ✗  Vault 内部（body / attrs / checksum / catalog …）
 - **订阅方不缓存假设**，收到信号后重新读取当前状态；由此消解外部域状态突变的耦合风险。
 - **发出方不等结果**（通知而非命令）；处理器内不得触发写入（沿用不可重入约定）。
 - `Signal(Note)` 为域对外暴露的**信号 / 动作句柄**（见 §3.3 的 `signals`）。
-- **信号命名 = 公共标识 + 命名空间前缀**：因挂载于公共总线，须避免命名冲突，统一为
-  `cairn.<域>.<变更>`（如 `cairn.project.members.changed`），不使用裸名 `changed`；
+- **信号命名 = 域 + 变更**：挂载于公共总线，须避免冲突；现为 `Topic` 描述符**句柄**（零字符串），
+  如需字符串标识则用短名 `<域>.<变更>`（如 `project.members_changed`），不使用裸名 `changed`；
   并在契约中**登记**（供查询与 UI 校验）。
 - **数据形态由领域定义**，不存在 UI 与领域之间的额外格式；唯一要求为普通领域数据
   （非 `Block` 等存储对象），且须声明，订阅方方能知晓。
@@ -339,7 +339,7 @@ class NoteFacet(Facet):
 1. **UI 仅消费中立类型 + 领域契约 + 投影**：**不导入 `feature`，亦不导入 `core.storage`
    （Bucket / Block）**；数据内核不导入 Qt。
 2. **契约不得依附于 `Block`**；UI 代码不得出现 `bucket` / `block` / `body` / `attrs` /
-   `checksum` / `type=cairn.note` 等存储词汇。
+   `checksum` / `type=notedata` 等存储词汇。
 3. **单向数据流**：内核 → 投影 → 视图；视图 → 意图 → 命令 → 内核。
 4. **不引入响应式框架 / reconciler**；绑定为单向编译。
 5. **不改 `Block` 顶层字段**；UI 不感知存储结构。

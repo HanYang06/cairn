@@ -473,6 +473,10 @@
   `name` 改为模块路径（解析键，非显示名）、`data` 收**数据类元组**、`light` 改 list；新增
   `ui_tools/core/show.py`（L0 归集 / L1 分组 / L2 字段呈现 / L3 body 感知；L4 不做）。
   222 测试通过、覆盖率 88%。
+- 2026-09-21 · 已定 · **文档回写（类型 / 领域口径）**：`domains.md` 重写为 v0.3（域 / 数据两分支、
+  `Kind` 词表、域与数据的标准形、日志）；`data-model.md` 类型名去 `cairn.` 前缀、§12.2 映射表按
+  「域 + 数据 + 共享件」重列；storage / access / note-model / ui-kernel / ui-theme 同步；
+  `feature/shared/` 路径与信号命名（`Topic` 句柄）一并更新。
 - 2026-09-21 · 已定 · **Kind 重定（Feature / Data，去前缀）**：`Kind.Feature`（note / project）+
   `Kind.Data`（notedata / projectdata / canvas / asset / group），plain `Enum`；域与数据不再共用
   字符串。core 的 `block` / `part` / `index` 与 `relation` 同步去前缀；新增 `core.types.type_name`

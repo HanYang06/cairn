@@ -25,7 +25,7 @@
   区别只在 `type` 与 `body`，不再另开"存储物种"。
 - **本地不加密**，落盘明文；加密只用于传输 / 服务端（见 §7）。
 - 内容按 `checksum`（= `body_hash`）**内容寻址**；桶在 **`body` 表**按该哈希去重（同 body 只存一份）。
-  分片 / 索引块（`cairn.part` / `cairn.index`）不做块级去重；`block.type` 为**整数码**（`block_type` 表）。
+  分片 / 索引块（`part` / `index`）不做块级去重；`block.type` 为**整数码**（`block_type` 表）。
 - 没有 manifest、没有 space、没有分块池：这些概念已删除。
 
 ### 非目标
@@ -144,7 +144,7 @@ meta(key PK, value)
 1. 由 `block` 行拿 `body_id` → `body` 定位 → 读 pack 得 body；`data` 取 attrs/config/author；
 2. 拼合还原为对应子类，重算 `body_hash` 校验；类型不符抛 `KindMismatchError`。
 
-大内容：`Bucket.put_content(bytes)` 切片 + 索引块（`cairn.index`）；分片块不做块级去重。
+大内容：`Bucket.put_content(bytes)` 切片 + 索引块（`index`）；分片块不做块级去重。
 
 ---
 

@@ -34,10 +34,10 @@
 
 ```mermaid
 graph TD
-    N["cairn.note<br/>正文 = 行序列 + 行内区间样式"]
-    C["cairn.canvas<br/>画板：模式 + 图形 + 连线（数值）"]
-    A["cairn.asset<br/>二进制：图 / 声 / 视频 / 文件"]
-    P["cairn.project<br/>具名容器，成员走 contains 关系"]
+    N["notedata<br/>正文 = 行序列 + 行内区间样式"]
+    C["canvas<br/>画板：模式 + 图形 + 连线（数值）"]
+    A["asset<br/>二进制：图 / 声 / 视频 / 文件"]
+    P["projectdata<br/>具名容器，成员走 contains 关系"]
     R["relations 表（不是块）<br/>src --kind--> dst"]
     N -. "canvas: [oid] / 占位" .-> C
     N -. "access: [oid] / 占位" .-> A
@@ -46,10 +46,10 @@ graph TD
 ```
 
 - `note`：正文 = 有序行序列；画板 / 多媒体以**引用 + 占位**嵌入，不复制内容。
-- `canvas`：升格为**全局内容类型**（`cairn.canvas`），内容寻址、全局去重；note 用 oid 引用。
+- `canvas`：升格为**全局内容类型**（`canvas`），内容寻址、全局去重；note 用 oid 引用。
 - `asset`：二进制内容，只被引用、永不嵌套；入库先转码（草案，见 §5.3）。
 - `project`：具名容器；**成员不是塞进结构，而是 DB 里的关系行**。
-- 内部还有 `cairn.part` / `cairn.index`：大内容的分片与索引块，见 §6.3。
+- 内部还有 `part` / `index`：大内容的分片与索引块，见 §6.3。
 
 ### 0.3 阅读路径
 
@@ -84,7 +84,7 @@ graph TD
 | 目录 | Catalog | `catalog.db`：块 → 物理位置的**唯一真源** |
 | OID | — | **稳定**对象标识（ULID）。**身份 ≠ 内容** |
 | checksum | — | **body 内容哈希**（BLAKE3 十六进制）；桶按它在内容池去重 |
-| type | — | 块类型命名空间：`cairn.<domain>.<kind>` |
+| type | — | 块类型（短名，取 `Kind.Data` 的值）：如 `notedata` |
 | body | — | 块的主体内容，进内容池 |
 | attrs | — | 块的描述字段（标题 / 标签 / 签名 / `props`），随块行存 |
 | config | — | 写入配置（如 `isolated` 独占载体），驱动写入行为 |
@@ -142,13 +142,13 @@ note ──relation(DB)──► project / note
 
 | type | 承载 | 说明 |
 |---|---|---|
-| `cairn.note` | `NoteBody` | 笔记：正文 = 行序列；画板 / 多媒体以 oid 引用 |
-| `cairn.canvas` | `CanvasBody` | 画板：模式 + 图形 + 连线（数值序列） |
-| `cairn.asset` | 裸 body（bytes） | 二进制 / 大对象，入库先转码 |
-| `cairn.project` | 裸 body（默认空） | 具名容器；成员走 `contains` 关系 |
-| `cairn.group` | 裸 body（默认空） | 组：`gid` 域身份 + 有序子项 ID 列表（笔记 / 项目 / 组），可嵌套 |
-| `cairn.block` | 裸 body | 未登记 `type` 的兜底裸块 |
-| `cairn.part` / `cairn.index` | 裸 body | 内部分片 / 索引块（不做块级去重） |
+| `notedata` | `NoteBody` | 笔记：正文 = 行序列；画板 / 多媒体以 oid 引用 |
+| `canvas` | `CanvasBody` | 画板：模式 + 图形 + 连线（数值序列） |
+| `asset` | 裸 body（bytes） | 二进制 / 大对象，入库先转码 |
+| `projectdata` | 裸 body（默认空） | 具名容器；成员走 `contains` 关系 |
+| `group` | 裸 body（默认空） | 组：`gid` 域身份 + 有序子项 ID 列表（笔记 / 项目 / 组），可嵌套 |
+| `block` | 裸 body | 未登记 `type` 的兜底裸块 |
+| `part` / `index` | 裸 body | 内部分片 / 索引块（不做块级去重） |
 | —（不是块） | — | 关系：`relations` 表的一行 |
 
 > `composition`（文档 / 博客）**不再是独立类型**：它就是"正文里放一堆引用"的 note，属于角色差异而非新物种。
@@ -222,7 +222,7 @@ CanvasBody = { "m": mode, "g": [图形序列...], "l": [连线序列...] }
 
 ### 5.6 组（Group）
 
-> **已实现（数据模型，2026-09-17）**：`feature/group.py`（`cairn.group`）；导航树未接。
+> **已实现（数据模型，2026-09-17）**：`feature/shared/group.py`（`GroupData`）；导航树未接。
 
 - **组是块**：有自己的稳定域 ID **`gid`**（与块的存储身份 `oid` **分开**）与 `title` / `lock`。
 - **`group: list[str]`**：有序子项 ID 列表，装笔记 / 项目 / **组**——组存 `gid`，其余存 `oid`；
@@ -244,7 +244,7 @@ CanvasBody = { "m": mode, "g": [图形序列...], "l": [连线序列...] }
 Block:
   id          # 稳定身份（ULID），创建即分配，**锁死**
   checksum    # = body_hash：只算 body（BLAKE3 十六进制）；桶按它去重
-  type        # 承载类型（cairn.<domain>.<kind>）
+  type        # 承载类型（Kind.Data 的值，如 notedata）
   body        # 主体（结构化 Body / bytes / 标量）→ 进内容池
   attrs       # 描述字段（dict）→ 随块行存，**不参与去重**
   config      # 写入配置（dict）
@@ -267,7 +267,7 @@ Block:
 ### 6.3 内容池与分片
 
 - `contents` 表：`body_hash → (pack_id, offset, length)`，查找 O(1)，同 body 只存一份。
-- 大内容：`Bucket.put_content(bytes)` 小则一块；大则切成 `cairn.part` 块 + 一个 `cairn.index` 索引块，
+- 大内容：`Bucket.put_content(bytes)` 小则一块；大则切成 `part` 块 + 一个 `index` 索引块，
   返回索引块 id。分片块**不做块级去重**。
 
 ### 6.4 目录（catalog.db，唯一真源）
@@ -391,21 +391,25 @@ VersionStore ── 按块 id 的版本链（DB）
 | 事件 | `Event` / `ObjectPut` / `ObjectDeleted` | `core/events.py` | 已实现 |
 | 分享策略 | `Audience` / `ShareKind` / `visible_to` | `core/policy.py` | 已实现 |
 
-### 12.2 L3 领域
+### 12.2 L3 领域层（域 + 数据 + 共享件）
 
-| 术语 / 角色 | 代码对象 | `type` | 文件 | 状态 |
+| 术语 / 角色 | 代码对象 | 类型 | 文件 | 状态 |
 |---|---|---|---|---|
-| 笔记 note | `Note` / `NoteBody` | `cairn.note` | `feature/note/types.py` | 已实现（编辑 UI 未接） |
-| 画板 canvas | `Canvas` / `CanvasBody` / `Graphic` / `Paint` / `Link` | `cairn.canvas` | `feature/canvas.py` | 数据模型已实现（无编辑 UI） |
-| 资产 asset | `Asset` | `cairn.asset` | `feature/asset.py` | 部分（转码恒等） |
-| 项目 project | `Project` | `cairn.project` | `feature/project/__init__.py` | 部分 |
-| 组 group | `Group` | `cairn.group` | `feature/group.py` | 数据模型已实现（导航树未接） |
-| 关系 relation | `Relation`（DB 行） | — | `feature/relation.py` | 已实现 |
-| 衍生关系 | `ancestors` / `descendants` / `lineage` / `derivatives` | `derived-from` | `feature/provenance.py` | 已实现（由关系派生） |
-| 签名 | `Signature` | — | `feature/signature.py` | 已实现 |
+| 域 note | `Note`（域服务） | `Kind.Feature.Note` | `feature/note/service.py` | 已实现 |
+| 数据 notedata | `NoteData` / `NoteBody`（`Style` 在 `edit/`） | `Kind.Data.Notedata` | `feature/note/data.py` | 已实现 |
+| 域 project | `Project`（域服务） | `Kind.Feature.Project` | `feature/project/__init__.py` | 部分 |
+| 数据 projectdata | `ProjectData` | `Kind.Data.Projectdata` | `feature/project/__init__.py` | 部分 |
+| 数据 canvas | `CanvasData` / `CanvasBody` / `Graphic` / `Paint` / `Link` | `Kind.Data.Canvas` | `feature/shared/canvas.py` | 数据模型已实现（无编辑 UI） |
+| 数据 asset | `AssetData` | `Kind.Data.Asset` | `feature/shared/asset.py` | 部分（转码恒等） |
+| 数据 group | `GroupData` | `Kind.Data.Group` | `feature/shared/group.py` | 数据模型已实现（导航树未接） |
+| 关系 | `Relation`（DB 行） | — | `feature/shared/relation.py` | 已实现 |
+| 衍生关系 | `ancestors` / `descendants` / `lineage` / `derivatives` | `derived-from` | `feature/shared/provenance.py` | 已实现（由关系派生） |
+| 签名 | `Signature` | — | `feature/shared/signature.py` | 已实现 |
+| 类型词表 | `Kind`（`Feature` / `Data`） | — | `feature/shared/kinds.py` | 已实现 |
 | 图形集 | `Form` / `build` | — | `feature/note/shapes.py` + `config/shapes.json` | 已实现 |
 
-> `type` 命名空间约定：`cairn.<domain>.<kind>`（见 [`domains.md`](./domains.md) §2）。
+> `type` 现为 **`Kind.Data` 的值**（短名，如 `notedata`）；旧 `cairn.<domain>.<kind>` 命名空间已作废
+> （见 [`domains.md`](./domains.md) §2）。域是管理型（无 ID），数据是块（有 ID）。
 
 ### 12.3 界面（非内核）
 

@@ -194,7 +194,7 @@ QML 侧走 **Qt Quick Controls 自定义 Style + 令牌单例**，不引入第�
 
 ### 7.12 笔记列表（形态与分组）
 
-导航笔记区渲染**分组树**（数据由 `Backend.groupTree` 给出，`cairn.group` 块；见 `data-model.md` §5.6）：
+导航笔记区渲染**分组树**（数据由 `Backend.groupTree` 给出，`group` 块；见 `data-model.md` §5.6）：
 
 | 元素 | 行为 |
 |---|---|
