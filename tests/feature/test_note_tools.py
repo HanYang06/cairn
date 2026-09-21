@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from feature.note import NoteData, Style
+from feature.note import Note, NoteData, Style
 from feature.note.edit.style import line_styles
 from feature.note.tools import (
     BASE_SIZE,
@@ -14,6 +14,12 @@ from feature.note.tools import (
     run_tool,
     tool_info,
 )
+
+SVC = Note(None)  # 操作在域服务；这些操作不碰存储
+
+
+def _run(tool_id: str, data: NoteData, ctx: ToolContext) -> bool:
+    return run_tool(tool_id, SVC, data, ctx)
 
 
 def _note(text: str = "abcdef") -> NoteData:
@@ -35,16 +41,16 @@ def _ctx(note: NoteData, start: int = 0, end: int = 0) -> ToolContext:
 
 def test_toggle_bold_over_selection() -> None:
     note = _note()
-    assert run_tool("bold", note, _ctx(note, 1, 3))
+    assert _run("bold", note, _ctx(note, 1, 3))
     assert line_styles(note.style, note.body[0]) == [(1, 3, Style(bold=True))]
 
-    assert run_tool("bold", note, _ctx(note, 1, 3))
+    assert _run("bold", note, _ctx(note, 1, 3))
     assert line_styles(note.style, note.body[0]) == []
 
 
 def test_toggle_without_selection_hits_whole_line() -> None:
     note = _note()
-    run_tool("italic", note, _ctx(note))
+    _run("italic", note, _ctx(note))
     assert line_styles(note.style, note.body[0]) == [(0, 6, Style(italic=True))]
 
 
@@ -52,10 +58,10 @@ def test_align_toggle() -> None:
     note = _note()
     lid = note.body[0]["id"]  # type: ignore[index]
 
-    run_tool("align-center", note, _ctx(note))
+    _run("align-center", note, _ctx(note))
     assert note.paragraph(lid) == {"align": "center"}
 
-    run_tool("align-center", note, _ctx(note))
+    _run("align-center", note, _ctx(note))
     assert note.paragraph(lid) == {}
 
 
@@ -63,10 +69,10 @@ def test_heading_and_body() -> None:
     note = _note()
     lid = note.body[0]["id"]  # type: ignore[index]
 
-    run_tool("h1", note, _ctx(note))
+    _run("h1", note, _ctx(note))
     assert note.paragraph(lid) == {"heading": 1}
 
-    run_tool("body", note, _ctx(note))
+    _run("body", note, _ctx(note))
     assert note.paragraph(lid) == {}
 
 
@@ -74,28 +80,28 @@ def test_indent_in_and_out() -> None:
     note = _note()
     lid = note.body[0]["id"]  # type: ignore[index]
 
-    run_tool("indent-in", note, _ctx(note))
-    run_tool("indent-in", note, _ctx(note))
+    _run("indent-in", note, _ctx(note))
+    _run("indent-in", note, _ctx(note))
     assert note.paragraph(lid) == {"level": 2}
 
-    run_tool("indent-out", note, _ctx(note))
-    run_tool("indent-out", note, _ctx(note))
+    _run("indent-out", note, _ctx(note))
+    _run("indent-out", note, _ctx(note))
     assert note.paragraph(lid) == {}
 
 
 def test_size_up_and_back_to_default() -> None:
     note = _note()
-    run_tool("size-up", note, _ctx(note))
+    _run("size-up", note, _ctx(note))
     assert line_styles(note.style, note.body[0]) == [(0, 6, Style(size=BASE_SIZE + 1))]
 
-    run_tool("size-down", note, _ctx(note))
+    _run("size-down", note, _ctx(note))
     assert line_styles(note.style, note.body[0]) == []
 
 
 def test_clear_format() -> None:
     note = _note()
-    run_tool("bold", note, _ctx(note))
-    run_tool("clear-format", note, _ctx(note))
+    _run("bold", note, _ctx(note))
+    _run("clear-format", note, _ctx(note))
     assert line_styles(note.style, note.body[0]) == []
 
 
@@ -108,7 +114,7 @@ def test_registry_and_preset_are_consistent() -> None:
 
 def test_unknown_tool_returns_false() -> None:
     note = _note()
-    assert run_tool("does-not-exist", note, _ctx(note)) is False
+    assert _run("does-not-exist", note, _ctx(note)) is False
 
 
 def test_tool_categories_and_availability() -> None:
@@ -122,13 +128,13 @@ def test_tool_categories_and_availability() -> None:
 
 def test_placeholder_tool_does_not_run() -> None:
     note = _note()
-    assert run_tool("insert-table", note, _ctx(note)) is False
-    assert len(note.blocks()) == 1
+    assert _run("insert-table", note, _ctx(note)) is False
+    assert len(SVC.blocks(note)) == 1
 
 
 def test_toggle_state_three_way() -> None:
     note = _note("abcd")
-    run_tool("bold", note, _ctx(note, 0, 2))
+    _run("bold", note, _ctx(note, 0, 2))
 
     assert TOOLS["bold"].state(note, _ctx(note, 0, 2)) is True
     assert TOOLS["bold"].state(note, _ctx(note, 2, 4)) is False
@@ -139,7 +145,7 @@ def test_paragraph_tool_state() -> None:
     note = _note()
     assert TOOLS["align-center"].state(note, _ctx(note)) is False
 
-    run_tool("align-center", note, _ctx(note))
+    _run("align-center", note, _ctx(note))
     assert TOOLS["align-center"].state(note, _ctx(note)) is True
     assert TOOLS["h1"].state(note, _ctx(note)) is False
 
@@ -147,10 +153,10 @@ def test_paragraph_tool_state() -> None:
 def test_insert_code_tool_sets_focus_and_paragraph() -> None:
     note = _note("x")
     ctx = _ctx(note)
-    assert run_tool("insert-code", note, ctx)
+    assert _run("insert-code", note, ctx)
     assert ctx.focus
 
-    blocks = note.blocks()
+    blocks = SVC.blocks(note)
     assert len(blocks) == 2
     assert blocks[1]["id"] == ctx.focus
     assert blocks[1]["para"] == {"block": "code"}

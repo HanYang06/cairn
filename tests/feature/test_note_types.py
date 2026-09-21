@@ -11,6 +11,7 @@ from feature.note import (
     Graphic,
     Line,
     Link,
+    Note,
     NoteData,
     Paint,
     Style,
@@ -18,6 +19,8 @@ from feature.note import (
     canvas_ref,
     is_marker,
 )
+
+SVC = Note(None)  # 操作在域服务；这些操作不碰存储
 
 
 def _graphic(**overrides: object) -> Graphic:
@@ -159,7 +162,7 @@ def test_add_access_embeds_into_body() -> None:
     note.access = []
     entry = str(Oid.new())
     note.access = [*note.access, entry]
-    note._append_marker(access_ref(0))
+    SVC._append_marker(note, access_ref(0))
     assert note.body[-1]["v"] == {"access": 0}
     assert note.access[0] == entry
 
@@ -170,7 +173,7 @@ def test_reorder_keeps_style_by_line_id() -> None:
     ids = [line["id"] for line in note.body]
     note.style = {ids[0]: [{(0, 1): Style(bold=True)}], ids[2]: [{(0, 1): Style(italic=True)}]}
 
-    note.reorder([2, 0, 1])
+    SVC.reorder(note, [2, 0, 1])
 
     assert _texts(note) == ["c", "a", "b"]
     assert note.style[ids[2]][0][(0, 1)] == Style(italic=True)
@@ -183,7 +186,7 @@ def test_set_text_preserves_line_ids_and_markers() -> None:
     note.access = [str(Oid.new())]
     marker_id = note.body[1]["id"]
 
-    note.set_text("前面后面改")
+    SVC.set_text(note, "前面后面改")
 
     assert note.body[0]["v"] == "前面后面改"
     assert note.body[1]["id"] == marker_id

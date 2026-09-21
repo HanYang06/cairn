@@ -425,7 +425,8 @@
   `style`（行内区间样式），**不引类**（纯变换就该是函数）；`edit/__init__` 仅作兼容转出。
 - 已定 · **领域代码里别用 `from .edit import body, style, text`**：`text` / `style` / `body` 会与
   方法的参数 / 局部名相撞（已踩）。用 `from . import edit` + `edit.<块>.<func>`，或子模块具名导入。
-- 已定 · **`note/types.py` 已拆**：`body.py`（`NoteBody`）/ `data.py`（`NoteData` 载体 + 占位助手）/
-  `service.py`（`Note` 域服务）。**待办**：把编辑操作从 `NoteData` 迁到 `Note`（数据只管载体）。
+- 已定 · **`note/` 职责归位**：`body.py`（`NoteBody`）/ `data.py`（`NoteData` 载体 + 读视图）/
+  `service.py`（`Note` 域服务，**全部操作以 data 为首参**）；工具签名 `run(svc, data, ctx)` /
+  `state(data, ctx)`。`NoteData` 只留字段 + `body_hash` / `text` / `style` / `paragraph` / `references` / `_state`。
 - 待办 · **类型枚举**：官方 `cairn.*` 用 `StrEnum`（第三方仍可字符串）；类型表按 `str()` 归一。
 - 提醒 · 早先"撤销 `feature/_shared`"针对**跨域协作 / 编排**（归 App）；本条是**共享类型与设施**，不冲突。

@@ -459,4 +459,9 @@
   `canvas_ref` / `access_ref`）/ `service.py`（`Note` + `_search_text`）；纯搬运、行为不变；
   `note/__init__` 与 tests 改从 `feature.note` 顶层导入；删 `types.py`。
   218 测试通过、覆盖率 88%。
+- 2026-09-21 · 已定 · **笔记操作归位**：编辑操作（`set_text` / `set_body` / `blocks` / `reorder` /
+  行级增删拆合 / 样式 / 段落 / `_append_marker`）从 `NoteData` 迁到 `Note`（以 data 为首参）；
+  `NoteData` 只留字段 + 读视图（`body_hash` / `text` / `style` / `paragraph` / `references` / `_state`）；
+  `note/tools.py` 改 `run(svc, data, ctx)` / `state(data, ctx)`，测试同步。
+  218 测试通过、覆盖率 88%。
 

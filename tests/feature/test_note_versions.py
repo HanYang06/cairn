@@ -49,9 +49,9 @@ def test_persist_defers_version_until_checkpoint(tmp_path: Path) -> None:
     note = notes.create("v1")
     assert len(notes.history(note)) == 1
 
-    note.set_text("v2")
+    notes.set_text(note, "v2")
     notes.persist(note)
-    note.set_text("v3")
+    notes.set_text(note, "v3")
     notes.persist(note)
 
     # 自动保存（persist）只落盘，不进历史。
@@ -71,7 +71,7 @@ def test_paragraph_attribute_is_versioned(tmp_path: Path) -> None:
     note = notes.create("x")
     lid = note.body[0]["id"]  # type: ignore[index]
 
-    note.set_paragraph(lid, {"heading": 1})
+    notes.set_paragraph(note, lid, {"heading": 1})
     notes.save(note)
 
     history = notes.history(note)

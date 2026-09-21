@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
     from .data import NoteData
+    from .service import Note
 
 # 字号基准（与 UI 正文一致）；``Style.size == 0`` 表示用默认。
 BASE_SIZE = 13.0
@@ -82,11 +83,11 @@ class Tool:
     group: str = ""
     available: bool = True  # 预留工具置 False，UI 置灰
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
         """执行工具；子类实现。"""
         raise NotImplementedError
 
-    def state(self, note: NoteData, ctx: ToolContext) -> bool | None:  # noqa: ARG002 — 基类默认无状态
+    def state(self, data: NoteData, ctx: ToolContext) -> bool | None:  # noqa: ARG002 — 基类默认无状态
         """读取当前态（只读）：``True`` 生效 / ``False`` 未生效 / ``None`` 混合或不适用。"""
         return None
 
@@ -112,13 +113,13 @@ class ToggleStyleTool(Tool):
         self.label = label
         self.group = "font"
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
         start, end = ctx.span()
-        note.toggle_style(ctx.line_id, start, end, self._key)
+        note.toggle_style(data, ctx.line_id, start, end, self._key)
 
-    def state(self, note: NoteData, ctx: ToolContext) -> bool | None:
+    def state(self, data: NoteData, ctx: ToolContext) -> bool | None:
         start, end = ctx.span()
-        return bool_state(note.style, ctx.line_id, start, end, self._key)
+        return bool_state(data.style, ctx.line_id, start, end, self._key)
 
 
 class SetStyleTool(Tool):
@@ -134,13 +135,13 @@ class SetStyleTool(Tool):
         self.label = label
         self.group = "font"
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
         start, end = ctx.span()
-        note.set_style_span(ctx.line_id, start, end, self._patch)
+        note.set_style_span(data, ctx.line_id, start, end, self._patch)
 
-    def state(self, note: NoteData, ctx: ToolContext) -> bool | None:
+    def state(self, data: NoteData, ctx: ToolContext) -> bool | None:
         start, _ = ctx.span()
-        current = style_at(note.style, ctx.line_id, start)
+        current = style_at(data.style, ctx.line_id, start)
         return all(getattr(current, key, None) == value for key, value in self._patch.items())
 
 
@@ -155,15 +156,15 @@ class ColorCycleTool(Tool):
     def __init__(self, palette: Sequence[str] = DEFAULT_COLORS) -> None:
         self._palette = tuple(palette)
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
         start, end = ctx.span()
-        current = style_at(note.style, ctx.line_id, start).color
+        current = style_at(data.style, ctx.line_id, start).color
         if current in self._palette:
             index = self._palette.index(current) + 1
             color = self._palette[index] if index < len(self._palette) else ""
         else:
             color = self._palette[0] if self._palette else ""
-        note.set_style_span(ctx.line_id, start, end, {"color": color})
+        note.set_style_span(data, ctx.line_id, start, end, {"color": color})
 
 
 class FontCycleTool(Tool):
@@ -177,15 +178,15 @@ class FontCycleTool(Tool):
     def __init__(self, fonts: Sequence[str] = DEFAULT_FONTS) -> None:
         self._fonts = tuple(fonts)
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
         start, end = ctx.span()
-        current = style_at(note.style, ctx.line_id, start).font
+        current = style_at(data.style, ctx.line_id, start).font
         if current in self._fonts:
             index = self._fonts.index(current) + 1
             font = self._fonts[index] if index < len(self._fonts) else ""
         else:
             font = self._fonts[0] if self._fonts else ""
-        note.set_style_span(ctx.line_id, start, end, {"font": font})
+        note.set_style_span(data, ctx.line_id, start, end, {"font": font})
 
 
 class SizeTool(Tool):
@@ -199,12 +200,12 @@ class SizeTool(Tool):
         self.text = text
         self.label = label
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
         start, end = ctx.span()
-        current = style_at(note.style, ctx.line_id, start).size or BASE_SIZE
+        current = style_at(data.style, ctx.line_id, start).size or BASE_SIZE
         size = max(MIN_SIZE, min(MAX_SIZE, current + self._delta))
         note.set_style_span(
-            ctx.line_id, start, end, {"size": 0.0 if abs(size - BASE_SIZE) < 0.01 else size}
+            data, ctx.line_id, start, end, {"size": 0.0 if abs(size - BASE_SIZE) < 0.01 else size}
         )
 
 
@@ -216,9 +217,9 @@ class ClearFormatTool(Tool):
     label = "清除格式"
     group = "font.clear"
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
         start, end = ctx.span()
-        note.clear_style_span(ctx.line_id, start, end)
+        note.clear_style_span(data, ctx.line_id, start, end)
 
 
 class SetParagraphTool(Tool):
@@ -243,13 +244,13 @@ class SetParagraphTool(Tool):
         self.label = label
         self.group = group
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
         if self._toggle and all(ctx.paragraph.get(k) == v for k, v in self._patch.items()):
-            note.set_paragraph(ctx.line_id, dict.fromkeys(self._patch))
+            note.set_paragraph(data, ctx.line_id, dict.fromkeys(self._patch))
         else:
-            note.set_paragraph(ctx.line_id, self._patch)
+            note.set_paragraph(data, ctx.line_id, self._patch)
 
-    def state(self, note: NoteData, ctx: ToolContext) -> bool | None:  # noqa: ARG002 — 只看段落属性
+    def state(self, data: NoteData, ctx: ToolContext) -> bool | None:  # noqa: ARG002 — 只看段落属性
         for key, value in self._patch.items():
             if value in (None, "", [], {}):
                 if key in ctx.paragraph:
@@ -270,10 +271,10 @@ class IndentTool(Tool):
         self.glyph = glyph
         self.label = label
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
         level = int(ctx.paragraph.get("level") or 0) + self._delta
         level = max(0, min(level, 8))
-        note.set_paragraph(ctx.line_id, {"level": level or None})
+        note.set_paragraph(data, ctx.line_id, {"level": level or None})
 
 
 class ClearParagraphTool(Tool):
@@ -284,8 +285,8 @@ class ClearParagraphTool(Tool):
     label = "清除段落格式"
     group = "para.clear"
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
-        note.clear_paragraph(ctx.line_id)
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
+        note.clear_paragraph(data, ctx.line_id)
 
 
 class InsertCodeTool(Tool):
@@ -297,9 +298,9 @@ class InsertCodeTool(Tool):
     label = "插入代码块"
     group = "add.block"
 
-    def run(self, note: NoteData, ctx: ToolContext) -> None:
-        new_id = note.insert_line_after(ctx.line_id or None, "")
-        note.set_paragraph(new_id, {"block": "code"})
+    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
+        new_id = note.insert_line_after(data, ctx.line_id or None, "")
+        note.set_paragraph(data, new_id, {"block": "code"})
         ctx.focus = new_id
 
 
@@ -458,12 +459,12 @@ def tool_info() -> list[dict[str, Any]]:
     return [tool.info() for tool in TOOLS.values()]
 
 
-def run_tool(tool_id: str, note: NoteData, ctx: ToolContext) -> bool:
+def run_tool(tool_id: str, note: Note, data: NoteData, ctx: ToolContext) -> bool:
     """执行工具；未知 id 或预留工具返回 ``False``。"""
     tool = TOOLS.get(tool_id)
     if tool is None or not tool.available:
         return False
-    tool.run(note, ctx)
+    tool.run(note, data, ctx)
     return True
 
 

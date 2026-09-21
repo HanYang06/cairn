@@ -23,7 +23,7 @@
 - [x] **最小类型表** `core/types/kind.py`：`TypeInfo{type, role, name, fields, deps, units}`，定义时登记。
 - [x] **文件归位（第一批）**：`feature/shared/`（数据结构 / 值 / 设施）；`note/edit/` 三分（body/text/style）。
 - [x] **`note/types.py` 拆包**：`body.py` / `data.py` / `service.py`（纯搬运）。
-- [ ] **操作归位**：把编辑操作从 `NoteData` 迁到 `Note`（数据只留载体 + 内容视图）。
+- [x] **操作归位**：编辑操作从 `NoteData` 迁到 `Note`（数据只留载体 + 读视图）。
 - [ ] **类型枚举**：官方 `cairn.*` 用 `StrEnum`，类型表 `str()` 归一。
 - [ ] 图片 / 音频转码（不传染库）；大正文透明分片（`Bucket.put_content`）。
 - [ ] **跨域编排**（域间关系 / 订阅）——交由 App 承担，尚未落地。

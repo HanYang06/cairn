@@ -1,9 +1,9 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""笔记域服务 ``Note``：创建 / 读写 / 落盘 / 版本 / 关系 / 策略（**管数据**）。
+"""笔记域服务 ``Note``：**管数据**——创建 / 读写 / 落盘 / 版本 / 关系 / 编辑操作。
 
-数据（``NoteData``）由本服务与 Bucket 共同管理：Bucket 管存储，本服务管语义。
+数据（``NoteData``）只是载体；这边的每个操作都**以 data 为首参**。
 """
 
 from __future__ import annotations
@@ -17,17 +17,34 @@ from ..shared.base import UNSET
 from ..shared.signature import Signature
 from .data import NoteData, access_ref, canvas_ref
 from .edit import (
-    Line as LineDict,
+    OVERLONG_WEIGHT,
+    apply_text,
+    clear_range_style,
+    coerce_style,
+    drop_style,
+    insert_line,
+    is_marker,
+    line_styles,
+    merge_line,
+    merge_style,
+    new_id,
+    normalize_body,
+    remove_line,
+    set_line_text,
+    set_range_style,
+    split_line,
+    split_style,
+    text_weight,
+    toggle_range_style,
 )
 from .edit import (
-    coerce_style,
-    normalize_body,
+    Line as LineDict,
 )
 from .model import NOTE_KIND
 from .versions import NOTE_CODEC
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping
+    from collections.abc import Iterable, Mapping, Sequence
 
     from core.types import Oid
 
@@ -35,7 +52,7 @@ if TYPE_CHECKING:
 
 
 class Note(Domain):
-    """笔记域服务（单例）：创建 / 读写 / 落盘 / 版本 / 关系 / 策略。"""
+    """笔记域服务（单例）：创建 / 读写 / 落盘 / 版本 / 关系 / 编辑操作。"""
 
     name = "笔记"
     type = NOTE_KIND
@@ -60,7 +77,7 @@ class Note(Domain):
         """新建一条笔记：落盘 + 记根版本，返回其数据。"""
         data = NoteData()
         data._vault = self.vault  # noqa: SLF001 — 服务为数据绑定库，同包强耦合
-        data.set_text(text)
+        self.set_text(data, text)
         data.title = title
         data.tags = tags or {}
         if props:
@@ -85,6 +102,163 @@ class Note(Domain):
     ) -> list[NoteData]:
         """列出笔记数据。"""
         return [self.load(info.oid) for info in self.vault.iter(type=NOTE_KIND, tags=tags)]
+
+    # ---- 正文操作（编辑器接线用；只改内存，落盘由 save / persist 负责）----
+    def set_text(self, data: NoteData, text: str) -> None:
+        """整段替换文字；行 id 与嵌入占位尽量保留。"""
+        data.body.text = apply_text(data.body.text, text)
+        data.body.refresh()
+
+    def set_body(
+        self,
+        data: NoteData,
+        lines: Sequence[Mapping[str, Any]],
+        *,
+        style: Mapping[str, Any] | None = None,
+    ) -> NoteData:
+        """整段替换正文（编辑器回写用）：行序列 + 可选行内样式。"""
+        data.body.text = normalize_body(lines)
+        if style is not None:
+            data.body.style = coerce_style(style, data.body.text)
+        data.body.refresh()
+        return data
+
+    def blocks(self, data: NoteData) -> list[dict[str, Any]]:
+        """给界面用的块视图：行 + 行内样式段 + 段落属性 + 等效字数。"""
+        blocks: list[dict[str, Any]] = []
+        for line in data.body.text:
+            value = line["v"]
+            para = dict(line.get("p") or {})
+            if is_marker(value):
+                kind = "canvas" if "canvas" in value else "access"
+                blocks.append(
+                    {
+                        "id": line["id"],
+                        "kind": kind,
+                        "text": "",
+                        "styles": [],
+                        "index": int(value.get(kind, 0)),
+                        "para": para,
+                        "weight": 0.0,
+                    }
+                )
+                continue
+            styles = [
+                [start, end, style.to_data()] for start, end, style in line_styles(data.style, line)
+            ]
+            weight = text_weight(str(value))
+            blocks.append(
+                {
+                    "id": line["id"],
+                    "kind": "text",
+                    "text": value,
+                    "styles": styles,
+                    "index": -1,
+                    "para": para,
+                    "weight": weight,
+                    "overlong": weight > OVERLONG_WEIGHT,
+                }
+            )
+        return blocks
+
+    def reorder(self, data: NoteData, order: Sequence[int]) -> None:
+        """按旧下标顺序重排行；样式按行 id 自动跟随。"""
+        lines = list(data.body.text)
+        data.body.text = [lines[index] for index in order]
+        data.body.refresh()
+
+    def set_line(self, data: NoteData, line_id: str, text: str) -> NoteData:
+        """改写某一行文字（含换行时就地拆行）。"""
+        data.body.text = set_line_text(data.body.text, line_id, text)
+        data.body.refresh()
+        return data
+
+    def insert_line_after(self, data: NoteData, line_id: str | None, text: str = "") -> str:
+        """在某行之后插入一行（``None`` 追加末尾），返回新行 id。"""
+        data.body.text, new_lid = insert_line(data.body.text, line_id, text)
+        data.body.refresh()
+        return new_lid
+
+    def remove_line(self, data: NoteData, line_id: str) -> NoteData:
+        """删除一行；其样式一并丢弃。"""
+        data.body.text = remove_line(data.body.text, line_id)
+        data.body.style = drop_style(data.body.style, line_id)
+        data.body.refresh()
+        return data
+
+    def split_line(self, data: NoteData, line_id: str, offset: int) -> str:
+        """在某行 ``offset`` 处拆行；样式按位置切开。返回新行 id。"""
+        data.body.text, new_lid, _, _ = split_line(data.body.text, line_id, offset)
+        data.body.style = split_style(data.body.style, line_id, new_lid, int(offset))
+        data.body.refresh()
+        return new_lid
+
+    def merge_line(self, data: NoteData, line_id: str) -> str | None:
+        """把某行并入上一行（上一行文字在前）；首行或涉及占位时不合并。
+
+        返回合并后的行 id（未合并返回 ``None``）。调用方可据此把光标移回去。
+        """
+        lines, prev_id, prev_len = merge_line(data.body.text, line_id)
+        if prev_id is None:
+            return None
+        data.body.text = lines
+        data.body.style = merge_style(data.body.style, prev_id, line_id, prev_len)
+        data.body.refresh()
+        return prev_id
+
+    def toggle_style(
+        self, data: NoteData, line_id: str, start: int, end: int, key: str
+    ) -> NoteData:
+        """对某行 ``[start, end)`` 切换布尔样式（bold / italic / underline / strike）。"""
+        toggled = toggle_range_style(data.body.style, line_id, start, end, key)
+        data.body.style = coerce_style(toggled, data.body.text)
+        data.body.refresh()
+        return data
+
+    def set_style_span(
+        self,
+        data: NoteData,
+        line_id: str,
+        start: int,
+        end: int,
+        patch: Mapping[str, Any],
+    ) -> NoteData:
+        """对某行 ``[start, end)`` 设置若干行内样式字段（颜色 / 字号 / 字体 / 布尔）。"""
+        changed = set_range_style(data.body.style, line_id, start, end, patch)
+        data.body.style = coerce_style(changed, data.body.text)
+        data.body.refresh()
+        return data
+
+    def clear_style_span(self, data: NoteData, line_id: str, start: int, end: int) -> NoteData:
+        """清掉某行 ``[start, end)`` 的全部行内样式。"""
+        changed = clear_range_style(data.body.style, line_id, start, end)
+        data.body.style = coerce_style(changed, data.body.text)
+        data.body.refresh()
+        return data
+
+    # ---- 段落属性（行级；一行 = 一段）----
+    def set_paragraph(self, data: NoteData, line_id: str, patch: Mapping[str, Any]) -> NoteData:
+        """合并段落属性；值为 ``None`` / 空串 / 空列表则删除该键。"""
+        for line in data.body.text:
+            if line["id"] != line_id:
+                continue
+            para = dict(line.get("p") or {})
+            for key, value in patch.items():
+                if value in (None, "", [], {}):
+                    para.pop(key, None)
+                else:
+                    para[key] = value
+            if para:
+                line["p"] = para
+            else:
+                line.pop("p", None)
+            break
+        data.body.refresh()
+        return data
+
+    def clear_paragraph(self, data: NoteData, line_id: str) -> NoteData:
+        """清掉某行的全部段落属性。"""
+        return self.set_paragraph(data, line_id, dict.fromkeys(data.paragraph(line_id)))
 
     # ---- 落盘 / 版本 ----
     @action
@@ -166,7 +340,7 @@ class Note(Domain):
             data.tags = tags
         data.attrs["props"] = merged
         if text is not None:
-            data.set_text(text)
+            self.set_text(data, text)
         self.save(data, search_text=_search_text(data.title, data.text))
         return data
 
@@ -182,7 +356,7 @@ class Note(Domain):
         """把一块画板嵌进正文：``canvas`` 追加其 oid，并在 body 末尾放占位。"""
         entry = str(canvas.oid)
         data.canvas = [*data.canvas, entry]
-        data._append_marker(canvas_ref(len(data.canvas) - 1))  # noqa: SLF001
+        self._append_marker(data, canvas_ref(len(data.canvas) - 1))
         self.save(data)
         return entry
 
@@ -203,9 +377,13 @@ class Note(Domain):
         del mime, name, size
         entry = str(oid)
         data.access = [*data.access, entry]
-        data._append_marker(access_ref(len(data.access) - 1))  # noqa: SLF001
+        self._append_marker(data, access_ref(len(data.access) - 1))
         self.save(data)
         return entry
+
+    def _append_marker(self, data: NoteData, marker: dict[str, int]) -> None:
+        data.body.text = [*data.body.text, {"id": new_id(), "v": marker}]
+        data.body.refresh()
 
 
 def _search_text(title: str | None, text: str) -> str:
