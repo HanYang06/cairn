@@ -33,7 +33,7 @@ class App:
         self.session = session
         self.theme = theme or Theme()
         self.root = Node("app")
-        self.bind = Bind(self)
+        self.bind = Bind()
         self._facets: list[Facet] = []
 
     def slots(self) -> list[Slot]:

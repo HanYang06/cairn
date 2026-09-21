@@ -7,7 +7,7 @@
 
 - 基类 ``Tool`` 只描述 ``id / category / 图标 / 文本 / 标签 / 分组``，把"作用目标"抽象成
   ``ToolContext``（行 id + 选区 + 当前段落属性 + 行长度）。
-- **行为不同**的用子类（``ToggleStyleTool`` / ``SetStyleTool`` / ``SetParagraphTool`` …）；
+- **行为不同**的用子类（``ToggleStyleTool`` / ``SetParagraphTool`` …）；
   **同族只差参数**的用构造参数（``ToggleStyleTool("bold")``、``AlignTool("center")``），避免参数爆炸。
 - **分类与位置是数据**（``category`` / ``group`` 字段 + ``PRESET_LAYOUT``），不进继承链——
   将来用户可自行重排。
@@ -120,29 +120,6 @@ class ToggleStyleTool(Tool):
     def state(self, data: NoteData, ctx: ToolContext) -> bool | None:
         start, end = ctx.span()
         return bool_state(data.style, ctx.line_id, start, end, self._key)
-
-
-class SetStyleTool(Tool):
-    """设置行内样式字段（颜色 / 字号 / 字体）。"""
-
-    def __init__(
-        self, patch: Mapping[str, Any], *, tid: str, glyph: str = "", text: str = "", label: str
-    ) -> None:
-        self._patch = dict(patch)
-        self.id = tid
-        self.glyph = glyph
-        self.text = text
-        self.label = label
-        self.group = "font"
-
-    def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
-        start, end = ctx.span()
-        note.set_style_span(data, ctx.line_id, start, end, self._patch)
-
-    def state(self, data: NoteData, ctx: ToolContext) -> bool | None:
-        start, _ = ctx.span()
-        current = style_at(data.style, ctx.line_id, start)
-        return all(getattr(current, key, None) == value for key, value in self._patch.items())
 
 
 class ColorCycleTool(Tool):
@@ -486,7 +463,6 @@ __all__ = [
     "InsertCodeTool",
     "InsertTableTool",
     "SetParagraphTool",
-    "SetStyleTool",
     "SizeTool",
     "ToggleStyleTool",
     "Tool",

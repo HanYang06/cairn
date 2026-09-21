@@ -14,14 +14,14 @@ class FakeDomain:
 
 
 def test_bind_compile_ok() -> None:
-    bind = Bind(owner=None)
+    bind = Bind()
     bind.add(UiSignal("clicked"), lambda: None)
 
     assert len(bind.compile()) == 1
 
 
 def test_bind_compile_rejects_bad_source() -> None:
-    bind = Bind(owner=None)
+    bind = Bind()
     bind.add("not-a-signal", lambda: None)
 
     with pytest.raises(UiError, match="不是 UI 信号"):
@@ -29,7 +29,7 @@ def test_bind_compile_rejects_bad_source() -> None:
 
 
 def test_bind_compile_rejects_bad_target() -> None:
-    bind = Bind(owner=None)
+    bind = Bind()
     bind.add(UiSignal("clicked"), 42)
 
     with pytest.raises(UiError, match="不可调用"):

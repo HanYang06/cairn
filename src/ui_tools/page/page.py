@@ -23,7 +23,7 @@ class Page(Node):
     def __init__(self, name: str = "", *, title: str = "") -> None:
         super().__init__(name)
         self.title = title
-        self.bind = Bind(self)
+        self.bind = Bind()
         self.layout: Layout = VBox()
         super().add(self.layout)  # 布局作为结构子节点，编译树才连得上
 

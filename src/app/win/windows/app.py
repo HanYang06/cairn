@@ -37,7 +37,6 @@ class CairnApp(App):
         feature = Feature(vault, vault.signal)
         vault.signal.feature = feature
         super().__init__(Session(vault.signal), theme=theme or app_theme())
-        self.feature = feature
 
         root = self.root
 

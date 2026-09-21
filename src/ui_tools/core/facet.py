@@ -32,7 +32,7 @@ class Facet:
         self.domain = domain
         self.name = name or type(domain).__name__
         self.conf = Conf()
-        self.bind = Bind(self)
+        self.bind = Bind()
         self.root = Page("root")
         self._pages: dict[Page, object] = {}
         self._routes: dict[object, Page] = {}
