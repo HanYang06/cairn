@@ -25,14 +25,14 @@ class Schema:
         self.root = root
         self._paths: set[str] = set()
         self._nodes: dict[str, Node] = {}
-        self._sorted: list[str] = []
+        self._sorted: list[str] | None = None
 
     def add(self, path: str, node: Node | None = None) -> None:
         """登记一条规范路径（可附带其节点）；重复登记即报错，避免静默覆盖。"""
         if path in self._paths:
             raise UiError(f"配置路径重复: {path!r}")
         self._paths.add(path)
-        self._sorted = sorted(self._paths)
+        self._sorted = None  # 惰性重排：批量注册不在每次 add 时全量排序
         if node is not None:
             self._nodes[path] = node
 
@@ -44,9 +44,14 @@ class Schema:
             return None
         return self._nodes.get(full)
 
+    def _ordered(self) -> list[str]:
+        if self._sorted is None:
+            self._sorted = sorted(self._paths)
+        return self._sorted
+
     def paths(self) -> list[str]:
         """全部规范路径（有序）。"""
-        return list(self._sorted)
+        return list(self._ordered())
 
     def normalize(self, path: str) -> str:
         """补上根前缀（已是规范形式的原样返回）。"""
@@ -60,7 +65,7 @@ class Schema:
         if full in self._paths:
             return full
         suffix = f".{path}"
-        matches = [p for p in self._sorted if p == path or p.endswith(suffix)]
+        matches = [p for p in self._ordered() if p == path or p.endswith(suffix)]
         if len(matches) == 1:
             return matches[0]
         if not matches:

@@ -121,3 +121,25 @@ def test_model_notify_isolates_failing_observer() -> None:
     model.append(1)
 
     assert seen == [1]
+
+
+def test_model_watch_cancel_equal_bound_method() -> None:
+    model: Model[int] = Model()
+
+    class Handler:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def callback(self) -> None:
+            self.calls += 1
+
+    handler = Handler()
+    model.watch(handler.callback)  # 存 cb1
+    cancel = model.watch(handler.callback)  # cb2 与 cb1 相等 → 去重
+
+    model.append(1)
+    assert handler.calls == 1
+
+    cancel()  # 去重判等与取消判等须一致，才能从任一 handle 取消
+    model.append(2)
+    assert handler.calls == 1

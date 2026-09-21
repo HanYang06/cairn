@@ -49,13 +49,16 @@ class NodeAction:
         if not callable(handler):
             raise LayoutError(f"动作方法不存在: {self}")
         try:
-            takes_args = bool(inspect.signature(handler).parameters)
+            signature = inspect.signature(handler)
         except (TypeError, ValueError):
-            takes_args = True
-        if takes_args:
-            handler(*args, **kwargs)
+            handler()  # 签名不可知（如某些 C 实现）：保守忽略载荷
+            return
+        try:
+            signature.bind(*args, **kwargs)
+        except TypeError:
+            handler()  # 载荷与该槽签名不匹配：退化为无参调用
         else:
-            handler()
+            handler(*args, **kwargs)
 
     def __repr__(self) -> str:
         return f"NodeAction({self._node.name or self._node.kind}.{self._method})"

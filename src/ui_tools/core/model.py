@@ -70,7 +70,7 @@ class Model[T]:
             self._observers.append(callback)
 
         def cancel() -> None:
-            self._observers[:] = [item for item in self._observers if item is not callback]
+            self._observers[:] = [item for item in self._observers if item != callback]
 
         return cancel
 
