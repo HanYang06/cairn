@@ -69,3 +69,58 @@ def test_vocabulary_shape() -> None:
 
     assert "component" in vocab
     assert set(vocab["component"]) == {"stylable", "states"}
+
+
+class _Widget:
+    def __init__(self) -> None:
+        self.seen: list[object] = []
+        self.hit = False
+        self.defaulted: object = None
+
+    def take(self, *args: object) -> None:
+        self.seen = list(args)
+
+    def noargs(self) -> None:
+        self.hit = True
+
+    def one_default(self, value: object = None) -> None:
+        self.defaulted = value
+
+
+def test_node_action_forwards_payload() -> None:
+    node = Component("c")
+    widget = _Widget()
+    node.bind_widget(widget)
+
+    node.action("take")(1, 2)
+    node.action("noargs")()  # 无参方法忽略信号载荷
+    node.action("one_default")(7)  # 恰好一个参数：透传
+
+    assert widget.seen == [1, 2]
+    assert widget.hit is True
+    assert widget.defaulted == 7
+
+
+def test_node_action_trims_unmatched_payload() -> None:
+    node = Component("c")
+    widget = _Widget()
+    node.bind_widget(widget)
+
+    node.action("one_default")(1, 2)  # 载荷多于可接受参数：退化为无参调用
+
+    assert widget.defaulted is None
+
+
+def test_node_action_missing_method_raises() -> None:
+    node = Component("c")
+    node.bind_widget(_Widget())
+
+    with pytest.raises(LayoutError, match="动作方法不存在"):
+        node.action("nope")()
+
+
+def test_node_action_uncompiled_raises() -> None:
+    node = Component("c")
+
+    with pytest.raises(LayoutError, match="尚未编译"):
+        node.action("take")()

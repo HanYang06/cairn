@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -40,10 +41,24 @@ class NodeAction:
         self._node = node
         self._method = method
 
-    def __call__(self, *_args: object, **_kwargs: object) -> None:
-        handler = getattr(self._node.widget, self._method, None)
-        if callable(handler):
-            handler()
+    def __call__(self, *args: object, **kwargs: object) -> None:
+        widget = self._node.widget
+        if widget is None:
+            raise LayoutError(f"动作目标尚未编译: {self}")
+        handler = getattr(widget, self._method, None)
+        if not callable(handler):
+            raise LayoutError(f"动作方法不存在: {self}")
+        try:
+            signature = inspect.signature(handler)
+        except (TypeError, ValueError):
+            handler()  # 签名不可知（如某些 C 实现）：保守忽略载荷
+            return
+        try:
+            signature.bind(*args, **kwargs)
+        except TypeError:
+            handler()  # 载荷与该槽签名不匹配：退化为无参调用
+        else:
+            handler(*args, **kwargs)
 
     def __repr__(self) -> str:
         return f"NodeAction({self._node.name or self._node.kind}.{self._method})"

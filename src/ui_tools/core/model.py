@@ -9,9 +9,12 @@ UI 的列表 / 投影都落在它上面；Qt 模型（`QAbstractItemModel`）在
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterable, Iterator
 
 type Notify = Callable[[], None]
+
+_log = logging.getLogger(__name__)
 
 
 class Model[T]:
@@ -25,9 +28,16 @@ class Model[T]:
         """当前数据（副本）。"""
         return list(self._items)
 
+    def __getitem__(self, index: int) -> T:
+        """按下标取一项（不复制整表，供 Qt 委托热路径用）。"""
+        return self._items[index]
+
     def replace(self, items: Iterable[T]) -> None:
-        """整体替换并通知。"""
-        self._items = list(items)
+        """整体替换并通知；内容一致时跳过。"""
+        new_items = list(items)
+        if new_items == self._items:
+            return
+        self._items = new_items
         self._notify()
 
     def append(self, item: T) -> None:
@@ -42,7 +52,9 @@ class Model[T]:
             self._notify()
 
     def clear(self) -> None:
-        """清空并通知。"""
+        """清空并通知（本已为空则不动）。"""
+        if not self._items:
+            return
         self._items.clear()
         self._notify()
 
@@ -53,18 +65,21 @@ class Model[T]:
         return iter(list(self._items))
 
     def watch(self, callback: Notify) -> Notify:
-        """观察变更；返回取消函数。"""
-        self._observers.append(callback)
+        """观察变更；返回取消函数（重复注册去重，取消移除全部匹配）。"""
+        if callback not in self._observers:
+            self._observers.append(callback)
 
         def cancel() -> None:
-            if callback in self._observers:
-                self._observers.remove(callback)
+            self._observers[:] = [item for item in self._observers if item != callback]
 
         return cancel
 
     def _notify(self) -> None:
         for callback in list(self._observers):
-            callback()
+            try:
+                callback()
+            except Exception:  # noqa: BLE001 — 单个观察者失败不应中断其余通知
+                _log.exception("模型观察者执行失败")
 
     def __repr__(self) -> str:
         return f"Model({len(self._items)})"
