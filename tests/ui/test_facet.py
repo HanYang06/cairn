@@ -89,6 +89,11 @@ def test_slot_locked_rejects_add() -> None:
         slot.add(FakeButton("x"))
 
 
+def test_slot_rejects_unknown_align() -> None:
+    with pytest.raises(LayoutError, match="未知对齐"):
+        Slot("s", align="middle")  # type: ignore[arg-type]
+
+
 def test_slot_accepts_explicit_addable() -> None:
     slot = Slot("s", locked=True, addable=True)  # 显式覆盖锁定默认
     slot.add(FakeButton("x"))

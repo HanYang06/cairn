@@ -9,8 +9,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
+from .errors import LayoutError
 from .node import Node
 
 
@@ -27,12 +28,14 @@ class Slot(Node):
         scroll: bool = False,
         hidden: bool = False,
         locked: bool = False,
-        align: str | None = None,
+        align: Literal["top"] | None = None,
         stretch: bool = False,
         capacity: int | None = None,
         addable: bool | None = None,
         **opts: Any,
     ) -> None:
+        if align not in (None, "top"):
+            raise LayoutError(f"未知对齐: {align!r}（应为 'top' 或 None）")
         resolved = (not locked) if addable is None else addable
         super().__init__(name, addable=resolved, capacity=capacity, stretch=stretch, **opts)
         self.expects = expects

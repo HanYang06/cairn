@@ -33,14 +33,14 @@ class Compiler:
         return self
 
     def compile(self, node: Node) -> object:
-        """编译一个节点及其子树；未登记翻译器即报错。"""
+        """编译一个节点及其子树；未登记翻译器即报错（先查翻译器，快速失败）。"""
+        handler = self._translators.get(node.kind)
+        if handler is None:
+            raise UiError(f"未注册的翻译器: {node.path()} ({node.kind})")
         children: list[object] = []
         for placed in node.children():
             child = placed.component
             children.append(self.compile(child) if isinstance(child, Node) else child)
-        handler = self._translators.get(node.kind)
-        if handler is None:
-            raise UiError(f"未注册的翻译器: {node.kind}")
         return handler(node, children)
 
     def kinds(self) -> list[str]:

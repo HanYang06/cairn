@@ -71,3 +71,13 @@ def test_theme_rejects_path_traversal(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("CAIRN_THEME_DIR", str(tmp_path))
 
     assert app_theme("../../etc/passwd").token("bg")  # 非法名退回内置默认
+
+
+def test_theme_falls_back_on_dangling_token(tmp_path, monkeypatch) -> None:
+    (tmp_path / "dangling.json").write_text(
+        '{"token": {}, "style": {"widget.label": {"color": "token.nope"}}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("CAIRN_THEME_DIR", str(tmp_path))
+
+    assert app_theme("dangling").token("bg")  # 悬空引用也不得让启动崩

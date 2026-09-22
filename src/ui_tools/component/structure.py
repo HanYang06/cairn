@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from .component import Component
 
@@ -20,6 +20,10 @@ if TYPE_CHECKING:
 
 def _empty(_item: object) -> str:
     return ""
+
+
+def _text(item: object) -> str:
+    return "" if item is None else str(item)
 
 
 class CardStage(Component):
@@ -35,14 +39,14 @@ class CardStage(Component):
         preview: Callable[[Any], str] | None = None,
         meta: Callable[[Any], str] | None = None,
         badge: Callable[[Any], str] | None = None,
-        density: str = "cards",
+        density: Literal["cards", "details"] = "cards",
         name: str = "stage",
         stretch: bool = True,
         **opts: Any,
     ) -> None:
         super().__init__(name, stretch=stretch, **opts)
         self.model = model
-        self.title: Callable[[Any], str] = title or str
+        self.title: Callable[[Any], str] = title or _text
         self.preview: Callable[[Any], str] = preview or _empty
         self.meta: Callable[[Any], str] = meta or _empty
         self.badge: Callable[[Any], str] = badge or _empty
@@ -58,7 +62,7 @@ class Surface(Component):
     def __init__(
         self,
         *,
-        orientation: str = "v",
+        orientation: Literal["v", "h"] = "v",
         elevated: bool = False,
         name: str = "surface",
         **opts: Any,

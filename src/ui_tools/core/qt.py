@@ -121,8 +121,9 @@ class WindowHost:
         if widget is None or not name:
             return
         signal = getattr(widget, name, None)
-        if signal is not None and hasattr(signal, "connect"):
-            signal.connect(binding.target)
+        if signal is None or not hasattr(signal, "connect"):
+            raise UiError(f"控件 {type(widget).__name__} 无信号: {name!r}")
+        signal.connect(binding.target)
 
 
 def build_window(app: App) -> QMainWindow:
@@ -163,7 +164,11 @@ def _shadow(widget: QWidget, theme: Theme, *, blur: float, dy: float) -> None:
     effect.setBlurRadius(blur)
     effect.setOffset(0.0, dy)
     color = QColor(theme.token("shadow_color", "#000000"))
-    color.setAlpha(int(theme.token("shadow_alpha", "110")))
+    try:
+        alpha = int(theme.token("shadow_alpha", "110"))
+    except ValueError as err:
+        raise UiError(f"shadow_alpha 不是整数: {theme.token('shadow_alpha')!r}") from err
+    color.setAlpha(alpha)
     effect.setColor(color)
     widget.setGraphicsEffect(effect)
 
@@ -236,7 +241,8 @@ def _surface(node: Node, children: list[object], theme: Theme) -> QWidget:
 
 
 def _stage(node: Node, children: list[object], theme: Theme) -> QWidget:
-    del children
+    if children:
+        raise UiError("stage 不支持子件")
     model = getattr(node, "model", None)
     if model is None:
         raise UiError("stage 缺少 model")
@@ -256,6 +262,8 @@ def _grid(node: Node, children: list[object]) -> QWidget:
     widget = _tag(QWidget(), node)
     layout = QGridLayout(widget)
     cols = int(node.options.get("cols", 1) or 1)
+    if cols < 1:
+        raise UiError(f"grid 的 cols 必须为正数: {cols}")
     for index, child in enumerate(children):
         if isinstance(child, QWidget):
             layout.addWidget(child, index // cols, index % cols)
