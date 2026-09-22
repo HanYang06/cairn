@@ -258,8 +258,11 @@ class Catalog:
         return row is not None
 
     def create_table(self, name: str, columns: dict[str, str]) -> None:
-        if not _IDENT_RE.match(name) or not all(_IDENT_RE.match(column) for column in columns):
-            raise CairnError(f"非法表名或列名: {name}")
+        if not _IDENT_RE.match(name):
+            raise CairnError(f"非法表名: {name}")
+        bad = next((column for column in columns if not _IDENT_RE.match(column)), None)
+        if bad is not None:
+            raise CairnError(f"非法列名: {bad}")
         parts = []
         for column, spec in columns.items():
             parts.append(f'"{column}" {spec}'.strip())

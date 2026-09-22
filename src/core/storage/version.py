@@ -138,7 +138,7 @@ class VersionStore:
                 return state
             payload = payloads.get(entry["id"])
             if payload is None:
-                continue
+                raise ObjectNotFoundError(f"版本补丁缺失: {oid}@{entry['id']}")
             state = codec.apply(state, decode_canonical(bytes(payload)))
         raise ObjectNotFoundError(f"版本不存在: {oid}@{version}")
 
