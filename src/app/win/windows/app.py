@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from core import Vault
+from core import CairnError, Vault
 from ui_tools.component import Button, Field, Heading, Label, Surface
 from ui_tools.core import App, Session, Slot
 from ui_tools.core.qt import run as run_app
@@ -27,7 +27,11 @@ if TYPE_CHECKING:
 
 
 def _default_root() -> Path:
-    return Path(os.environ.get("CAIRN_VAULT", str(Path.cwd() / "vault")))
+    """库根：`CAIRN_VAULT` 优先（空白视为未设），否则 `<cwd>/vault`。"""
+    raw = os.environ.get("CAIRN_VAULT")
+    if raw and raw.strip():
+        return Path(raw)
+    return Path.cwd() / "vault"
 
 
 class CairnApp(App):
@@ -35,8 +39,10 @@ class CairnApp(App):
 
     def __init__(self, vault: Vault, *, theme: Theme | None = None) -> None:
         feature = Feature(vault, vault.signal)
+        active_theme = theme or app_theme()  # 先建主题（可能失败），再发布 Feature
+        super().__init__(Session(vault.signal), theme=active_theme)
+        self._vault = vault
         vault.signal.feature = feature
-        super().__init__(Session(vault.signal), theme=theme or app_theme())
 
         root = self.root
 
@@ -57,10 +63,17 @@ class CairnApp(App):
 
     @classmethod
     def open(cls, root: Path | None = None) -> CairnApp:
-        """开库 + 组装：`root` 不存在则创建（默认读 `CAIRN_VAULT` 或 `<cwd>/vault`）。"""
+        """开库 + 组装：能加载就加载，否则创建（默认读 `CAIRN_VAULT` 或 `<cwd>/vault`）。"""
         path = root or _default_root()
-        vault = Vault.load(path) if path.exists() else Vault.create(path)
+        try:
+            vault = Vault.load(path)
+        except CairnError:
+            vault = Vault.create(path)
         return cls(vault)
+
+    def close(self) -> None:
+        """关闭底层库（释放 catalog 连接）。"""
+        self._vault.close()
 
     def run(self) -> int:
         """跑起来：套主题、建窗、进事件循环。"""

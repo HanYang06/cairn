@@ -46,6 +46,14 @@ def test_facet_bind_and_conf() -> None:
     assert facet.conf.theme.get("token.accent") == "#122314"
 
 
+def test_conf_add_rejects_duplicate() -> None:
+    facet = Facet(FakeDomain())
+    facet.conf.attr.add("k", 1)
+
+    with pytest.raises(KeyError, match="已存在"):
+        facet.conf.attr.add("k", 2)
+
+
 def test_facet_set_layout_and_add() -> None:
     facet = Facet(FakeDomain())
 

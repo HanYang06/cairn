@@ -25,21 +25,34 @@ class NoteCard:
     badge: str = "notedata"
 
 
+def _to_ms(value: Any) -> int:
+    """宽松把属性值转成毫秒；非法 / 缺失记 0。"""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 def fmt_time(ms: int) -> str:
     """Unix 毫秒 → 简短相对时间。"""
     if ms <= 0:
         return ""
-    moment = datetime.fromtimestamp(ms / 1000, tz=UTC)
+    try:
+        moment = datetime.fromtimestamp(ms / 1000, tz=UTC)
+    except (OverflowError, OSError, ValueError):
+        return ""
     seconds = int((datetime.now(tz=UTC) - moment).total_seconds())
-    if seconds < 60:
-        return "刚刚"
-    if seconds < 3600:
-        return f"{seconds // 60} 分钟前"
-    if seconds < 86400:
-        return f"{seconds // 3600} 小时前"
-    if seconds < 86400 * 7:
-        return f"{seconds // 86400} 天前"
-    return moment.strftime("%Y-%m-%d")
+    if seconds < 60:  # 含未来时间（时钟偏差 / 同步数据）
+        result = "刚刚"
+    elif seconds < 3600:
+        result = f"{seconds // 60} 分钟前"
+    elif seconds < 86400:
+        result = f"{seconds // 3600} 小时前"
+    elif seconds < 86400 * 7:
+        result = f"{seconds // 86400} 天前"
+    else:
+        result = moment.strftime("%Y-%m-%d")
+    return result
 
 
 def _preview(show: Show) -> str:
@@ -58,7 +71,7 @@ def note_card(note: Any) -> NoteCard:
     return NoteCard(
         title=title or "（无标题）",
         preview=_preview(show),
-        meta=fmt_time(int(show.attrs.get("updated") or 0)),
+        meta=fmt_time(_to_ms(show.attrs.get("updated"))),
         badge=show.parts[0].type if show.parts else "notedata",
     )
 

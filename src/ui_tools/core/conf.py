@@ -24,7 +24,9 @@ class ConfGroup:
         return self
 
     def add(self, path: str, value: Any) -> ConfGroup:
-        """新增一个键（封闭词表下与 `set` 同义，词表校验后续接 schema）。"""
+        """新增一个键；已存在即报错（`set` 才是覆盖）。"""
+        if path in self._values:
+            raise KeyError(f"配置键已存在: {path!r}")
         self._values[path] = value
         return self
 
