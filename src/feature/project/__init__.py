@@ -17,14 +17,13 @@ from core.types import Oid
 
 from ..shared.base import UNSET, normalize_tags
 from ..shared.kinds import Kind
-from ..shared.relation import Relation
+from ..shared.relation import CONTAINS, Relation
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
 
 PROJECT_KIND = Kind.Data.Projectdata
 PROJECT_SCHEMA = 1
-CONTAINS = "contains"
 
 
 class ProjectData(Block):
@@ -96,13 +95,13 @@ class Project(Domain):
     ) -> ProjectData:
         """更新项目属性并落盘。"""
         merged = data.props()
+        if props is not None:  # props 先合并（与 create 一致），显式 description 再覆盖
+            merged.update(props)
         if description is not UNSET:
             if description is None:
                 merged.pop("description", None)
             else:
                 merged["description"] = str(description)
-        if props:
-            merged.update(props)
         if name is not UNSET:
             data.title = name
         if tags is not None:

@@ -6,7 +6,7 @@ from __future__ import annotations
 import pytest
 
 from feature.note import Note, NoteData, Style, access_ref
-from feature.note.edit.body import OVERLONG_WEIGHT, text_weight
+from feature.note.edit.body import OVERLONG_WEIGHT, copy_lines, entry, text_weight
 from feature.note.edit.style import line_styles, set_range_style
 
 SVC = Note(None)  # 操作在域服务；这些操作不碰存储，测试无需建库
@@ -259,3 +259,13 @@ def test_set_range_style_coerces_and_rejects_unknown() -> None:
     style = out["l1"][0][(0, 3)]
     assert style.size == 12.0
     assert style.bold is True
+
+
+def test_copy_lines_copies_marker_values() -> None:
+    marker = {"canvas": 0}
+    lines = [entry("l1", marker)]
+
+    copied = copy_lines(lines)
+    copied[0]["v"]["canvas"] = 99
+
+    assert marker["canvas"] == 0  # 占位映射按值拷贝，不共享引用

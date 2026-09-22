@@ -7,7 +7,16 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from core.storage import INDEX_TYPE, Attr, Block, BodyField, Bucket, BucketConfig, canonical
+from core.storage import (
+    INDEX_TYPE,
+    Attr,
+    Block,
+    BodyField,
+    Bucket,
+    BucketConfig,
+    Data,
+    canonical,
+)
 from core.types import CairnError, CorruptObjectError, ObjectNotFoundError
 
 if TYPE_CHECKING:
@@ -395,3 +404,45 @@ def test_corrupt_bucket_config_fails_closed(tmp_path: Path) -> None:
     bucket.close()
     with pytest.raises(CairnError, match="配置损坏"):
         Bucket.open(tmp_path / "bucket")
+
+
+def test_create_table_rejects_bad_identifier(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    with pytest.raises(CairnError):
+        bucket.catalog.create_table("bad name", {"id": "TEXT"})
+    with pytest.raises(CairnError):
+        bucket.catalog.create_table("ok", {"bad col": "TEXT"})
+
+
+def test_iter_block_ids_streams(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    bucket.put(Note(body=["x"]))
+    ids = bucket.iter_block_ids()
+    assert iter(ids) is ids  # 生成器：不整表物化
+    assert list(ids)
+
+
+def test_nested_transaction_inner_failure_rolls_back(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    note = bucket.new(Note)
+
+    def inner() -> None:
+        with bucket.transaction():
+            bucket.put(bucket.new(Note))
+            raise RuntimeError("inner")
+
+    with bucket.transaction():
+        note.body.append("outer")
+        bucket.put(note)
+        with pytest.raises(RuntimeError, match="inner"):
+            inner()
+
+    assert bucket.has(note.id) is False  # 内层失败过 → 外层整体回滚
+
+
+def test_data_annotation_becomes_data_field() -> None:
+    class Holder(Block):
+        type = "test.holder.data"
+        items: Data[list[str]] = []  # noqa: RUF012 — 测试声明，验证注解路由
+
+    assert isinstance(Holder.__dict__["items"], Data)

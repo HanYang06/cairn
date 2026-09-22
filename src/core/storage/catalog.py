@@ -15,19 +15,25 @@
 
 from __future__ import annotations
 
+import re
 import secrets
 import sqlite3
 import string
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from core.types import CairnError, type_name
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 CATALOG_VERSION = 2
 
 _NAME_ALPHABET = string.ascii_lowercase + string.digits
 _NAME_LENGTH = 32
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS packs(
@@ -239,9 +245,10 @@ class Catalog:
         row = self.conn.execute("SELECT COUNT(*) AS n FROM block").fetchone()
         return int(row["n"])
 
-    def iter_block_ids(self) -> list[str]:
-        rows = self.conn.execute("SELECT oid FROM block ORDER BY oid").fetchall()
-        return [str(row["oid"]) for row in rows]
+    def iter_block_ids(self) -> Iterator[str]:
+        cursor = self.conn.execute("SELECT oid FROM block ORDER BY oid")
+        for row in cursor:
+            yield str(row["oid"])
 
     # ---- 通用表（供领域自描述的业务表用）----
     def table_exists(self, name: str) -> bool:
@@ -251,6 +258,8 @@ class Catalog:
         return row is not None
 
     def create_table(self, name: str, columns: dict[str, str]) -> None:
+        if not _IDENT_RE.match(name) or not all(_IDENT_RE.match(column) for column in columns):
+            raise CairnError(f"非法表名或列名: {name}")
         parts = []
         for column, spec in columns.items():
             parts.append(f'"{column}" {spec}'.strip())

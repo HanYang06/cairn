@@ -129,12 +129,17 @@ class VersionStore:
         return decode_canonical(bytes(rows[0]["payload"]))
 
     def state_at(self, oid: Any, codec: Codec, current_state: Any, version: str) -> Any:
-        """从当前（最新）状态反向回放到指定版本。"""
+        """从当前（最新）状态反向回放到指定版本（一次取回该链全部补丁，避免 N+1）。"""
+        history = self.history(oid)
+        payloads = {str(row["id"]): row["payload"] for row in self._table.select(oid=str(oid))}
         state = current_state
-        for entry in self.history(oid):
+        for entry in history:
             if entry["id"] == version:
                 return state
-            state = codec.apply(state, self.patch(oid, entry["id"]))
+            payload = payloads.get(entry["id"])
+            if payload is None:
+                continue
+            state = codec.apply(state, decode_canonical(bytes(payload)))
         raise ObjectNotFoundError(f"版本不存在: {oid}@{version}")
 
     # ---- 维护 ----

@@ -79,6 +79,7 @@ class Bucket:
         self.packs_dir = self.root / "packs"
         self.catalog = Catalog(self.root / CATALOG_NAME)
         self._tx_depth = 0
+        self._tx_failed = False
         self._mounted: set[type[Block]] = set()
         # 事务内已追加到载体的 (path, offset)；回滚时截断，保证文件与目录一致。
         self._pending_appends: list[tuple[Path, int]] = []
@@ -118,8 +119,13 @@ class Bucket:
     # ---- 事务：把 SQLite 事务封在桶里 ----
     def _commit(self) -> None:
         if self._tx_depth == 0:
-            self.catalog.commit()
-            self._pending_appends.clear()
+            if self._tx_failed:  # 内层事务失败过：最外层整体回滚
+                self.catalog.conn.rollback()
+                self._rollback_appends()
+                self._tx_failed = False
+            else:
+                self.catalog.commit()
+                self._pending_appends.clear()
 
     def commit(self) -> None:
         """显式提交当前挂起的变更（事务内为延后，交由 ``transaction`` 统一提交）。"""
@@ -133,9 +139,11 @@ class Bucket:
             yield self
         except BaseException:
             self._tx_depth -= 1
+            self._tx_failed = True
             if self._tx_depth == 0:
                 self.catalog.conn.rollback()
                 self._rollback_appends()
+                self._tx_failed = False
             raise
         self._tx_depth -= 1
         if self._tx_depth == 0:
@@ -225,14 +233,15 @@ class Bucket:
         if len(data) <= self.config.block_max_bytes:
             return self.put(Block(body=data, attrs=attrs, type=kind)).id
         step = self.config.block_max_bytes
-        parts = [
-            self.put(Block(body=data[start : start + step], type=PART_TYPE)).id
-            for start in range(0, len(data), step)
-        ]
-        merged: dict[str, object] = dict(attrs or {})
-        merged["kind"] = kind
-        merged["size"] = len(data)
-        return self.put(Block(body=parts, attrs=merged, type=INDEX_TYPE)).id
+        with self.transaction():  # 分片 + 索引块同一事务提交，失败不留孤儿
+            parts = [
+                self.put(Block(body=data[start : start + step], type=PART_TYPE)).id
+                for start in range(0, len(data), step)
+            ]
+            merged: dict[str, object] = dict(attrs or {})
+            merged["kind"] = kind
+            merged["size"] = len(data)
+            return self.put(Block(body=parts, attrs=merged, type=INDEX_TYPE)).id
 
     def read_content(self, block_id: str) -> bytes:
         """还原 ``put_content`` 写入的原始字节（单块或分片皆可）。"""

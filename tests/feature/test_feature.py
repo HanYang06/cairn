@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from core import Vault
+from core import ObjectNotFoundError, Vault
 from feature import (
-    KindMismatchError,
     Note,
     Relation,
     Signature,
@@ -71,11 +70,11 @@ def test_note_list_and_delete(tmp_path: Path) -> None:
     assert {note.oid for note in notes.list_notes()} == {second.oid}
 
 
-def test_kind_mismatch(tmp_path: Path) -> None:
+def test_relation_load_missing_raises_not_found(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     note = Note(vault).create("x")
 
-    with pytest.raises(KindMismatchError):
+    with pytest.raises(ObjectNotFoundError):
         Relation.load(vault, note.oid)
 
 

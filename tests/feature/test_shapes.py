@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from feature.note import Form, Line
 from feature.note.shapes import Param, ShapeSpec, build_vertices, graphic_from, load_shape_set
 
@@ -71,3 +73,36 @@ def test_graphic_from_generates_points_and_keeps_provenance() -> None:
     assert len(graphic.points) == 6  # 三角形三个点
     assert graphic.params == [3.0]  # 来源参数（边数）
     assert graphic.to_seq()  # 可落盘
+
+
+def test_invalid_spec_raises_with_context(tmp_path) -> None:
+    path = tmp_path / "s.json"
+    path.write_text('{"shapes": [{"id": 1}]}', encoding="utf-8")
+
+    with pytest.raises(ValueError, match="图形定义非法"):
+        load_shape_set(path)
+
+
+def test_duplicate_ids_raise(tmp_path) -> None:
+    path = tmp_path / "s.json"
+    path.write_text(
+        '{"shapes": [{"id": 1, "key": "a"}, {"id": 1, "key": "b"}]}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="重复"):
+        load_shape_set(path)
+
+
+def test_non_numeric_param_raises() -> None:
+    spec = ShapeSpec(
+        id=7,
+        key="k",
+        name="n",
+        desc="",
+        gen="polygon",
+        params=(Param(key="unused", name="unused", type="float", default="many"),),
+    )
+
+    with pytest.raises(TypeError, match="不是数值"):
+        graphic_from(spec, w=1.0, h=1.0)
