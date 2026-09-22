@@ -89,6 +89,25 @@ def test_load_theme_rejects_falsy_non_object_section(tmp_path) -> None:
         load_theme(path)
 
 
+def test_load_theme_rejects_dangling_token(tmp_path) -> None:
+    path = tmp_path / "bad.json"
+    path.write_text(
+        '{"token": {}, "style": {"widget.label": {"color": "token.nope"}}}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="未知 token"):
+        load_theme(path)
+
+
+def test_load_theme_rejects_non_object_style_block(tmp_path) -> None:
+    path = tmp_path / "bad.json"
+    path.write_text('{"token": {}, "style": {"widget.label": "red"}}', encoding="utf-8")
+
+    with pytest.raises(TypeError, match="声明块"):
+        load_theme(path)
+
+
 def test_shadow_alpha_must_be_int() -> None:
     theme = Theme(tokens={"shadow_alpha": "abc"})
 

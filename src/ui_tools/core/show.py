@@ -34,14 +34,30 @@ _FIELD_KINDS: tuple[tuple[type, str], ...] = (
 _HARDWARE_FIELDS = ("created", "updated", "author", "size")
 
 
+def _stable_key(item: object) -> tuple[str, str]:
+    """集合展开用的**确定性**排序键：优先数据单元 id，退化到 ``repr``。"""
+    name = type(item).__name__
+    for attr in ("id", "oid", "gid"):
+        try:
+            value = getattr(item, attr, None)
+        except Exception:  # noqa: BLE001 — 属性可能未初始化；退化到 repr
+            value = None
+        if value:
+            return (name, str(value))
+    return (name, repr(item))
+
+
 def _one(value: Any) -> list[Any]:
     """把一个输入规范成单元列表。
 
-    `set` / 生成器等真正的容器展开；数据单元自身若只是可迭代（如 `NoteBody`）不展开。
+    `list` / `tuple` 保序；`set` / `frozenset` 按稳定键排序（保确定性）；
+    生成器等真正的容器展开；数据单元自身若只是可迭代（如 `NoteBody`）不展开。
     """
     if value is None:
         return []
-    if isinstance(value, (list, tuple, set, frozenset)):
+    if isinstance(value, (set, frozenset)):
+        return sorted(value, key=_stable_key)
+    if isinstance(value, (list, tuple)):
         return list(value)
     if isinstance(value, Iterator) and not isinstance(value, (str, bytes, Mapping)):
         return list(value)

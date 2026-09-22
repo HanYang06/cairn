@@ -61,6 +61,17 @@ def test_show_accepts_set_input() -> None:
     assert len(show.parts) == 2
 
 
+def test_show_set_input_is_ordered_deterministically() -> None:
+    low = NoteData(id="00000000000000000000000001")
+    low.body = ["a"]
+    high = NoteData(id="00000000000000000000000002")
+    high.body = ["b"]
+
+    show = Show({high, low})
+
+    assert show.parts[0].ids[0] == "00000000000000000000000001"
+
+
 def test_show_dedupes_groups_and_ids() -> None:
     note = _note()
 

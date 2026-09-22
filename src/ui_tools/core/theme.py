@@ -75,6 +75,16 @@ class Theme:
             return self._tokens[key]
         return value
 
+    def check_references(self) -> None:
+        """自检：所有样式值里的 `token.*` 引用都必须存在；悬空即报错。
+
+        在加载阶段调用，避免悬空引用拖到 `to_qss()`（启动期）才炸。
+        """
+        for props in self._styles.values():
+            for value in props.values():
+                if value.startswith(_REF_PREFIX) and value[len(_REF_PREFIX) :] not in self._tokens:
+                    raise ValueError(f"未知 token 引用: {value!r}")
+
     def to_qss(self) -> str:
         """编译为 QSS 文本。"""
         blocks: list[str] = []
@@ -125,7 +135,11 @@ def load_theme(path: Path) -> Theme:
         styles = {}
     if not isinstance(tokens, dict) or not isinstance(styles, dict):
         raise TypeError(f"主题的 'token' / 'style' 必须是对象: {path}")
-    return Theme(tokens, styles)
+    if any(not isinstance(props, dict) for props in styles.values()):
+        raise TypeError(f"主题的 'style' 各选择器声明块必须是对象: {path}")
+    theme = Theme(tokens, styles)
+    theme.check_references()
+    return theme
 
 
 __all__ = ["Theme", "load_theme"]
