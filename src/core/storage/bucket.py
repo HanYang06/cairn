@@ -79,6 +79,7 @@ class Bucket:
         self.packs_dir = self.root / "packs"
         self.catalog = Catalog(self.root / CATALOG_NAME)
         self._tx_depth = 0
+        self._tx_failed = False
         self._mounted: set[type[Block]] = set()
         # 事务内已追加到载体的 (path, offset)；回滚时截断，保证文件与目录一致。
         self._pending_appends: list[tuple[Path, int]] = []
@@ -118,8 +119,13 @@ class Bucket:
     # ---- 事务：把 SQLite 事务封在桶里 ----
     def _commit(self) -> None:
         if self._tx_depth == 0:
-            self.catalog.commit()
-            self._pending_appends.clear()
+            if self._tx_failed:  # 内层事务失败过：最外层整体回滚
+                self.catalog.conn.rollback()
+                self._rollback_appends()
+                self._tx_failed = False
+            else:
+                self.catalog.commit()
+                self._pending_appends.clear()
 
     def commit(self) -> None:
         """显式提交当前挂起的变更（事务内为延后，交由 ``transaction`` 统一提交）。"""
@@ -133,9 +139,11 @@ class Bucket:
             yield self
         except BaseException:
             self._tx_depth -= 1
+            self._tx_failed = True
             if self._tx_depth == 0:
                 self.catalog.conn.rollback()
                 self._rollback_appends()
+                self._tx_failed = False
             raise
         self._tx_depth -= 1
         if self._tx_depth == 0:
@@ -224,6 +232,12 @@ class Bucket:
         """写入一段内容：小则一块；大则分片，由索引块聚合成一个可引用的 id。"""
         if len(data) <= self.config.block_max_bytes:
             return self.put(Block(body=data, attrs=attrs, type=kind)).id
+        if self._tx_depth > 0:  # 已在事务内：交由外层事务保证原子性
+            return self._write_shards(data, kind=kind, attrs=attrs)
+        with self.transaction():  # 分片 + 索引块同一事务提交，失败不留孤儿
+            return self._write_shards(data, kind=kind, attrs=attrs)
+
+    def _write_shards(self, data: bytes, *, kind: str, attrs: dict[str, Any] | None) -> str:
         step = self.config.block_max_bytes
         parts = [
             self.put(Block(body=data[start : start + step], type=PART_TYPE)).id

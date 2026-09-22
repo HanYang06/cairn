@@ -276,6 +276,7 @@ class InsertCodeTool(Tool):
     group = "add.block"
 
     def run(self, note: Note, data: NoteData, ctx: ToolContext) -> None:
+        # line_id 为空（焦点丢失）时退回追加末尾；insert_line 对未知 id 亦追加末尾
         new_id = note.insert_line_after(data, ctx.line_id or None, "")
         note.set_paragraph(data, new_id, {"block": "code"})
         ctx.focus = new_id

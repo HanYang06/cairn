@@ -18,7 +18,7 @@ from collections.abc import Iterable, Iterator, Mapping
 from typing import Any, ClassVar
 
 from core.storage import canonical, decode_canonical
-from core.types import KindMismatchError, Oid, now_ms
+from core.types import ObjectNotFoundError, Oid, now_ms
 
 RELATION_KIND = "relation"
 RELATION_SCHEMA = 1
@@ -147,7 +147,7 @@ class Relation:
     def load(cls, vault: Any, oid: Oid | str) -> Relation:
         rows = _table(vault).select(id=str(oid))
         if not rows:
-            raise KindMismatchError(f"{oid} 不是关系")
+            raise ObjectNotFoundError(f"{oid} 不是关系")
         return cls._from_row(vault, rows[0])
 
     @classmethod
@@ -179,10 +179,11 @@ class Relation:
         *,
         relation: str | None = None,
     ) -> Iterator[Relation]:
-        for row in _table(vault).select(src=str(Oid.parse(str(source)))):
-            item = cls._from_row(vault, row)
-            if relation is None or item.relation == relation:
-                yield item
+        where: dict[str, Any] = {"src": str(Oid.parse(str(source)))}
+        if relation is not None:
+            where["kind"] = relation
+        for row in _table(vault).select(**where):
+            yield cls._from_row(vault, row)
 
     @classmethod
     def backlinks(
@@ -192,10 +193,11 @@ class Relation:
         *,
         relation: str | None = None,
     ) -> Iterator[Relation]:
-        for row in _table(vault).select(dst=str(Oid.parse(str(target)))):
-            item = cls._from_row(vault, row)
-            if relation is None or item.relation == relation:
-                yield item
+        where: dict[str, Any] = {"dst": str(Oid.parse(str(target)))}
+        if relation is not None:
+            where["kind"] = relation
+        for row in _table(vault).select(**where):
+            yield cls._from_row(vault, row)
 
 
 __all__ = [

@@ -166,12 +166,19 @@ class BodyField[T = Any]:
         obj.__dict__["_body"] = value
 
 
-def _is_attr_annotation(annotation: Any) -> bool:
-    """注解是否是 ``Attr`` / ``Data`` 及其下标（属性 / 数据字段）。"""
+def _annotation_kind(annotation: Any) -> str | None:
+    """注解是 ``Attr`` 还是 ``Data``（及其下标）；都不是返回 ``None``。"""
     if isinstance(annotation, str):
         name = annotation.split("[", 1)[0].strip()
-        return name in ("Attr", "Data")
-    return get_origin(annotation) in (Attr, Data)
+        if name in ("Attr", "Data"):
+            return name.lower()
+        return None
+    origin = get_origin(annotation)
+    if origin is Attr:
+        return "attr"
+    if origin is Data:
+        return "data"
+    return None
 
 
 def _is_container_annotation(annotation: Any) -> bool:
@@ -201,6 +208,30 @@ def _data_from_value(value: Any) -> Data[Any]:
         return Data(factory=lambda: list(items))
     mapping = dict(value)
     return Data(factory=lambda: dict(mapping))
+
+
+def _descriptor_for(annotation: Any, value: Any) -> Any:
+    """按「注解 + 裸默认值」解析字段描述符；不适用返回 ``None``（跳过）。
+
+    - 结构化 ``Body`` → ``BodyField(prototype=...)``；已是描述符的原样跳过。
+    - ``Data[...]`` 容器 → ``Data``；标量退回 ``Attr``。
+    - ``Attr[...]`` → ``Attr``；裸容器注解（``list[...]`` 等）→ ``Data``。
+    """
+    if isinstance(value, Body):
+        return BodyField(prototype=value)
+    if isinstance(value, Attr):
+        return None  # 已是描述符，Python 会自动 __set_name__，不重包
+    kind = _annotation_kind(annotation)
+    descriptor: Any = None
+    if kind == "data":
+        descriptor = (
+            _data_from_value(value) if isinstance(value, (list, dict)) else _attr_from_value(value)
+        )
+    elif kind == "attr":
+        descriptor = _attr_from_value(value)
+    elif _is_container_annotation(annotation) and isinstance(value, (list, dict)):
+        descriptor = _data_from_value(value)
+    return descriptor
 
 
 def _body_type(cls: builtins.type[Block]) -> builtins.type[Body] | None:
@@ -253,15 +284,8 @@ class Block:
             value = cls.__dict__.get(name, _MISSING)
             if value is _MISSING:
                 continue
-            if isinstance(value, Body):  # 结构化 body：每实例一份 + 校验
-                descriptor: Any = BodyField(prototype=value)
-            elif isinstance(value, Attr):
-                continue
-            elif _is_attr_annotation(annotation):
-                descriptor = _attr_from_value(value)
-            elif _is_container_annotation(annotation) and isinstance(value, (list, dict)):
-                descriptor = _data_from_value(value)
-            else:
+            descriptor = _descriptor_for(annotation, value)
+            if descriptor is None:
                 continue
             descriptor.__set_name__(cls, name)
             setattr(cls, name, descriptor)

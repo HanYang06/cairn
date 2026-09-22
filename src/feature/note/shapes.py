@@ -127,12 +127,17 @@ def _param(raw: dict[str, Any]) -> Param:
 
 
 def _spec(raw: dict[str, Any]) -> ShapeSpec:
+    try:
+        sid = int(raw["id"])
+        key = str(raw["key"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError(f"图形定义非法（缺少 id/key 或类型错误）: {raw!r}") from exc
     return ShapeSpec(
-        id=int(raw["id"]),
-        key=str(raw["key"]),
-        name=str(raw.get("name", raw["key"])),
+        id=sid,
+        key=key,
+        name=str(raw.get("name", key)),
         desc=str(raw.get("desc", "")),
-        gen=str(raw.get("gen", raw["key"])),
+        gen=str(raw.get("gen", key)),
         params=tuple(_param(item) for item in (raw.get("params") or ())),
     )
 
@@ -141,11 +146,17 @@ def load_shape_set(path: Path | str | None = None) -> ShapeSet:
     """读取图形集；默认从 ``config/shapes.json``（可用 ``CAIRN_SHAPES`` 覆盖）。"""
     target = Path(path) if path is not None else shape_set_path()
     data = json.loads(target.read_text(encoding="utf-8"))
+    shapes = tuple(_spec(item) for item in (data.get("shapes") or ()))
+    lines = tuple(_spec(item) for item in (data.get("lines") or ()))
+    for label, group in (("shapes", shapes), ("lines", lines)):
+        group_ids = [spec.id for spec in group]
+        if len(group_ids) != len(set(group_ids)):
+            raise ValueError(f"图形集的 {label} id 有重复")
     return ShapeSet(
         version=int(data.get("version", 1)),
         name=str(data.get("name", "shapes")),
-        shapes=tuple(_spec(item) for item in (data.get("shapes") or ())),
-        lines=tuple(_spec(item) for item in (data.get("lines") or ())),
+        shapes=shapes,
+        lines=lines,
     )
 
 
@@ -250,6 +261,16 @@ def build_vertices(
     return generator(w, h, values)
 
 
+def _param_number(key: str, values: dict[str, Any]) -> float:
+    """取参数的数值形态；缺省 / ``None`` 记 0，非数值即报错（不静默）。"""
+    raw = values.get(key, 0.0)
+    if raw is None:
+        return 0.0
+    if not isinstance(raw, (int, float)):
+        raise TypeError(f"图形参数 {key!r} 不是数值: {raw!r}")
+    return float(raw)
+
+
 def graphic_from(  # noqa: PLR0913 — 生成入口：几何参数均有默认值
     spec: ShapeSpec,
     *,
@@ -265,8 +286,8 @@ def graphic_from(  # noqa: PLR0913 — 生成入口：几何参数均有默认�
     values = spec.defaults()
     if params:
         values.update(params)
-    points = build_vertices(spec, w=w, h=h, params=values)
-    ordered = [float(values.get(param.key, 0.0) or 0.0) for param in spec.params]
+    points = build_vertices(spec, w=w, h=h, params=params)
+    ordered = [_param_number(param.key, values) for param in spec.params]
     return Graphic(
         form=spec.id,
         cx=cx,

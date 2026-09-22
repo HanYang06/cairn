@@ -36,8 +36,8 @@ def text_weight(text: str) -> float:
 
 
 def entry(line_id: str, value: Any, para: Any = None) -> Line:
-    """造一个行元素（可带段落属性 ``p``）。"""
-    item: Line = {"id": line_id, "v": value}
+    """造一个行元素（可带段落属性 ``p``）；占位映射按值拷贝，避免别名。"""
+    item: Line = {"id": line_id, "v": dict(value) if isinstance(value, Mapping) else value}
     if para:
         item["p"] = dict(para)
     return item

@@ -164,7 +164,8 @@ class Vault:
         for row in rows:
             self._search.delete(oid=str(row["oid"]))
         written = 0
-        for block_id in self.bucket.iter_block_ids():
+        # 快照为列表：循环体内会写 search 表，避免与惰性游标同连接交叉
+        for block_id in list(self.bucket.iter_block_ids()):
             block = self.bucket.get(Block, block_id)
             text = text_of(self._info(block))
             if text:
@@ -175,11 +176,13 @@ class Vault:
 
     # ---- 维护 ----
     def gc(self, *, retention_ms: int | None = None) -> int:
+        """回收未引用内容；**尚未实现**（勿静默返回 0 误导调用方）。"""
         del retention_ms
-        return 0
+        raise NotImplementedError("pack 压实 / gc 尚未实现")
 
     def verify(self, *, deep: bool = False) -> VerifyReport:
-        del deep
+        if deep:
+            raise NotImplementedError("深度校验尚未实现")
         problems: list[str] = []
         ids = list(self.bucket.iter_block_ids())
         for block_id in ids:

@@ -112,6 +112,16 @@ def test_project_members(tmp_path: Path) -> None:
     assert set(projects.members(project)) == {first.oid, second.oid}
 
 
+def test_project_update_description_overrides_props(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    projects = Project(vault)
+    project = projects.create("P")
+
+    projects.update(project, props={"description": "from props"}, description="explicit")
+
+    assert project.description == "explicit"
+
+
 def test_provenance_lineage(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     notes = Note(vault)

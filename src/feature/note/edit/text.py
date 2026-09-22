@@ -104,7 +104,7 @@ def merge_line(lines: Sequence[Line], line_id: str) -> tuple[list[Line], str | N
     previous = out[index - 1]
     current = out[index]
     if is_marker(previous["v"]) or is_marker(current["v"]):
-        return copy_lines(lines), None, 0
+        return out, None, 0
     previous_text = str(previous["v"])
     out[index - 1] = entry(previous["id"], previous_text + str(current["v"]), previous.get("p"))
     del out[index]

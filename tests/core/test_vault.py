@@ -114,3 +114,11 @@ def test_verify_reports_healthy(tmp_path: Path) -> None:
     report = vault.verify()
     assert report.ok
     assert report.objects == 1
+
+
+def test_unimplemented_maintenance_fails_loudly(tmp_path: Path) -> None:
+    vault = _create(tmp_path)
+    with pytest.raises(NotImplementedError):
+        vault.gc()
+    with pytest.raises(NotImplementedError):
+        vault.verify(deep=True)
