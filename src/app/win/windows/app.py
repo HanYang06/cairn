@@ -31,7 +31,7 @@ def _default_root() -> Path:
     """库根：`CAIRN_VAULT` 优先（空白视为未设），否则 `<cwd>/vault`。"""
     raw = os.environ.get("CAIRN_VAULT")
     if raw and raw.strip():
-        return Path(raw)
+        return Path(raw.strip())
     return Path.cwd() / "vault"
 
 
