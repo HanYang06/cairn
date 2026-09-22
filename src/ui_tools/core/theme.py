@@ -27,6 +27,15 @@ _PROP_ALIASES = {
 _REF_PREFIX = "token."
 
 
+def _coerce(value: Any) -> str:
+    """主题值只接受字符串 / 数字；``None`` / ``bool`` 会产生非法 QSS，直接报错。"""
+    if value is None or isinstance(value, bool):
+        raise ValueError(f"主题值非法: {value!r}")
+    if isinstance(value, (str, int, float)):
+        return str(value)
+    raise ValueError(f"主题值必须是字符串 / 数字: {value!r}")
+
+
 class Theme:
     """token + 样式规则，可编译为 QSS。"""
 
@@ -35,15 +44,15 @@ class Theme:
         tokens: Mapping[str, str] | None = None,
         styles: Mapping[str, Mapping[str, str]] | None = None,
     ) -> None:
-        self._tokens: dict[str, str] = {str(k): str(v) for k, v in (tokens or {}).items()}
+        self._tokens: dict[str, str] = {str(k): _coerce(v) for k, v in (tokens or {}).items()}
         self._styles: dict[str, dict[str, str]] = {
-            str(selector): {str(k): str(v) for k, v in props.items()}
+            str(selector): {str(k): _coerce(v) for k, v in props.items()}
             for selector, props in (styles or {}).items()
         }
 
     def set_token(self, key: str, value: str) -> Theme:
         """设一个 token。"""
-        self._tokens[key] = value
+        self._tokens[key] = _coerce(value)
         return self
 
     def token(self, key: str, default: str = "") -> str:
@@ -52,13 +61,16 @@ class Theme:
 
     def set_style(self, selector: str, props: Mapping[str, str]) -> Theme:
         """设一条样式规则。"""
-        self._styles[selector] = {str(k): str(v) for k, v in props.items()}
+        self._styles[selector] = {str(k): _coerce(v) for k, v in props.items()}
         return self
 
     def resolve(self, value: str) -> str:
-        """展开 `token.*` 引用。"""
+        """展开 `token.*` 引用；悬空引用即报错，不静默落进 QSS。"""
         if value.startswith(_REF_PREFIX):
-            return self.token(value[len(_REF_PREFIX) :], value)
+            key = value[len(_REF_PREFIX) :]
+            if key not in self._tokens:
+                raise KeyError(f"未知 token 引用: {value!r}")
+            return self._tokens[key]
         return value
 
     def to_qss(self) -> str:
@@ -79,20 +91,34 @@ class Theme:
 
 
 def _selector(selector: str) -> str:
-    """`widget.button:hover` → `QWidget[cairnClass="button"]:hover`。"""
-    base, _, state = selector.partition(":")
-    suffix = f":{state}" if state else ""
-    prefix = "widget."
-    if base.startswith(prefix):
-        return f'QWidget[cairnClass="{base[len(prefix) :]}"]{suffix}'
-    return selector
+    """`widget.button:hover` → `QWidget[cairnClass="button"]:hover`。
+
+    支持逗号分隔的选择器组；逐段 trim 空白。
+    """
+    compiled: list[str] = []
+    for raw_part in selector.split(","):
+        part = raw_part.strip()
+        if not part:
+            continue
+        base, _, state = part.partition(":")
+        suffix = f":{state}" if state else ""
+        prefix = "widget."
+        if base.startswith(prefix):
+            compiled.append(f'QWidget[cairnClass="{base[len(prefix) :]}"]{suffix}')
+        else:
+            compiled.append(part)
+    return ", ".join(compiled)
 
 
 def load_theme(path: Path) -> Theme:
     """从主题文件（JSON：`token` + `style` 两段）加载；其余键忽略。"""
-    data: dict[str, Any] = json.loads(Path(path).read_text(encoding="utf-8"))
+    data: Any = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise TypeError(f"主题文件必须是 JSON 对象: {path}")
     tokens = data.get("token") or {}
     styles = data.get("style") or {}
+    if not isinstance(tokens, dict) or not isinstance(styles, dict):
+        raise TypeError(f"主题的 'token' / 'style' 必须是对象: {path}")
     return Theme(tokens, styles)
 
 

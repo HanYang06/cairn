@@ -69,7 +69,7 @@ def app_theme(name: str = DEFAULT_THEME) -> Theme:
     path = theme_dir() / f"{name}.json"
     try:
         return load_theme(path)
-    except (OSError, ValueError):
+    except (OSError, TypeError, ValueError):
         return Theme(_FALLBACK_TOKENS, _FALLBACK_STYLES)
 
 

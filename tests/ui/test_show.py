@@ -49,3 +49,22 @@ def test_show_field_kinds_are_deterministic() -> None:
     assert kinds["title"] == "text"
     assert kinds["favorite"] == "toggle"
     assert kinds["tags"] == "kv"
+
+
+def test_show_accepts_set_input() -> None:
+    first = _note()
+    second = _note()
+    second.title = "第二"
+
+    show = Show({first, second})
+
+    assert len(show.parts) == 2
+
+
+def test_show_dedupes_groups_and_ids() -> None:
+    note = _note()
+
+    show = Show([note, note])
+
+    assert len(show.ids) == len(set(show.ids))
+    assert len(show.groups["notedata"]) == len(set(show.groups["notedata"]))

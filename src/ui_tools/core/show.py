@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -35,9 +35,15 @@ _HARDWARE_FIELDS = ("created", "updated", "author", "size")
 
 
 def _one(value: Any) -> list[Any]:
+    """把一个输入规范成单元列表。
+
+    `set` / 生成器等真正的容器展开；数据单元自身若只是可迭代（如 `NoteBody`）不展开。
+    """
     if value is None:
         return []
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return list(value)
+    if isinstance(value, Iterator) and not isinstance(value, (str, bytes, Mapping)):
         return list(value)
     return [value]
 
@@ -118,8 +124,11 @@ class Show:
         self.bodies = []
         for part in self.parts:
             self.attrs.update(part.attrs)  # L0：同名后写覆盖
-            self.groups.setdefault(part.type, []).extend(part.attrs)  # L1：按来源类型分组
-            self.ids.extend(part.ids)
+            group = self.groups.setdefault(part.type, [])  # L1：按来源类型分组（去重保序）
+            group.extend(name for name in part.attrs if name not in group)
+            for item in part.ids:  # 并集（去重保序）
+                if item not in self.ids:
+                    self.ids.append(item)
             if part.body is not None:
                 self.bodies.append(part.body)
 

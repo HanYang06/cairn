@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from .bind import Bind
@@ -24,6 +25,8 @@ from .theme import Theme
 if TYPE_CHECKING:
     from .facet import Facet
     from .session import Session
+
+_log = logging.getLogger(__name__)
 
 
 class App:
@@ -61,6 +64,8 @@ class App:
                 raise LayoutError(f"槽已满（上限 {slot.capacity}）: {slot.name or slot.kind}")
             used.add(slot.expects)
             targets.append((slot, parts[slot.expects]))
+        if parts and not targets:
+            _log.warning("Facet %r 的部件没有匹配的槽: %s", facet.name, sorted(parts))
         for slot, part in targets:
             slot.add(part)
         self._facets.append(facet)

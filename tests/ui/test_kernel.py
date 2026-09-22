@@ -124,3 +124,10 @@ def test_node_action_uncompiled_raises() -> None:
 
     with pytest.raises(LayoutError, match="尚未编译"):
         node.action("take")()
+
+
+def test_ui_signal_rejects_empty_name() -> None:
+    node = Component("c")
+
+    with pytest.raises(UiError, match="信号名不能为空"):
+        node.ui_signal("  ")
