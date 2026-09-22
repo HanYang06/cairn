@@ -414,6 +414,12 @@ def test_create_table_rejects_bad_identifier(tmp_path: Path) -> None:
         bucket.catalog.create_table("ok", {"bad col": "TEXT"})
 
 
+def test_create_table_rejects_bad_spec(tmp_path: Path) -> None:
+    bucket = _bucket(tmp_path)
+    with pytest.raises(CairnError, match="列定义"):
+        bucket.catalog.create_table("ok", {"id": "TEXT); DROP TABLE block; --"})
+
+
 def test_iter_block_ids_streams(tmp_path: Path) -> None:
     bucket = _bucket(tmp_path)
     bucket.put(Note(body=["x"]))

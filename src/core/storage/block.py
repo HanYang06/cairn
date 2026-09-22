@@ -181,11 +181,6 @@ def _annotation_kind(annotation: Any) -> str | None:
     return None
 
 
-def _is_attr_annotation(annotation: Any) -> bool:
-    """注解是否是 ``Attr`` / ``Data`` 及其下标（属性 / 数据字段）。"""
-    return _annotation_kind(annotation) is not None
-
-
 def _is_container_annotation(annotation: Any) -> bool:
     """注解是否是裸容器（``list[...]`` / ``dict[...]``）——数据字段可自证类型、免标记。"""
     if isinstance(annotation, str):

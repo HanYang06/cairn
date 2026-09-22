@@ -34,6 +34,14 @@ CATALOG_VERSION = 2
 _NAME_ALPHABET = string.ascii_lowercase + string.digits
 _NAME_LENGTH = 32
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+# 列定义：类型[(长度)] [PRIMARY KEY|NOT NULL|UNIQUE] [DEFAULT 值]；其余一律拒绝
+_SPEC_RE = re.compile(
+    r"^[A-Za-z][A-Za-z0-9_]*"
+    r"(?:\s*\([0-9,\s]+\))?"
+    r"(?:\s+(?:PRIMARY\s+KEY|NOT\s+NULL|UNIQUE))?"
+    r"(?:\s+DEFAULT\s+('[^']*'|[0-9.+-]+))?$",
+    re.IGNORECASE,
+)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS packs(
@@ -263,6 +271,11 @@ class Catalog:
         bad = next((column for column in columns if not _IDENT_RE.match(column)), None)
         if bad is not None:
             raise CairnError(f"非法列名: {bad}")
+        bad_spec = next(
+            (spec for spec in columns.values() if not _SPEC_RE.match(spec.strip())), None
+        )
+        if bad_spec is not None:
+            raise CairnError(f"非法列定义: {bad_spec!r}")
         parts = []
         for column, spec in columns.items():
             parts.append(f'"{column}" {spec}'.strip())
