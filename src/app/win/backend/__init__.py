@@ -26,10 +26,10 @@ class NoteCard:
 
 
 def _to_ms(value: Any) -> int:
-    """宽松把属性值转成毫秒；非法 / 缺失记 0。"""
+    """宽松把属性值转成毫秒；非法 / 缺失记 0（含 inf 这类溢出）。"""
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return 0
 
 

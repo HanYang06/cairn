@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QMainWindow
 
 from app.win import CairnApp
 from app.win.backend import fmt_time
-from core import Vault
+from core import CairnError, Vault
 from ui_tools.core.qt import build_window
 
 if TYPE_CHECKING:
@@ -34,6 +34,17 @@ def test_app_open_creates_then_loads(tmp_path: Path) -> None:
 
     CairnApp.open(root).close()  # 不存在 → 创建
     CairnApp.open(root).close()  # 已存在 → 加载
+
+
+def test_app_open_propagates_newer_catalog(tmp_path: Path) -> None:
+    root = tmp_path / "vault"
+    vault = Vault.create(root)
+    vault.bucket.catalog.set_meta("catalog_version", "999")
+    vault.bucket.catalog.commit()
+    vault.close()
+
+    with pytest.raises(CairnError, match="目录版本过新"):
+        CairnApp.open(root)  # 不得掩盖成「桶已存在」
 
 
 def test_fmt_time_tolerates_bad_values() -> None:

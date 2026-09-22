@@ -12,7 +12,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from core import CairnError, Vault
+from core import Vault
+from core.storage import CATALOG_NAME
 from ui_tools.component import Button, Field, Heading, Label, Surface
 from ui_tools.core import App, Session, Slot
 from ui_tools.core.qt import run as run_app
@@ -63,12 +64,13 @@ class CairnApp(App):
 
     @classmethod
     def open(cls, root: Path | None = None) -> CairnApp:
-        """开库 + 组装：能加载就加载，否则创建（默认读 `CAIRN_VAULT` 或 `<cwd>/vault`）。"""
+        """开库 + 组装：无目录则创建，否则加载（加载失败如实抛出，不掩盖）。
+
+        默认读 `CAIRN_VAULT` 或 `<cwd>/vault`。
+        """
         path = root or _default_root()
-        try:
-            vault = Vault.load(path)
-        except CairnError:
-            vault = Vault.create(path)
+        # 已存在的库：版本 / 配置错误应向外传播，不掩盖成「桶已存在」
+        vault = Vault.load(path) if (path / CATALOG_NAME).is_file() else Vault.create(path)
         return cls(vault)
 
     def close(self) -> None:
