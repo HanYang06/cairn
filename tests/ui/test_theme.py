@@ -81,6 +81,14 @@ def test_load_theme_rejects_non_object(tmp_path) -> None:
         load_theme(path)
 
 
+def test_load_theme_rejects_falsy_non_object_section(tmp_path) -> None:
+    path = tmp_path / "bad.json"
+    path.write_text('{"token": [], "style": {}}', encoding="utf-8")
+
+    with pytest.raises(TypeError, match="token"):
+        load_theme(path)
+
+
 def test_shadow_alpha_must_be_int() -> None:
     theme = Theme(tokens={"shadow_alpha": "abc"})
 

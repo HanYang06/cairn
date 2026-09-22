@@ -26,6 +26,8 @@ _PROP_ALIASES = {
 }
 _REF_PREFIX = "token."
 
+type TokenValue = str | int | float
+
 
 def _coerce(value: Any) -> str:
     """主题值只接受字符串 / 数字；``None`` / ``bool`` 会产生非法 QSS，直接报错。"""
@@ -41,8 +43,8 @@ class Theme:
 
     def __init__(
         self,
-        tokens: Mapping[str, str] | None = None,
-        styles: Mapping[str, Mapping[str, str]] | None = None,
+        tokens: Mapping[str, TokenValue] | None = None,
+        styles: Mapping[str, Mapping[str, TokenValue]] | None = None,
     ) -> None:
         self._tokens: dict[str, str] = {str(k): _coerce(v) for k, v in (tokens or {}).items()}
         self._styles: dict[str, dict[str, str]] = {
@@ -50,7 +52,7 @@ class Theme:
             for selector, props in (styles or {}).items()
         }
 
-    def set_token(self, key: str, value: str) -> Theme:
+    def set_token(self, key: str, value: TokenValue) -> Theme:
         """设一个 token。"""
         self._tokens[key] = _coerce(value)
         return self
@@ -59,7 +61,7 @@ class Theme:
         """取 token 值。"""
         return self._tokens.get(key, default)
 
-    def set_style(self, selector: str, props: Mapping[str, str]) -> Theme:
+    def set_style(self, selector: str, props: Mapping[str, TokenValue]) -> Theme:
         """设一条样式规则。"""
         self._styles[selector] = {str(k): _coerce(v) for k, v in props.items()}
         return self
@@ -115,8 +117,12 @@ def load_theme(path: Path) -> Theme:
     data: Any = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise TypeError(f"主题文件必须是 JSON 对象: {path}")
-    tokens = data.get("token") or {}
-    styles = data.get("style") or {}
+    tokens = data.get("token", {})
+    styles = data.get("style", {})
+    if tokens is None:
+        tokens = {}
+    if styles is None:
+        styles = {}
     if not isinstance(tokens, dict) or not isinstance(styles, dict):
         raise TypeError(f"主题的 'token' / 'style' 必须是对象: {path}")
     return Theme(tokens, styles)
