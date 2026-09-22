@@ -17,8 +17,8 @@ from PySide6.QtWidgets import (
 
 from core import Vault
 from core.storage import Block
-from ui_tools.component import Button, Component, Label
-from ui_tools.core import App, Facet, Slot
+from ui_tools.component import Button, CardStage, Component, Label
+from ui_tools.core import App, Facet, Slot, UiError
 from ui_tools.core.bridge import Bridge
 from ui_tools.core.qt import WindowHost, build, build_window
 from ui_tools.core.session import Session
@@ -133,3 +133,31 @@ def test_scroll_slot_keeps_stretch() -> None:
     widget = build(slot)
 
     assert widget.property("cairnStretch") is True
+
+
+def test_grid_rejects_nonpositive_cols() -> None:
+    grid = Grid("g", cols=-1)
+
+    with pytest.raises(UiError, match="cols"):
+        build(grid)
+
+
+def test_stage_rejects_children() -> None:
+    stage = CardStage()
+    stage.add(Label("x"))
+
+    with pytest.raises(UiError, match="stage 不支持子件"):
+        build(stage)
+
+
+def test_window_host_rejects_missing_signal() -> None:
+    app = App(session=None)  # type: ignore[arg-type]
+    app.root.add(Slot("main", expects="page"))
+    facet = Facet(object(), name="note")
+    button = Button("b")
+    facet.bind.add(button.ui_signal("nope"), lambda: None)
+    facet.add(button)
+    app.add(facet)
+
+    with pytest.raises(UiError, match="无信号"):
+        WindowHost(app)
