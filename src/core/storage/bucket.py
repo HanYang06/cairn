@@ -232,16 +232,21 @@ class Bucket:
         """写入一段内容：小则一块；大则分片，由索引块聚合成一个可引用的 id。"""
         if len(data) <= self.config.block_max_bytes:
             return self.put(Block(body=data, attrs=attrs, type=kind)).id
-        step = self.config.block_max_bytes
+        if self._tx_depth > 0:  # 已在事务内：交由外层事务保证原子性
+            return self._write_shards(data, kind=kind, attrs=attrs)
         with self.transaction():  # 分片 + 索引块同一事务提交，失败不留孤儿
-            parts = [
-                self.put(Block(body=data[start : start + step], type=PART_TYPE)).id
-                for start in range(0, len(data), step)
-            ]
-            merged: dict[str, object] = dict(attrs or {})
-            merged["kind"] = kind
-            merged["size"] = len(data)
-            return self.put(Block(body=parts, attrs=merged, type=INDEX_TYPE)).id
+            return self._write_shards(data, kind=kind, attrs=attrs)
+
+    def _write_shards(self, data: bytes, *, kind: str, attrs: dict[str, Any] | None) -> str:
+        step = self.config.block_max_bytes
+        parts = [
+            self.put(Block(body=data[start : start + step], type=PART_TYPE)).id
+            for start in range(0, len(data), step)
+        ]
+        merged: dict[str, object] = dict(attrs or {})
+        merged["kind"] = kind
+        merged["size"] = len(data)
+        return self.put(Block(body=parts, attrs=merged, type=INDEX_TYPE)).id
 
     def read_content(self, block_id: str) -> bytes:
         """还原 ``put_content`` 写入的原始字节（单块或分片皆可）。"""
