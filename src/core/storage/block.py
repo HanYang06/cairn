@@ -102,6 +102,7 @@ class Body:
     排除自身状态（hash 自己、时间戳等）——否则自我指涉、且时间戳会让去重永远失败。
 
     约定：内容一变更就调 ``refresh()`` 重算一次并存下来，之后直接用，不重复算。
+    但**去重键不信任这份缓存**——``Block.body_hash()`` 每次都重算，见其说明。
     """
 
     hash: str = ""
@@ -361,12 +362,17 @@ class Block:
     def body_hash(self) -> str:
         """**去重键**：只算 ``body``（不含 id / attrs / 签名 / 时间戳）。
 
-        - 结构化 body（``Body`` 子类）用它自己的 ``hash``（内容字段口径，变更时已重算）。
+        - 结构化 body（``Body`` 子类）**恒重算**，不信任字段 ``hash``。
         - 裸 body 直接按内容算。子类可覆写口径。
+
+        ``body.hash`` 只是「上次 ``refresh()`` 的结果」：子类把内部容器暴露成属性后，
+        就地改动（如 ``canvas.graphics.append(...)``）不会自动重算。去重键一旦与真实
+        负载脱钩，``bucket.put`` 会命中旧内容池行、**不存新负载**（读回是旧内容），
+        且 ``verify()`` 也会跟着报健康——故这里不接受缓存。
         """
         body = self.body
         if isinstance(body, Body):
-            return body.hash or body.refresh().hash
+            return body.refresh().hash
         return _digest(canonical(body))
 
     def compute_checksum(self) -> str:
@@ -454,8 +460,19 @@ class Block:
         return dict(self.attrs.get("props") or {})
 
     def read(self) -> bytes:
+        """裸 body 的字节视图；结构化 body 请走 ``encode_body()``。
+
+        只认 bytes 一族：``Body`` 子类有自己的落盘编码，盲调 ``bytes(body)`` 会对
+        list body 返回无意义字节、对 ``Body`` 抛不透明错误，故这里一律 fail loud。
+        """
         body = self.body
-        return bytes(body) if not isinstance(body, bytes) else body
+        if isinstance(body, bytes):
+            return body
+        if isinstance(body, (bytearray, memoryview)):
+            return bytes(body)
+        if isinstance(body, Body):
+            raise TypeError("结构化 body 无字节视图，请用 encode_body()")
+        raise TypeError(f"body 不是字节：{type(body).__name__}")
 
     def delete(self) -> None:
         self._require_vault().delete(self.id)

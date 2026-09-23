@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -11,6 +11,7 @@ from core.storage import (
     INDEX_TYPE,
     Attr,
     Block,
+    Body,
     BodyField,
     Bucket,
     BucketConfig,
@@ -43,6 +44,20 @@ class Project(Block):
     type = "cairn.test.project"
 
 
+class ListBody(Body):
+    """内容是一个**就地可改**的 list——模拟 ``CanvasBody`` 那类暴露内部容器的 body。"""
+
+    def __init__(self, items: list[int] | None = None) -> None:
+        self.items = list(items or ())
+        self.refresh()
+
+    def content(self) -> Any:
+        return {"items": list(self.items)}
+
+    def to_data(self) -> Any:
+        return {"items": list(self.items)}
+
+
 class Strict(Block):
     type = "cairn.test.strict"
 
@@ -60,6 +75,36 @@ def test_body_default_and_edit() -> None:
     assert note.body == []
     note.body.append("正文")
     assert note.body == ["正文"]
+
+
+def test_body_hash_recomputes_after_in_place_edit() -> None:
+    block = Block(body=ListBody([1]))
+    before = block.body_hash()
+
+    block.body.items.append(2)  # 就地改动，没人调 refresh()
+
+    assert block.body_hash() != before
+
+
+def test_read_rejects_non_bytes_body() -> None:
+    note = Note()
+    note.body = ["第一行"]
+
+    with pytest.raises(TypeError, match="body 不是字节"):
+        note.read()
+
+
+def test_read_rejects_structured_body() -> None:
+    block = Block(body=ListBody([1]))
+
+    with pytest.raises(TypeError, match="encode_body"):
+        block.read()
+
+
+def test_read_accepts_bytearray() -> None:
+    block = Block(body=bytearray(b"raw"))
+
+    assert block.read() == b"raw"
 
 
 def test_object_edit_roundtrip(tmp_path: Path) -> None:

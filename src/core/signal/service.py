@@ -136,6 +136,11 @@ class BoundTopic:
         """信号名。"""
         return self._topic.name
 
+    @property
+    def signal(self) -> Signal | None:
+        """所属总线（未绑定为 ``None``）——缓存句柄据此判断是否已过期。"""
+        return self._signal
+
     def emit(self, data: Any = None) -> None:
         """发出信号；订阅者异常被隔离。未注册时无总线，直接丢弃。"""
         if self._signal is not None:
@@ -174,7 +179,9 @@ class Topic:
             return self
         key = f"__topic_{self._name}"
         cached = obj.__dict__.get(key)
-        if isinstance(cached, BoundTopic):
+        # 缓存按「总线身份」判活：未绑定（或换绑）时首次访问会把句柄钉死在旧总线上，
+        # 不重建的话 bind() 之后该信号再也发不出去、也订阅不了。
+        if isinstance(cached, BoundTopic) and cached.signal is obj._signal:  # noqa: SLF001
             return cached
         bound = BoundTopic(obj._signal, self)  # noqa: SLF001 — 域与主干同包强耦合
         obj.__dict__[key] = bound
