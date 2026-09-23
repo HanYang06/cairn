@@ -29,3 +29,31 @@ def test_relation_pins_version(tmp_path: Path) -> None:
     assert edge.at == str(source.info.seq)
     assert edge.source == child.oid
     assert edge.target == source.oid
+
+
+def test_relation_delete_removes_matching_edges(tmp_path: Path) -> None:
+    vault = Vault.create(tmp_path / "vault")
+    notes = Note(vault)
+    source = notes.create("源")
+    child = notes.create("子")
+    Relation.create(vault, child.oid, source.oid, relation=DERIVED_FROM)
+    Relation.create(vault, child.oid, source.oid, relation="references")
+
+    removed = Relation.delete(vault, source=child.oid, target=source.oid, relation=DERIVED_FROM)
+
+    assert removed == 1
+    assert [edge.relation for edge in Relation.outbound(vault, child.oid)] == ["references"]
+
+
+def test_relation_delete_without_kind_removes_all(tmp_path: Path) -> None:
+    vault = Vault.create(tmp_path / "vault")
+    notes = Note(vault)
+    source = notes.create("源")
+    child = notes.create("子")
+    Relation.create(vault, child.oid, source.oid, relation=DERIVED_FROM)
+    Relation.create(vault, child.oid, source.oid, relation="references")
+
+    removed = Relation.delete(vault, source=child.oid, target=source.oid)
+
+    assert removed == 2
+    assert list(Relation.outbound(vault, child.oid)) == []

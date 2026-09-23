@@ -80,15 +80,20 @@ def collect_fields(cls: type) -> tuple[str, ...]:
 
 
 def unit_infos(domain_type: str) -> list[TypeInfo]:
-    """取域的最小数据单元类型（按 `units` 解析，优先 `data` 角色）。"""
+    """取域的最小数据单元类型（按 `units` 解析，优先 `data` 角色）。
+
+    单元名未登记即抛 ``LookupError``：`units` 是定义时声明，写错属于编程错误，
+    静默跳过只会让下游 UI 少显示字段而无任何诊断。
+    """
     domain = type_info(domain_type, role=ROLE_DOMAIN)
     if domain is None:
         return []
     result: list[TypeInfo] = []
     for name in domain.units:
         info = type_info(name, role=ROLE_DATA) or type_info(name)
-        if info is not None:
-            result.append(info)
+        if info is None:
+            raise LookupError(f"域 {domain.type!r} 声明的数据单元未登记: {name!r}")
+        result.append(info)
     return result
 
 

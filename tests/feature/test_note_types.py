@@ -88,6 +88,13 @@ def test_canvas_body_roundtrips_graphics_and_links() -> None:
     assert restored.mode == body.mode
 
 
+def test_canvas_body_rejects_unknown_mode() -> None:
+    with pytest.raises(ValueError, match="未知画板模式"):
+        CanvasBody(mode="dragram")
+    with pytest.raises(ValueError, match="未知画板模式"):
+        CanvasBody.from_data({"m": "dragram"})
+
+
 def test_body_is_lines_with_stable_ids() -> None:
     note = NoteData()
     note.body = ["第一行\n第二行"]

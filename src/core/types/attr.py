@@ -46,12 +46,25 @@ class Attr[T = Any]:
 
     def _initial(self) -> Any:
         if self._factory is not None:
-            return self._factory()
+            return self._normalize(self._factory())
         raw = None if self._default is _MISSING else self._default
-        # item 字段的默认值要落成数据形态（如 Signature 对象 → dict）
-        if self._item is not None and raw is not None and hasattr(raw, "to_data"):
-            return self._encode(raw)
-        return raw
+        return self._normalize(raw)
+
+    def _normalize(self, value: Any) -> Any:
+        """写入归一：``coerce`` → ``item`` 编码（list/tuple 逐元素）。
+
+        ``__set__`` 与默认值 / 工厂产物**共用这一条路径**，落盘形态不因写入路径而异
+        （``item`` 字段存的是紧凑数据，如 ``Signature`` → dict）。
+        """
+        if value is None:
+            return None
+        if self._coerce is not None:
+            value = self._coerce(value)
+        if self._item is None:
+            return value
+        if isinstance(value, (list, tuple)):
+            return [self._encode(entry) for entry in value]
+        return self._encode(value)
 
     def _decode(self, value: Any) -> Any:
         if isinstance(value, self._item):
@@ -82,14 +95,7 @@ class Attr[T = Any]:
         return value
 
     def __set__(self, obj: Any, value: Any) -> None:
-        if self._coerce is not None and value is not None:
-            value = self._coerce(value)
-        if self._item is not None:
-            if isinstance(value, (list, tuple)):
-                value = [self._encode(entry) for entry in value]
-            elif value is not None and hasattr(value, "to_data"):
-                value = self._encode(value)
-        obj.attrs[self.key] = value
+        obj.attrs[self.key] = self._normalize(value)
 
 
 class Data[T = Any](Attr[T]):

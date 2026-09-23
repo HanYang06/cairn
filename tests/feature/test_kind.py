@@ -5,8 +5,19 @@
 
 from __future__ import annotations
 
+import pytest
+
 from core.signal import Domain
-from core.types import ROLE_DATA, ROLE_DOMAIN, domain_of, type_info, types, unit_infos
+from core.types import (
+    ROLE_DATA,
+    ROLE_DOMAIN,
+    TypeInfo,
+    domain_of,
+    register,
+    type_info,
+    types,
+    unit_infos,
+)
 from feature import CanvasData, Kind, Note, NoteData, Project
 
 
@@ -69,6 +80,13 @@ def test_light_accepts_a_list_of_types() -> None:
     assert info is not None
     assert info.units == ("notedata", "canvas")
     assert [unit.cls for unit in unit_infos("test.multi")] == [NoteData, CanvasData]
+
+
+def test_unit_infos_rejects_unregistered_unit() -> None:
+    register(TypeInfo(type="test.broken", role=ROLE_DOMAIN, cls=Note, units=("nope",)))
+
+    with pytest.raises(LookupError, match="未登记"):
+        unit_infos("test.broken")
 
 
 def test_degraded_structures_are_data_not_domain() -> None:
