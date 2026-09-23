@@ -119,3 +119,19 @@ def test_two_signals_are_isolated() -> None:
     a.bump(5)
     assert a.value == 5
     assert b.value == 0
+
+
+def test_topic_handle_is_rebuilt_after_bind() -> None:
+    note = Notebook()
+
+    # 未绑定就访问 → 句柄把 _signal=None 缓存下来；绑定后必须重建，否则信号永久失效
+    assert note.changed.signal is None
+
+    sig = Signal()
+    note.bind(sig)
+    seen: list[int] = []
+    note.changed.subscribe(seen.append)
+
+    assert note.changed.signal is sig
+    note.changed.emit(7)
+    assert seen == [7]

@@ -194,8 +194,8 @@ class Vault:
 
     # ---- 内部 ----
     def _read_body(self, oid: Oid | str) -> bytes:
-        body = self.bucket.get(Block, str(oid)).body
-        return bytes(body) if not isinstance(body, bytes) else body
+        # 与 ``Block.read()`` 同一口径（含 fail loud），别各写一份
+        return self.bucket.get(Block, str(oid)).read()
 
     def _info(self, block: Block) -> ObjectInfo:
         attrs = block.attrs

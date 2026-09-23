@@ -95,6 +95,15 @@ def test_canvas_body_rejects_unknown_mode() -> None:
         CanvasBody.from_data({"m": "dragram"})
 
 
+def test_canvas_body_hash_tracks_in_place_edit() -> None:
+    canvas = CanvasData(graphics=[_graphic()])
+    before = canvas.body_hash()
+
+    canvas.graphics.append(_graphic(cx=9.0))  # 就地改动，没人调 refresh()
+
+    assert canvas.body_hash() != before
+
+
 def test_body_is_lines_with_stable_ids() -> None:
     note = NoteData()
     note.body = ["第一行\n第二行"]

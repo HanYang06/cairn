@@ -10,8 +10,9 @@
     Codec.apply(state, patch)      -> 应用反向补丁得到旧状态
 
 约定（见文档）：
-- 版本 id = ``blake3(canonical({prev, at, sig}))``：哈希身份 + ``prev`` 单亲链，
-  顺序从 head 沿 ``prev`` 走，不依赖时间。
+- 版本 id = ``blake3(canonical({oid, prev, at, sig}))``：哈希身份 + ``prev`` 单亲链，
+  顺序从 head 沿 ``prev`` 走，不依赖时间。``oid`` 必须进哈希——否则「同一毫秒、同样
+  内容、不同块」会算出同一个 id，插入撞主键。
 - 当前版本永远在块里；历史只存反向补丁（残页），从 head 反向回放。
 - 保留窗默认 30 天，更新时惰性压实（丢链尾）。
 - **不设 head 表**：head / count 由 ``version`` 表直接推导（谁不被任何 ``prev`` 指向即 head）。
@@ -49,9 +50,15 @@ class Codec(Protocol):
     def apply(self, state: Any, patch: Any) -> Any: ...
 
 
-def version_id(prev: str | None, at: int, sig: str) -> str:
-    """版本 id：承诺 ``prev`` 与内容签名，顺序因此可回溯。"""
-    return blake3(canonical({"prev": prev or "", "at": int(at), "sig": str(sig)})).hexdigest()
+def version_id(oid: Any, prev: str | None, at: int, sig: str) -> str:
+    """版本 id：承诺**所属块** ``oid`` / ``prev`` / 内容签名与时刻，跨块不撞。
+
+    ``oid`` 在哈希内：``prev`` 只保证同一条链上的唯一性，不同块的根版本 ``prev`` 都是
+    ``None``，缺 ``oid`` 时「同一毫秒 + 同内容」的两块会算出同一个 id（撞主键）。
+    """
+    return blake3(
+        canonical({"oid": str(oid), "prev": prev or "", "at": int(at), "sig": str(sig)})
+    ).hexdigest()
 
 
 class VersionStore:
@@ -67,7 +74,7 @@ class VersionStore:
         if self.head(oid) is not None:
             return None
         moment = now_ms() if at is None else int(at)
-        vid = version_id(None, moment, codec.digest(state))
+        vid = version_id(oid, None, moment, codec.digest(state))
         self._table.insert(
             {"id": vid, "oid": str(oid), "prev": None, "at": moment, "payload": canonical({})}
         )
@@ -89,7 +96,7 @@ class VersionStore:
             return None
         moment = now_ms() if at is None else int(at)
         prev = self.head(oid)
-        vid = version_id(prev, moment, codec.digest(new_state))
+        vid = version_id(oid, prev, moment, codec.digest(new_state))
         self._table.insert(
             {"id": vid, "oid": str(oid), "prev": prev, "at": moment, "payload": payload}
         )
