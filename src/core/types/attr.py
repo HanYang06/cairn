@@ -21,7 +21,9 @@ class Attr[T = Any]:
     注解里写 ``signature: Attr[Signature]``，语义是「这个字段是 Attr，承载 ``Signature`` 类型」。
     两个参数决定取值形态：
 
-    - ``default`` / ``factory``：字段缺失时的默认值（二选一）。
+    - ``default`` / ``factory``：字段缺失时的默认值（二选一）。``default`` 不接受
+      可变容器（list / dict / set / bytearray）——类级共享一份，改一个实例就污染全部；
+      给容器请用 ``factory=list`` 这类写法。
     - ``item``：**类型化列表 / 类型化值**。给列表字段时，存储里是紧凑数据（dict），
       取出来是类型化对象；元素类型需提供 ``to_data()`` / ``from_data()``。
       单个类型化值（非列表）同样走 ``to_data()``。
@@ -35,6 +37,10 @@ class Attr[T = Any]:
         item: type[T] | None = None,
         coerce: Callable[[Any], Any] | None = None,
     ) -> None:
+        if isinstance(default, (list, dict, set, bytearray)):
+            raise TypeError(
+                f"字段 {type(default).__name__} 默认值会在所有实例间共享：请改用 factory="
+            )
         self._default = default
         self._factory = factory
         self._item: Any = item

@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from core import Event, ObjectDeleted, ObjectPut, Vault
+from core.signal.events import _Subscription
 from core.storage import Block
 
 if TYPE_CHECKING:
@@ -71,6 +72,22 @@ def test_subscription_context_manager(tmp_path: Path) -> None:
     _put(vault, b"b")
 
     assert len(seen) == 1
+
+
+def test_subscription_entries_compare_by_identity() -> None:
+    """条目必须按身份匹配。
+
+    自动生成的 ``__eq__`` 会让「同 handler + 同事件类型」的两条订阅互为等价，
+    于是 ``_remove`` 可能删掉别人的条目——订阅两次、只取消其一时就出错。
+    """
+
+    def handler(_event: Event) -> None:
+        return
+
+    first = _Subscription(handler=handler, event_type=Event)
+    second = _Subscription(handler=handler, event_type=Event)
+
+    assert first != second
 
 
 def test_handler_exception_is_isolated(tmp_path: Path) -> None:

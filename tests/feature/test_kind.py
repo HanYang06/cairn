@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+from enum import Enum
+
 import pytest
 
 from core.signal import Domain
@@ -80,6 +82,26 @@ def test_light_accepts_a_list_of_types() -> None:
     assert info is not None
     assert info.units == ("notedata", "canvas")
     assert [unit.cls for unit in unit_infos("test.multi")] == [NoteData, CanvasData]
+
+
+def test_register_normalizes_type_and_units() -> None:
+    class Demo(Enum):
+        One = "test.reg"
+
+    register(
+        TypeInfo(
+            type=Demo.One,  # type: ignore[arg-type] — 刻意喂枚举，验证登记口会归一
+            role=ROLE_DOMAIN,
+            cls=Note,
+            units=(Demo.One,),  # type: ignore[arg-type]
+        )
+    )
+
+    info = type_info("test.reg", role=ROLE_DOMAIN)
+
+    assert info is not None
+    assert info.type == "test.reg"
+    assert info.units == ("test.reg",)
 
 
 def test_unit_infos_rejects_unregistered_unit() -> None:

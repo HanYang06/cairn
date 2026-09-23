@@ -57,8 +57,8 @@ _BADGE_TOKENS = {
 
 
 def _badge_color(theme: Theme, badge: str) -> QColor:
-    """按徽标类型取令牌色（未知类型退回强调色）。"""
-    return QColor(theme.token(_BADGE_TOKENS.get(badge, "accent"), "#6C9BFF"))
+    """按徽标类型取令牌色（未知类型退回强调色，颜色只来自主题令牌）。"""
+    return QColor(theme.token(_BADGE_TOKENS.get(badge, "accent")))
 
 
 class QtCardModel(QAbstractListModel):

@@ -226,9 +226,14 @@ class Catalog:
         created: int,
         updated: int,
     ) -> None:
+        # 真 upsert：``INSERT OR REPLACE`` 冲突时是隐式 DELETE + INSERT
+        # （未列出的列被重置、rowid 可能变、有外键还会级联删依赖行）
         self.conn.execute(
-            "INSERT OR REPLACE INTO block(oid, body_id, type, size, data, created, updated)"
-            " VALUES(?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO block(oid, body_id, type, size, data, created, updated)"
+            " VALUES(?, ?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT(oid) DO UPDATE SET"
+            " body_id = excluded.body_id, type = excluded.type, size = excluded.size,"
+            " data = excluded.data, created = excluded.created, updated = excluded.updated",
             (block_id, body_id, int(type), size, data, created, updated),
         )
 
