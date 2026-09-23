@@ -172,6 +172,8 @@ class CanvasBody(Body):
         hash: str = "",
     ) -> None:
         self.mode = str(mode)
+        if self.mode not in CANVAS_MODE:
+            raise ValueError(f"未知画板模式：{self.mode!r}（可选 {'/'.join(CANVAS_MODE)}）")
         self.graphics = list(graphics or ())
         self.links = list(links or ())
         self.hash = str(hash or "")

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -15,6 +16,9 @@ from core.types import (
     ObjectInfo,
     Oid,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 _CROCKFORD = set("0123456789ABCDEFGHJKMNPQRSTVWXYZ")
 
@@ -77,6 +81,20 @@ class _Point:
         self.x = x
 
 
+class _Typed:
+    """最小类型化值：带 ``to_data`` / ``from_data``，模拟 ``Signature`` 这类 ``item`` 元素。"""
+
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+    def to_data(self) -> dict[str, int]:
+        return {"v": self.value}
+
+    @classmethod
+    def from_data(cls, data: Mapping[str, Any]) -> _Typed:
+        return cls(int(data["v"]))
+
+
 def test_attr_item_decode_rejects_non_mapping() -> None:
     attr: Attr = Attr(item=_Point)
     attr.__set_name__(_AttrsBox, "p")
@@ -84,6 +102,28 @@ def test_attr_item_decode_rejects_non_mapping() -> None:
     box.attrs["p"] = [5]
     with pytest.raises(TypeError, match="映射形态"):
         _ = attr.__get__(box, _AttrsBox)
+
+
+def test_attr_item_default_encodes_each_element() -> None:
+    attr: Attr = Attr(item=_Typed, default=[_Typed(1), _Typed(2)])
+    attr.__set_name__(_AttrsBox, "items")
+    box = _AttrsBox()
+
+    decoded = attr.__get__(box, _AttrsBox)
+
+    # 默认值落成紧凑数据形态（与 __set__ 一致），取出来才是类型化对象
+    assert box.attrs["items"] == [{"v": 1}, {"v": 2}]
+    assert [item.value for item in decoded] == [1, 2]
+
+
+def test_attr_item_factory_result_is_normalized() -> None:
+    attr: Attr = Attr(item=_Typed, factory=lambda: [_Typed(7)])
+    attr.__set_name__(_AttrsBox, "items")
+    box = _AttrsBox()
+
+    _ = attr.__get__(box, _AttrsBox)
+
+    assert box.attrs["items"] == [{"v": 7}]
 
 
 def test_value_types_are_frozen() -> None:

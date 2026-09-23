@@ -45,6 +45,44 @@ def test_add_note_stores_oid_and_relation(tmp_path: Path) -> None:
     assert [edge.source for edge in links] == [group.oid]
 
 
+def test_remove_deletes_contains_relation(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    group = GroupData.create(vault, "收集")
+    note = Note(vault).create("一条笔记")
+    group.add(note)
+
+    group.remove(note)
+
+    assert group.group == []
+    assert list(Relation.backlinks(vault, note.oid, relation="contains")) == []
+
+
+def test_readd_after_remove_leaves_one_relation(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    group = GroupData.create(vault, "收集")
+    note = Note(vault).create("一条笔记")
+    group.add(note)
+    group.remove(note)
+    group.add(note)
+
+    links = list(Relation.backlinks(vault, note.oid, relation="contains"))
+
+    assert group.group == [str(note.oid)]
+    assert len(links) == 1
+
+
+def test_remove_child_group_clears_relation(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    parent = GroupData.create(vault, "父")
+    child = GroupData.create(vault, "子", parent=parent)
+
+    parent.remove(child)
+
+    # 列表存 gid、关系行存 oid——拆边必须按建边时用的那个值
+    assert parent.group == []
+    assert list(Relation.backlinks(vault, child.oid, relation="contains")) == []
+
+
 def test_nested_groups_store_gid_and_roots(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     parent = GroupData.create(vault, "父")

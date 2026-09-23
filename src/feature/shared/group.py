@@ -97,6 +97,15 @@ class GroupData(Block):
             return str(child.oid)
         return str(child)
 
+    @staticmethod
+    def target_of(child: Block | str) -> str:
+        """子项在 ``contains`` 关系行里的 ``dst``：块存 ``oid``，裸字符串原样。
+
+        与 ``ref_of`` 不同（组在列表里存 ``gid``）——建边与拆边必须用同一个值，
+        故 ``_link`` / ``remove`` 都走这里。
+        """
+        return str(child.oid) if isinstance(child, Block) else str(child)
+
     def add(self, child: Block | str) -> Self:
         """把笔记 / 项目 / 组加进本组（去重、保序），并落一条 ``contains`` 关系。"""
         self.require_unlocked()
@@ -108,9 +117,15 @@ class GroupData(Block):
         return self
 
     def remove(self, child: Block | str) -> Self:
-        """从本组移除子项（只摘列表；关系行留给后续清理策略）。"""
+        """从本组移除子项：摘列表 + 删掉对应的 ``contains`` 关系行。"""
         self.require_unlocked()
         self.group = [ref for ref in self.group if ref != self.ref_of(child)]
+        Relation.delete(
+            self._require_vault(),
+            source=self.oid,
+            target=self.target_of(child),
+            relation=_CONTAINS,
+        )
         self.save()
         return self
 
@@ -131,8 +146,13 @@ class GroupData(Block):
         return [index[ref] for ref in self.group if ref in index]
 
     def _link(self, child: Block | str) -> None:
-        target = str(child.oid) if isinstance(child, Block) else str(child)
-        Relation.create(self._require_vault(), self.oid, target, relation=_CONTAINS, domain="group")
+        Relation.create(
+            self._require_vault(),
+            self.oid,
+            self.target_of(child),
+            relation=_CONTAINS,
+            domain="group",
+        )
 
 
 def list_groups(vault: Any) -> Iterator[GroupData]:

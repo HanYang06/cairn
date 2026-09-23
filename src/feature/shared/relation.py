@@ -142,6 +142,30 @@ class Relation:
         vault.bucket.commit()
         return cls.load(vault, rid)
 
+    @classmethod
+    def delete(
+        cls,
+        vault: Any,
+        *,
+        source: Oid | str,
+        target: Oid | str,
+        relation: str | None = None,
+    ) -> int:
+        """删掉匹配的关系行（返回条数）——与 ``create`` 对称，别留下过期边。
+
+        关系是一等 DB 行，建边与拆边都归这里；``relation`` 省略时删该对端点的全部边。
+        """
+        where: dict[str, Any] = {
+            "src": str(Oid.parse(str(source))),
+            "dst": str(Oid.parse(str(target))),
+        }
+        if relation is not None:
+            where["kind"] = str(relation)
+        removed = int(_table(vault).delete(**where))
+        if removed:
+            vault.bucket.commit()
+        return removed
+
     # ---- 读 ----
     @classmethod
     def load(cls, vault: Any, oid: Oid | str) -> Relation:

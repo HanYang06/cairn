@@ -106,9 +106,10 @@ class AssetData(Block):
         original = mime or (mimetypes.guess_type(name)[0] if name else None)
         encoded, unified = transcode(raw, original)  # ← 入库先转码
         data.body = encoded
-        data.attrs["name"] = None if name is None else str(name)
+        data.name = None if name is None else str(name)
+        # mime 是 ClassVar（无描述符），只能直写 attrs；统一成描述符的改法待议。
         data.attrs["mime"] = unified
-        data.attrs["origin_mime"] = original
+        data.origin_mime = original
         data.title = name
         data.tags = tags or {}
         if props:
