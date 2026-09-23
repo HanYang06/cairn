@@ -63,6 +63,14 @@ def test_asset_records_origin_mime(tmp_path: Path) -> None:
     assert asset.attrs["origin_mime"] == "video/mp4"
 
 
+def test_asset_mime_reads_back_as_field(tmp_path: Path) -> None:
+    vault = _vault(tmp_path)
+    asset = AssetData.create(vault, b"raw", name="clip.mp4", mime="video/mp4")
+
+    assert asset.mime == "video/mp4"  # 不再是恒 None 的 ClassVar
+    assert asset.content_type == "video/mp4"
+
+
 def test_asset_from_path(tmp_path: Path) -> None:
     vault = _vault(tmp_path)
     source = tmp_path / "data.bin"

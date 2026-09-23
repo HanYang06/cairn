@@ -12,7 +12,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -52,8 +52,18 @@ _TYPES: dict[tuple[str, str], TypeInfo] = {}
 
 
 def register(info: TypeInfo) -> None:
-    """登记（同名同角色覆盖）一个类型；键按值归一（枚举 / 字符串可互换）。"""
-    _TYPES[(type_name(info.type), info.role)] = info
+    """登记（同名同角色覆盖）一个类型；键与值都按值归一（枚举 / 字符串可互换）。
+
+    归一在**登记口**一次做完：只归一键而放着值不管，会让 ``types()`` 按原始形态排序、
+    让 ``domain_of`` 拿归一化后的 key 去比未归一的 ``units``——反查静默失配。
+    """
+    normalized = replace(
+        info,
+        type=type_name(info.type),
+        units=tuple(type_name(unit) for unit in info.units),
+        deps=tuple(type_name(dep) for dep in info.deps),
+    )
+    _TYPES[(normalized.type, normalized.role)] = normalized
 
 
 def type_info(type_name_: object, *, role: str | None = None) -> TypeInfo | None:

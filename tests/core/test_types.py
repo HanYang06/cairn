@@ -104,8 +104,8 @@ def test_attr_item_decode_rejects_non_mapping() -> None:
         _ = attr.__get__(box, _AttrsBox)
 
 
-def test_attr_item_default_encodes_each_element() -> None:
-    attr: Attr = Attr(item=_Typed, default=[_Typed(1), _Typed(2)])
+def test_attr_item_factory_encodes_each_element() -> None:
+    attr: Attr = Attr(item=_Typed, factory=lambda: [_Typed(1), _Typed(2)])
     attr.__set_name__(_AttrsBox, "items")
     box = _AttrsBox()
 
@@ -116,14 +116,47 @@ def test_attr_item_default_encodes_each_element() -> None:
     assert [item.value for item in decoded] == [1, 2]
 
 
-def test_attr_item_factory_result_is_normalized() -> None:
-    attr: Attr = Attr(item=_Typed, factory=lambda: [_Typed(7)])
+def test_attr_item_tuple_default_is_encoded_per_element() -> None:
+    # 容器默认值只放行不可变形态（#38）；元组同样逐元素编码成紧凑数据
+    attr: Attr = Attr(item=_Typed, default=(_Typed(7),))
     attr.__set_name__(_AttrsBox, "items")
     box = _AttrsBox()
 
-    _ = attr.__get__(box, _AttrsBox)
-
+    assert [item.value for item in attr.__get__(box, _AttrsBox)] == [7]
     assert box.attrs["items"] == [{"v": 7}]
+
+
+def test_attr_rejects_mutable_default() -> None:
+    with pytest.raises(TypeError, match="factory"):
+        Attr(default=[])
+    with pytest.raises(TypeError, match="factory"):
+        Attr(default={})
+
+
+def test_attr_factory_gives_each_instance_its_own_container() -> None:
+    attr: Attr = Attr(factory=list)
+    attr.__set_name__(_AttrsBox, "items")
+    first = _AttrsBox()
+    second = _AttrsBox()
+
+    one = attr.__get__(first, _AttrsBox)
+    other = attr.__get__(second, _AttrsBox)
+
+    assert one == []
+    assert one is not other
+
+
+def test_object_info_is_hashable_and_ignores_tags() -> None:
+    oid = Oid.new()
+    first = ObjectInfo(
+        oid=oid, type="note", mime=None, size=0, created=0, updated=0, tags={"a": None}
+    )
+    second = ObjectInfo(
+        oid=oid, type="note", mime=None, size=0, created=0, updated=0, tags={"b": None}
+    )
+
+    assert first == second  # tags 不参与比较
+    assert len({first, second}) == 1  # 因而对象本身可哈希
 
 
 def test_value_types_are_frozen() -> None:

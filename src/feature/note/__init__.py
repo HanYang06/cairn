@@ -1,7 +1,10 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""笔记领域：数据描述在 ``data``、操作在 ``edit`` / ``service``，这里只做转出。"""
+"""笔记领域：数据描述在 ``data``、操作在 ``edit`` / ``service``，这里只做转出。
+
+``Line`` 是**画板线型枚举**（``IntEnum``）；笔记的**行字典**是 ``LineDict``，二者不同。
+"""
 
 from __future__ import annotations
 
@@ -22,9 +25,6 @@ from .data import (
     Text,
     access_ref,
     canvas_ref,
-)
-from .data import (
-    Line as LineKind,
 )
 from .edit import (
     Line as LineDict,
@@ -54,7 +54,6 @@ __all__ = [
     "Graphic",
     "Line",
     "LineDict",
-    "LineKind",
     "Link",
     "Marker",
     "Note",

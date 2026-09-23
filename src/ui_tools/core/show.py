@@ -16,7 +16,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from core.types import TypeInfo, type_info, type_name
@@ -122,15 +122,20 @@ class ShowPart:
         return {name: field_kind(value) for name, value in self.attrs.items()}
 
 
-@dataclass
+@dataclass(init=False)
 class Show:
-    """最小数据单元（可多个）→ 显示素材。"""
+    """最小数据单元（可多个）→ 显示素材。
 
-    parts: list[ShowPart] = field(default_factory=list)
-    attrs: dict[str, Any] = field(default_factory=dict)
-    groups: dict[str, list[str]] = field(default_factory=dict)
-    ids: list[str] = field(default_factory=list)
-    bodies: list[Any] = field(default_factory=list)
+    字段声明只为 ``repr`` / ``eq`` 服务；**唯一的初始化点是下面手写的 ``__init__``**
+    （``init=False``）。所以别在这里写默认值——自动生成的 ``__init__`` 不开，
+    ``field(default_factory=...)`` 永远不会生效，还会掩盖「加了字段却没人赋值」。
+    """
+
+    parts: list[ShowPart]
+    attrs: dict[str, Any]
+    groups: dict[str, list[str]]
+    ids: list[str]
+    bodies: list[Any]
 
     def __init__(self, items: Any = None) -> None:
         self.parts = [self._part(item) for item in _one(items)]

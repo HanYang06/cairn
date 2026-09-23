@@ -14,7 +14,12 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class ObjectInfo:
-    """对象的元数据视图，不含其内容。"""
+    """对象的元数据视图，不含其内容。
+
+    ``tags`` 是 ``dict``，故标 ``compare=False``：不参与 ``__eq__`` / ``__hash__``，
+    ``ObjectInfo`` 才能真的可哈希（否则一放进 set 就 ``TypeError: unhashable``）。
+    ``frozen`` 只锁字段本身——``tags`` 的内容仍可就地改，深不可变不在承诺内。
+    """
 
     oid: Oid
     type: str
@@ -23,7 +28,7 @@ class ObjectInfo:
     created: int
     updated: int
     title: str | None = None
-    tags: dict[str, Any] = field(default_factory=dict)
+    tags: dict[str, Any] = field(default_factory=dict, compare=False)
     seq: int = 0
     author: str = ""
 

@@ -47,8 +47,15 @@ class ObjectDeleted(Event):
 Handler = Callable[[Event], None]
 
 
-@dataclass(slots=True)
+@dataclass(slots=True, eq=False)
 class _Subscription:
+    """订阅条目；``eq=False`` 让它**按身份**匹配。
+
+    自动生成的 ``__eq__`` 会让两条订阅互为等价（同 handler 同事件类型），
+    于是 ``_remove`` 的 ``in`` / ``remove`` 可能删掉**别人**的条目——订阅两次、
+    只取消其一时就出错。条目是私有实现细节，身份语义才是对的。
+    """
+
     handler: Handler
     event_type: type[Event]
 

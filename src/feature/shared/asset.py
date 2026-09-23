@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import mimetypes
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, BinaryIO, ClassVar
+from typing import TYPE_CHECKING, Any, BinaryIO
 
 from core.storage import Attr, Block, BodyField
 
@@ -75,18 +75,18 @@ class AssetData(Block):
 
     type = ASSET_KIND
     body = BodyField()
-    mime: ClassVar[str | None] = None
 
     schema: Attr[int] = ASSET_SCHEMA
     title: Attr[str | None] = None
     tags: Attr = Attr(factory=dict, coerce=normalize_tags)
     name: Attr[str | None] = None
+    mime: Attr[str | None] = None  # 转码后的统一编码（逐实例，落在 attrs）
     origin_mime: Attr[str | None] = None  # 转码前的原始编码，留作来源记录
 
     @property
     def content_type(self) -> str | None:
-        value = self.attrs.get("mime")
-        return None if value is None else str(value)
+        """统一后的媒体类型（``mime`` 字段的读法别名）。"""
+        return self.mime
 
     @classmethod
     def create(  # noqa: PLR0913 — 构造入口参数面，均有默认值
@@ -107,8 +107,7 @@ class AssetData(Block):
         encoded, unified = transcode(raw, original)  # ← 入库先转码
         data.body = encoded
         data.name = None if name is None else str(name)
-        # mime 是 ClassVar（无描述符），只能直写 attrs；统一成描述符的改法待议。
-        data.attrs["mime"] = unified
+        data.mime = unified
         data.origin_mime = original
         data.title = name
         data.tags = tags or {}
