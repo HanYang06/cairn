@@ -30,6 +30,10 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 
+#: 行内豁免标记：该行用于**说明禁用形式本身**（规则表、生成器模板）时使用。
+#: 仅豁免本行，且必须在同一行出现；不提供文件级豁免，避免整篇逃逸。
+IGNORE = "prose-ignore"
+
 #: 扫描范围：入库的手写文本（生成物、第三方、评审记录、博客除外）
 _MARKDOWN_SKIP = (
     "docs/review/",
@@ -41,10 +45,15 @@ _MARKDOWN_SKIP = (
 
 @dataclass(frozen=True)
 class Term:
-    """一条口语标记：`pattern` 为已编译正则，`why` 说明它为什么不算书面语。"""
+    """一条口语标记：`pattern` 为已编译正则，`why` 说明它为什么不算书面语。
+
+    `not_at_line_start` 为真时，命中若落在行首则不算——用于「重复感叹号」这类
+    与 MkDocs admonition 语法（行首三叹号）冲突的规则。
+    """
 
     pattern: re.Pattern[str]
     why: str
+    not_at_line_start: bool = False
 
 
 def _say(message: str) -> None:
@@ -62,9 +71,9 @@ def _say(message: str) -> None:
     stream.flush()
 
 
-def _term(pattern: str, why: str) -> Term:
+def _term(pattern: str, why: str, *, not_at_line_start: bool = False) -> Term:
     """按词典条目建一条（统一大小写不敏感，中文无影响）。"""
-    return Term(re.compile(pattern, re.IGNORECASE), why)
+    return Term(re.compile(pattern, re.IGNORECASE), why, not_at_line_start)
 
 
 #: 口语词典。收录原则：仅收**歧义为零**的标记；宁可少收，不可误报。
@@ -107,7 +116,9 @@ _LEXICON: tuple[Term, ...] = (
     # —— 网络腔与表情 ——
     _term(r"～", "波浪号，非正式标点"),
     _term(r"[（(](笑|逃|捂脸|摊手)[)）]", "表情文字，删除"),
-    _term(r"(?<![!`])![!！]", "重复感叹号，改为单句号"),
+    # 重复感叹号属非正式标点。行首的三叹号是 MkDocs admonition 语法，必须排除
+    # （负向后顾在行首会成立，Python `re` 实测无法用于此判断，故用 `not_at_line_start`）。
+    _term(r"[!！][!！]", "重复感叹号，改为单句号", not_at_line_start=True),
     _term(r"233+", "网络用语，删除"),
 )
 
@@ -164,11 +175,13 @@ def _texts(text: str, suffix: str) -> list[tuple[int, str]]:
 
 
 def _scan_file(path: Path) -> list[Hit]:
-    """扫描单个文件，返回全部命中。"""
+    """扫描单个文件，返回全部命中；带 `IGNORE` 标记的行跳过。"""
     rel = path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else path.as_posix()
     text = path.read_text(encoding="utf-8")
     hits: list[Hit] = []
     for line_no, line in _texts(text, path.suffix):
+        if IGNORE in line:
+            continue
         hits.extend(
             Hit(
                 path=rel,
@@ -178,9 +191,18 @@ def _scan_file(path: Path) -> list[Hit]:
                 why=term.why,
             )
             for term in _LEXICON
-            if term.pattern.search(line)
+            if _matches(term, line)
         )
     return hits
+
+
+def _matches(term: Term, line: str) -> bool:
+    """该行是否命中这条规则（含行首例外处理）。"""
+    for match in term.pattern.finditer(line):
+        if term.not_at_line_start and match.start() == 0:
+            continue
+        return True
+    return False
 
 
 def _absolute(item: str) -> Path:

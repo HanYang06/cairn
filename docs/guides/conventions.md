@@ -71,5 +71,5 @@ core(L0)  ←  feature(L3)  ←  app(组合根)
 ## 6. 文档与提交
 
 - 文档、注释、commit message 用**中文**；commit 用 Conventional Commits（`feat(ui): …`）。
-- **代码是唯一事实**；改了实现就回写 `docs/architecture/*.md`，别让文档撒谎。
+- **代码是唯一事实**；改了实现就回写 `docs/architecture/*.md`，不得留下与代码不符的文档。
 - **只有用户明确要求才 commit。**

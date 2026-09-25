@@ -3,6 +3,35 @@
 
 # 变更
 
+- 2026-09-26 · 已定 · **书面语成为全仓硬标准，门禁由报告模式转为阻断**（分支 `feat/prose-gate`）：
+  标准本体在 `.agents/skills/rules/references/prose.md`，词典本体在 `tools/prose.py` 的 `_LEXICON`
+  （规则文件只写判据、**不复述禁用词**，否则规则文件自身会被命中）。
+  本轮补齐两件先前缺的：① 词典加**行首例外** `Term.not_at_line_start`——行首三叹号是 MkDocs
+  admonition 语法，原「重复感叹号」条目把它当非正式标点，是**误报**，也正是它挡住"清零后转阻断"；
+  ② 全仓余下命中清零（`docs/contributing/docs.md`、`docs/guides/conventions.md`、
+  `docs/guides/quickstart.md`、`tools/docgen.py` 与 `src/core/__init__.py` 的 docstring），
+  现为 **174 个文件 0 处命中**。据此 `ci.yml` 的 `Prose check` 去掉 `--report`、
+  pre-commit 的 `prose` 钩子同步转为阻断（本地与 CI 同口径）。
+  行内豁免标记 `prose-ignore` 仍只在"说明禁用形式本身"的行上使用，**不提供文件级豁免**。
+  途中两侧各修一个正则误报：`别` 的祈使式规则误伤「类别 / 分别」类词，收窄为
+  `别(忘|漏|猜|蒙|自造|据以)`；重复感叹号改用位置判断（**负向后顾在行首会成立，Python `re`
+  实测不可用**）。`tests/tools/test_prose.py` 的「入库 Markdown 零命中」用例随之解除 skip。
+- 2026-09-26 · 已定 · **PR #21 评审整改**（配置引擎片；OCR 累计五轮 49 条去重后全修，
+  分支 `fix/pr21-review`，基于 `d8ff920`，另并入当时已合并的 `main`）：
+  **配置引擎**——投影坐标 `Folder.of_path` 的 `source` 多拼一层包名（frozen dataclass 参与相等性，
+  导致"按路径找回声明"恒空、重名检查判据失效）；总词表在按 folder 的循环里重复入队；
+  config 侧坏文件的判据不可达；`folder.keys` 把**键前缀**当具体键比对；值文件的写入口收成
+  `_write_value_file()`（键序规范化 + `$schema` + 重名检查一道守，`set()` 与 `_repair()` 原先各绕一道）；
+  非原子写改「临时文件 + 改名」；`get(key, default)` 不再把调用方 default 写进缓存。
+  **声明与词表**——支持文档推荐的 `Cfg[int]` 写法；三处裸 `except` 收窄或改为按契约冒泡；
+  空白 docstring 不再炸类定义；空默认值（`None` / 空串 / 空容器）声明期即拒绝；
+  Union 有分支认不出时整体不给约束；参数化泛型（`list[int]` / `dict[str, int]`）补进词表；
+  分片词表的 `additionalProperties` 放行（引擎保留用户自己加的键，宣布非法会让 IDE 误报），
+  严格校验以总词表为准（已写进 `docs/architecture/config.md`）。
+  **接线**——导入期 `setLevel` 做级别名归一并兜住 `OSError`（只读部署）；`BucketConfig` 在配置边界
+  校验整数；`version_retention_days` 标为**预留**；删掉空壳 `src/core/conf/conf.py`。
+  **工具**——`gen_conf.py` / `docgen.py` 未知参数一律报错；`docgen` 增加 `--coverage --gate`；
+  生成表格转义 `|` 与换行；docstring 覆盖率只统计模块顶层与类体内（原先把函数内局部 `def` 算进分母）。
 - 2026-09-26 · 已定 · **PR #20 评审整改**（OCR 三轮 65 条去重后全修，分支 `fix/pr20-review`，基于 `9437d13`）：
   **内核**——`put` / `drop` / `call` 检查 `Outcome` 并在失败时抛出**原异常**（落盘失败不再被吞成"存成功"）；
   `role()` 只返回登记的**实例**，未登记返回 `None`（原回退成类型表里的类）；`_ready` 挪到两张表与引擎

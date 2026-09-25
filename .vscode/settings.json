@@ -72,5 +72,4 @@
     "files.simpleDialog.enable": true,
     "python.terminal.activateEnvironment": false,
     "python.analysis.typeCheckingMode": "off",
-    "chat.disableAIFeatures": false,
 }

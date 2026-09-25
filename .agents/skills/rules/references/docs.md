@@ -39,6 +39,8 @@
 
 1. **能算的就不写，能查的就不写**：一份数据只留一个事实源。判断"该不该生成"的方法：
    这份内容是否已存在于代码 / 配置声明 / schema 里——是，就投影，不要抄。
+1a. **书面语是硬门禁**：所有文档、注释、docstring 一律非口语化，标准与词典在
+   [`prose.md`](prose.md)，由 `tools/prose.py` 检查（已进 pre-commit 与 CI）。
 2. **新页面必须登记进 `mkdocs.yml` 的 `nav`**。未登记的页面会被构建但不出现在导航里，
    `--strict` **不会**因此报错——这条靠自觉，忘了就是一页隐身文档。
 3. **新 `.md` 要带 SPDX 头**（`<!-- -->` 两行）。漏了 pre-commit 会补，补完钩子非零退出，
@@ -46,7 +48,7 @@
 4. **相对链接用文件相对路径**（`../architecture/storage.md`），`--strict` 会抓断链；
    跨仓库文件用完整 GitHub URL（别用相对路径往上跳出 `docs/`，mkdocs 处理不了）。
 5. **图文扩展**：Mermaid 用 ` ```mermaid ` 围栏（本站与 GitHub 都能渲染）；
-   提示块用 `!!!` admonition；不要在文档里引入新的 Markdown 扩展而不改 `mkdocs.yml`。
+   提示块用三叹号 admonition 语法；引入新的 Markdown 扩展时必须同步修改 `mkdocs.yml`。
 6. **中文写作**、术语按 `docs/reference/glossary.md`；未实现的东西标「预留 / 草案 / 待定」。
 7. **代码是唯一事实**：改了实现就回写 `docs/architecture/*.md`（回写是任务的一部分）。
 8. `README.md` 是 GitHub 门面，**不重复** `docs/` 里会长大的内容（两处必然分叉）——

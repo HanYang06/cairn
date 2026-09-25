@@ -6,6 +6,23 @@
 > 状态：进行中 / 已定 / 已废弃。完成后移入 `changes.md`，或直接删除。
 > 细则以 `docs/architecture/*.md` 与代码为准，本文件只记「还没做 + 在做」。
 
+## 书面语（2026-09-26 立项；全仓已清零，门禁已阻断）
+
+> 方向见 `decisions.md`「书面语（2026-09-26 定 + 全仓已落，门禁已阻断）」。
+> 标准本体 = `tools/prose.py` 的 `_LEXICON`；规则 `rules/references/prose.md`；门禁在 pre-commit + CI。
+
+- [x] **片 1 · 工具与标准**：`tools/prose.py` + `rules/references/prose.md` + 路由表 +
+  `AGENTS.md` 命令 + pre-commit 钩子 + CI 步骤 + `tests/tools/test_prose.py`。
+- [x] **片 2 · 全仓清洗**：118 处命中 → 0 处；含架构文档 13 篇、规则与记忆、
+  `src/core` / `src/feature` / `src/ui_tools` / `tests` 的 docstring、向导与术语页、README。
+- [x] **片 3 · 误报治理与转阻断**：词典加行首例外 `Term.not_at_line_start`（三叹号 admonition
+  不再误报），余下命中清零后，`ci.yml` 与 pre-commit 的书面语步同步转为**阻断式**。
+- [ ] **片 4 · 词典扩容（持续）**：目前只收**歧义为零**的标记；后续发现新口语词时追加进
+  `_LEXICON`（并在 `changes.md` 记一句）。**已在代码审查中发现的候选**：泛用动词「搞」系
+  （需精确正则）、非正式省略的收尾语气——均需先确认歧义再收。
+- [ ] **片 5 · 英文文档**：现无英文文档，词典亦无英文条目；将来加 `docs/en/` 时需补英文口语规则
+  （第二人称、缩写等）。
+
 ## 文档体系（2026-09-26 立项；第一片已落，见 `changes.md`）
 
 > 方向见 `decisions.md`「文档（2026-09-26 定 + 已落）」：手写事实源 + 自动生成两条线，不许合并。
@@ -160,9 +177,5 @@
 - [ ] **OCR 评审 findings 清理**（进行中）：清单与分诊见 `docs/review/ocr-2026-09-22.md`；
   A 类分批批修已到 PR #18（第七批）、C 类档 1「删 / 简化 9 项」已落 PR #19；
   **清单表头仍停在 PR #16、计数待重算**（文件内勾选项 170：已勾 127 / 未勾 43）；余 B 类补文档、C 类待议。
-  PR #20（内核重建）的**新一轮评审**（三轮 65 条）已整改，见 `changes.md` 2026-09-26 条。
-- [ ] **书面语清扫余量**（PR #20 起为报告模式）：全仓仍有 **8 处命中**——5 处为真实口语
-  （`docs/guides/quickstart.md` 2、`docs/contributing/docs.md` 2、`docs/guides/conventions.md` 1、
-  `src/ui_tools/core/qt.py` 1），另 3 处是**误报**：行首三叹号是 MkDocs admonition 语法，
-  而词典的「重复感叹号」条目把它当非正式标点。
-  **该误报挡住"清零后转阻断门禁"这条路**：需先给词典加行首例外（或行内豁免标记），再清洗这 5 处。
+  PR #20（内核重建）与 PR #21（配置引擎）的**新一轮评审**（65 条 + 49 条）已整改，
+  见 `changes.md` 2026-09-26 两条。

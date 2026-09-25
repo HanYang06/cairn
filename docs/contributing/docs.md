@@ -29,7 +29,7 @@ uv run mkdocs build --strict   # 与 CI 同口径：坏链接 / 缺页面 / 未�
 
 ## 写作口径
 
-- **中文**，与现有文档一致；术语按「[术语表](../reference/glossary.md)」，别自造同义词。
+- **中文**，与现有文档一致；术语按「[术语表](../reference/glossary.md)」，不得自造同义词。
 - **未实现的功能不得写成已实现**：未做的部分写「预留 / 草案 / 待定」，并说清现状。
   文档与代码不符的代价，是本项目最高的一项成本。
 - **代码是唯一事实**：`docs/architecture/*.md` 与实现冲突时，改实现后**回写文档**
@@ -62,7 +62,7 @@ uv run mkdocs build --strict   # 与 CI 同口径：坏链接 / 缺页面 / 未�
 
 !!! warning "一个仓库只能有一个往 Pages 发布的工作流"
 
-    GitHub 在开启 Pages 时会引导你生成一份 `jekyll-gh-pages.yml`（Jekyll 模板，从**仓库根**构建）。
+    GitHub 在开启 Pages 时会自动生成一份 `jekyll-gh-pages.yml`（Jekyll 模板，从**仓库根**构建）。
     它和本站的 `docs.yml` **抢同一个 `github-pages` 环境**：两者都在 `push main` 时跑、
     都往站点根目录发布，谁后跑完谁覆盖——**站点会在两个版本之间反复跳**，而且都不报错。
     本站用的是 MkDocs，所以那份 Jekyll 模板**已删除**；若它再被生成出来，直接删掉。
