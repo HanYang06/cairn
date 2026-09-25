@@ -15,7 +15,8 @@ import mimetypes
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, BinaryIO
 
-from core.storage import Attr, Block, BodyField
+from core.storage import Block, BodyField
+from core.types.attr import Attr
 
 from .base import normalize_tags
 from .kinds import Kind
@@ -91,7 +92,7 @@ class AssetData(Block):
     @classmethod
     def create(  # noqa: PLR0913 — 构造入口参数面，均有默认值
         cls,
-        vault: Any,
+        core: Any,
         source: Source,
         *,
         name: str | None = None,
@@ -101,7 +102,6 @@ class AssetData(Block):
     ) -> AssetData:
         """入库一个资产：先转码，再落盘（数据结构的构造入口）。"""
         data = cls()
-        data._vault = vault
         raw = _read_source(source)
         original = mime or (mimetypes.guess_type(name)[0] if name else None)
         encoded, unified = transcode(raw, original)  # ← 入库先转码
@@ -113,7 +113,7 @@ class AssetData(Block):
         data.tags = tags or {}
         if props:
             data.attrs["props"] = dict(props)
-        data.save()
+        core.put(data)
         return data
 
 

@@ -4,9 +4,15 @@
         "ms-python.vscode-pylance",
         "charliermarsh.ruff",
         "ms-python.mypy-type-checker",
-        "theqtcompany.qt-python"
+        "theqtcompany.qt-python",
+        "EditorConfig.EditorConfig",
+        "TrevorNesbitt.smart-file-templates"
     ],
     "unwantedRecommendations": [
         "ms-python.isort"
-    ]
+    ],
+    // 说明见 .agents/skills/rules/references/spdx.md：
+    // - EditorConfig.EditorConfig：VS Code 不像 PyCharm 那样原生读 .editorconfig，需要它；
+    // - TrevorNesbitt.smart-file-templates（MIT）：新建文件时按 .fileTemplates.json 的规则套模板。
+    //   同类里 rioj7/vscode-file-templates 仓库没有 LICENSE（默认保留所有权利），故不推荐。
 }

@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+#
+# 工程级编辑器约定：PyCharm 原生读；VS Code 需装 `EditorConfig.EditorConfig` 扩展
+# （已在 .vscode/extensions.json 推荐）。这里只写「库里事实上一致」的项，不猜：
+# JSON / TOML 的缩进本来就有 2 和 4 两种，故不声明，免得编辑器一格式化就产生噪声 diff。
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+trim_trailing_whitespace = true
+
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.md]
+# Markdown 行尾两个空格是硬换行，不能裁
+trim_trailing_whitespace = false
+max_line_length = off
+
+[*.{png,jpg,jpeg,ico,svg,webp}]
+# 二进制 / 矢量素材：文本规则不适用（LFS 托管见 .gitattributes）
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset

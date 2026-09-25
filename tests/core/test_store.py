@@ -9,16 +9,15 @@ import pytest
 
 from core.storage import (
     INDEX_TYPE,
-    Attr,
     Block,
     Body,
     BodyField,
     Bucket,
     BucketConfig,
-    Data,
     canonical,
 )
 from core.types import CairnError, CorruptObjectError, ObjectNotFoundError
+from core.types.attr import Attr, Data
 
 if TYPE_CHECKING:
     from pathlib import Path

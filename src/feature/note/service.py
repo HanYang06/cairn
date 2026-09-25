@@ -10,8 +10,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from core.signal import Domain, Topic, action
-from core.storage import VersionStore
+from core.core import Core, Managed
+from core.types.event import Intent
+from core.types.kind import type_name
 
 from ..shared.asset import AssetData
 from ..shared.base import UNSET
@@ -41,10 +42,6 @@ from .edit import (
     text_weight,
     toggle_range_style,
 )
-from .edit import (
-    Line as LineDict,
-)
-from .versions import NOTE_CODEC
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
@@ -52,20 +49,22 @@ if TYPE_CHECKING:
     from core.types import Oid
 
 
-class Note(Domain):
-    """笔记域服务（单例）：创建 / 读写 / 落盘 / 版本 / 关系 / 编辑操作。"""
+class Note(Managed):
+    """笔记域服务：创建 / 读写 / 落盘 / 关系 / 编辑操作。
+
+    它是**受内核管辖的对象**（继承 `Managed` 即登记）；落盘经内核 `self.core.put(data)`。
+    版本**不在这里**：作者定「版本由各领域日后自建」，故本服务只做落盘，不留版本链。
+    """
 
     type = Kind.Feature.Note
+    name = "note"  # 内核表里的名字
     data = (NoteData, AssetData, CanvasData, GroupData)  # 本域用到的数据类（body 免列）
     light = [NoteData]  # noqa: RUF012 — 最小数据单元（可多个）
 
-    changed = Topic()
-
-    def __init__(self, vault: Any) -> None:
-        self.vault = vault
+    def __init__(self, core: Core) -> None:
+        super().__init__(core)  # 接内核：登记实例 + 记住内核
 
     # ---- 创建 / 读取 ----
-    @action
     def create(
         self,
         text: str = "",
@@ -74,9 +73,9 @@ class Note(Domain):
         tags: Iterable[str] | Mapping[str, Any] | None = None,
         props: dict[str, Any] | None = None,
     ) -> NoteData:
-        """新建一条笔记：落盘 + 记根版本，返回其数据。"""
+        """新建一条笔记：落盘，返回其数据。"""
         data = NoteData()
-        data._vault = self.vault  # noqa: SLF001 — 服务为数据绑定库，同包强耦合
+        data.core = self.core  # 数据对象身上带内核（它继承 Block，不继承 Managed）
         self.set_text(data, text)
         data.title = title
         data.tags = tags or {}
@@ -85,24 +84,28 @@ class Note(Domain):
         # 创作签名：锁在创建时的正文内容上（原始结构据此可找回；剥离行 id）
         subject = data.body.refresh().hash
         data.signature = Signature.create(author=data.author or "", subject=subject)
-        self.save(data, search_text=_search_text(title, text))
+        self.save(data)
         return data
 
-    @action
     def load(self, oid: Oid | str) -> NoteData:
-        """按 oid 载入一条笔记数据。"""
-        data: NoteData = NoteData.load(self.vault, oid)
-        data._saved_state = data._state()  # noqa: SLF001 — 记录落盘基线
+        """按 oid 载入一条笔记数据（经内核）。"""
+        data: NoteData = self.core.get(NoteData, str(oid))
+        data.core = self.core
         return data
 
-    @action
     def list_notes(
         self,
         *,
         tags: Iterable[str] | Mapping[str, Any] | None = None,
     ) -> list[NoteData]:
-        """列出笔记数据。"""
-        return [self.load(info.oid) for info in self.vault.iter(type=NOTE_KIND, tags=tags)]
+        """列出笔记数据（按标签筛选待补）。"""
+        del tags  # 按标签筛选待补：旧 iter 随内核重构移除
+        notes: list[NoteData] = []
+        for block_id in self.core.storage_ids():
+            block = self.core.get(NoteData, block_id)
+            if type_name(block.type) == type_name(NOTE_KIND):
+                notes.append(block)
+        return notes
 
     # ---- 正文操作（编辑器接线用；只改内存，落盘由 save / persist 负责）----
     def set_text(self, data: NoteData, text: str) -> None:
@@ -269,67 +272,24 @@ class Note(Domain):
         """清掉某行的全部段落属性。"""
         return self.set_paragraph(data, line_id, dict.fromkeys(data.paragraph(line_id)))
 
-    # ---- 落盘 / 版本 ----
-    @action
-    def save(self, data: NoteData, *, search_text: str | None = None) -> NoteData:
-        """落盘并**记一个版本检查点**（内容变了才追加补丁）。"""
-        if search_text is None:
-            search_text = _search_text(data.title, data.text)
-        previous = data._saved_state  # noqa: SLF001 — 域服务持有版本基线
-        data.save(search_text=search_text)  # Block.save：块级落盘
-        store = VersionStore(self.vault.bucket)
-        if previous is None:
-            store.root(data.id, NOTE_CODEC, data._state())  # noqa: SLF001
-        else:
-            current = data._state()  # noqa: SLF001
-            if current != previous:
-                store.commit(data.id, NOTE_CODEC, previous, current)
-        data._saved_state = data._state()  # noqa: SLF001
-        self.changed.emit(data.oid)
+    # ---- 落盘 ----
+    def save(self, data: NoteData) -> NoteData:
+        """落盘。版本由领域日后自建，这里只管存。"""
+        self.core.put(data)
+        self.notify(data)
         return data
 
-    @action
-    def persist(self, data: NoteData, *, search_text: str | None = None) -> NoteData:
-        """只**落盘当前内容**，不记版本（连续编辑中的自动保存用）。"""
-        if search_text is None:
-            search_text = _search_text(data.title, data.text)
-        data.save(search_text=search_text)
+    def persist(self, data: NoteData) -> NoteData:
+        """只**落盘当前内容**（与 `save` 同一条路；版本不在内核里）。"""
+        self.core.put(data)
         return data
 
-    @action
-    def history(self, data: NoteData) -> list[dict[str, Any]]:
-        """版本历史（最新在前）。"""
-        return VersionStore(self.vault.bucket).history(data.id)
-
-    @action
-    def body_at(self, data: NoteData, version: str) -> list[LineDict]:
-        """取指定版本的正文行序列。"""
-        state = VersionStore(self.vault.bucket).state_at(
-            data.id,
-            NOTE_CODEC,
-            data._saved_state or data._state(),  # noqa: SLF001 — 回放起点须为落盘基线
-            str(version),
-        )
-        body: list[LineDict] = state["body"]
-        return body
-
-    @action
-    def restore(self, data: NoteData, version: str) -> NoteData:
-        """把指定版本的正文/样式作为新版本写回（历史继续向前）。"""
-        state = VersionStore(self.vault.bucket).state_at(
-            data.id,
-            NOTE_CODEC,
-            data._saved_state or data._state(),  # noqa: SLF001 — 回放起点须为落盘基线
-            str(version),
-        )
-        data.body.text = normalize_body(state["body"])
-        data.body.style = coerce_style(state["style"], data.body.text)
-        data.body.refresh()
-        self.save(data)
-        return data
+    def notify(self, data: NoteData) -> None:
+        """把"这条笔记变了"作为**事件**发出去（不带角色 = 广播，谁关心谁听）。"""
+        del data
+        self.core.send(Intent.PUT)
 
     # ---- 属性 / 关系 / 嵌入 ----
-    @action
     def update(
         self,
         data: NoteData,
@@ -350,17 +310,15 @@ class Note(Domain):
         data.attrs["props"] = merged
         if text is not None:
             self.set_text(data, text)
-        self.save(data, search_text=_search_text(data.title, data.text))
+        self.save(data)
         return data
 
-    @action
     def link(self, data: NoteData, target: Oid | str, relation: str = "references") -> Any:
         """从本笔记向目标建一条关系。"""
         from ..shared.relation import Relation  # noqa: PLC0415 — 延迟导入，避免领域间加载期环
 
-        return Relation.create(self.vault, data.oid, target, relation=relation, domain="note")
+        return Relation.create(self.core, data.oid, target, relation=relation, domain="note")
 
-    @action
     def add_canvas(self, data: NoteData, canvas: CanvasData) -> str:
         """把一块画板嵌进正文：``canvas`` 追加其 oid，并在 body 末尾放占位。"""
         entry = str(canvas.oid)
@@ -369,7 +327,6 @@ class Note(Domain):
         self.save(data)
         return entry
 
-    @action
     def add_access(
         self,
         data: NoteData,
@@ -393,10 +350,6 @@ class Note(Domain):
     def _append_marker(self, data: NoteData, marker: dict[str, int]) -> None:
         data.body.text = [*data.body.text, {"id": new_id(), "v": marker}]
         data.body.refresh()
-
-
-def _search_text(title: str | None, text: str) -> str:
-    return f"{title or ''}\n{text}"
 
 
 __all__ = ["Note"]

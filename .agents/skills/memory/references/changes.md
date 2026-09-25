@@ -3,6 +3,116 @@
 
 # 变更
 
+- 2026-09-26 · 已定 · **删掉 GitHub 给的 Jekyll Pages 模板**（作者从 GitHub 捞回 `.github/workflows/jekyll-gh-pages.yml`，
+  确认后删除）：它是 GitHub 开启 Pages 时引导生成的起始模板（**无 SPDX 头**、`checkout` → `jekyll-build-pages`
+  从**仓库根** `./` 构建到 `./_site` → `upload-pages-artifact` → `deploy-pages`），
+  触发面是 **`push main` 全量**（无 path 过滤）+ 手动，**与 `docs.yml` 抢同一个 `github-pages` 环境**
+  （两边都往站点根发布、都在 push main 跑；并发组一个 `pages` 一个 `pages-<ref>`，**互不取消**）
+  → 谁后跑完谁覆盖，**站点在两个版本间反复跳且都不报错**。
+  且其产物是把**整个仓库**当静态站发（`.agents/skills/`、`.github/`、`src/`、`tests/`、`tools/`、
+  `uv.lock`、`.coverage`… 全在根目录），只有 README 当首页，**没有导航 / 搜索 / 侧栏 / API 参考**。
+  MkDocs 站点已是 docs/ 的严格投影，两者**功能不互补、只互斥**。
+  已删文件；并在 `docs/contributing/docs.md` 加 warning 说明"一个仓库只能有一个 Pages 发布工作流"、
+  它可能再被 GitHub 生成出来、直接删。验证：`mkdocs build --strict` 通过、SPDX 合规、docgen 不漂移
+  （本仓 `docs/**` 无 `{{ }}` / front matter，故那条 Jekyll 构建本身不会炸——问题只在抢发布）。
+- 2026-09-26 · 已定 · **文档生成补真：配置参考页由工具投影 + docstring 覆盖报告**（按作者口径
+  "正经的文档生成是零、手写的倒是一大堆"修正——**该口径成立**，先量后补）：
+  实测四个 API 页面 409 KB 里 **93% 是工具产出**（docstring 179 KB + 签名 76 KB + 源码块 147 KB），
+  但那些 docstring 本来就是人写在代码里的；**"机器已有事实源直接投影"的页面此前一个都没有**。
+  新增 `tools/docgen.py`：
+  ① **配置参考页** `docs/reference/config.md`（**入库**）由 `schema/settings.json`
+  （配置引擎生成物）整页现算生成——SPDX 头 / 「勿手改」声明 / 全表都由生成器给，
+  **正文零手写**；`--check` 防漂移（已进 `ci.yml` 与 `docs.yml`），`--write` 重新生成。
+  ② **docstring 覆盖率报告** `--coverage`：AST 统计公共类 / 函数，暴露一个此前不可见的事实——
+  **公共成员 579 个、117 个没写 docstring**，因 `show_if_no_docstring: false`
+  而**从 API 页里静默消失**。阈值 `DOCSTRING_MIN=0.95` 暂未接门禁（现状 79.8%，一接就红），
+  CI 先只出报告。新增 `tests/tools/test_docgen.py`（7 例，含"入库页与词表一致"的防漂移断言）。
+  **已遇问题**：MkDocs 构建钩子**不能放 `docs/` 里**——`docs/` 被当包目录（`docs.hooks`），
+  与 Python 包导入撞名后**钩子被静默忽略**（不报错、不警告、事件一次都不触发）；
+  排查手法 = 让钩子方法直接 `raise`，构建不炸即证明没加载。结论：**能用生成文件解决就别上钩子**
+  （生成物入库 + `--check` 可比对，比"构建时注入"好验证）；坑已写进 `rules/references/docs.md`。
+- 2026-09-26 · 已定 · **配置片 2：接线（声明真的驱动行为）**：
+  `BucketConfig` 的默认值不再写死，改由存储自己的声明供值——新增
+  `storage.block.max_bytes`（分片粒度）声明，三项在 `__post_init__` 里按声明补齐
+  （`field=None` + `object.__setattr__`）；`Bucket.create` 仍把解析后的值存进目录、重开读回，
+  **老库不被新默认值悄悄改掉**。`core.log.level` 在导入 `core` 时设到 `core.*` 这族 logger
+  （不劫持 root，处理器仍归应用）。投影写值文件改为**按声明顺序排列**（在册在前、用户自加在后，
+  只调顺序不动值）。一并删掉 `src/core/storage/db__engine.py`（空骨架、文件名多一个下划线）——
+  `DB` 的设计等作者讲完再落，不抢跑。测试 344 通过、覆盖率 86%。
+- 2026-09-26 · 已定 · **文档体系落地（手写 + 自动生成两条线）**：
+  新增文档站 `mkdocs.yml`（MkDocs + Material；`site_url` = `https://hanyang06.github.io/cairn/`，
+  `strict: true`，`nav` 把 `docs/**` 全量登记，Mermaid 围栏已开，中文搜索 `lang: [zh, en]`）；
+  dev 依赖加 `mkdocs-material`（**MIT**）+ `mkdocstrings[python]`（**ISC**，构建期依赖、不进运行期）；
+  `plugins.mkdocstrings.handlers.python.paths: [src]`，故指令直接写 `::: core`（不带 `cairn.` 前缀）。
+  **手写文档**：`docs/index.md`（落地页）、`docs/architecture/index.md`（**逐篇标状态 + 权威顺序
+  「代码 > 具体篇 > 总纲 > 记忆」**）、`docs/guides/`（quickstart / development / conventions）、
+  `docs/contributing/`（index / docs / license，许可页用 `pymdownx.snippets` 内联 `LICENSE` + `NOTICE`）、
+  `docs/reference/glossary.md`（术语表，含 `body_hash` vs `body.hash` 这类易混词）。
+  **自动生成**：`docs/api/{index,core,feature,ui-tools,app}.md`，`show_submodules: true` 递归渲染
+  四个顶层包的全部子模块；**API 说明一律不手写**。
+  部署：`.github/workflows/docs.yml`（`main` 的文档变更 → strict 构建 → Pages；PR 只做构建门禁）。
+  `README.md` 重写为**稳定门面**（不再复制会长大的「现状」，只放入口 + 定位 + 最短命令）。
+  一并修正 README 里三条滞后事实：`src/conf`→`core/conf`、`src/ui`→`ui_tools`+`app/win`、
+  `src/net`/`src/server` 标注为已删待重设（旧文写着"界面层 PySide6 整体移除"与现状不符）。
+  新增规则 `rules/references/docs.md`（两类文档 / nav 登记 / 链接 / README 不重复）并入路由表；
+  `AGENTS.md` 加 mkdocs 命令与文档红线；`.gitignore` 加 `site/` + `.uv-cache/`，
+  `REUSE.toml` 兜底声明 `site/**`。
+  验证：`mkdocs build --strict` 通过（11s，无 warning）、SPDX 228 文件合规（新增 20 个文件单独复核）、
+  ruff check / format、mypy(93 文件) 全绿；pytest **217 通过 / 124 个环境错误**——错误全部发生在
+  pytest 的 `tmp_path` 夹具建临时目录时（`PermissionError: WinError 5`，本会话沙箱拒绝枚举
+  pytest 自建临时目录），**与本次改动无关**（本次只动文档、配置与忽略清单，未碰任何被导入的代码）。
+  备注：`jieba`（中文搜索分词）**未引入**——其 sdist 在本沙箱构建失败；Material 对 CJK 有字符级回退，
+  搜索可用。原生扩展类依赖在本机 `uv sync` 时会踩权限坑，必要时用 `UV_CACHE_DIR` 指到仓库内。
+- 2026-09-26 · 已定 · **配置引擎修正：hub 恢复 + 重名检查**（作者批评"硬砍 hub 是偷懒"）：
+  hub 作为**命名空间**回到投影路径——`config/<hub>/<包树>/…`、`schema/<hub>/…`、总词表
+  `schema/<hub>.json`，默认 hub = `settings`（避开 `config/config` 那种迷糊）；新增
+  `ConfEngine.conflicts()` 与 `ConfigConflictError`：目标路径上压着"不是本引擎写的"文件
+  （`$schema` 指向别处 / 无标记且无本引擎登记的键 / 读不成 JSON）一律**拒写**，
+  `tools/gen_conf.py` 逐条列出让人搬迁或换 hub。新增
+  `test_repo_projections_match_declarations`（跑真工具断言仓库投影与声明一致）。
+  投影改为 `config/settings/core/{conf/params,storage/conf}.json` ↔ `schema/settings/…`；测试 16 例。
+- 2026-09-26 · 已定 · **配置引擎第一片落地（声明即事实，两个投影落盘）**：
+  新增 `src/core/types/cfg.py` 的 `Cfg`（与 `Attr` 同族的工具单元：类体里绑上即报到，读属性即取值）、
+  `src/core/conf/`（`engine.py` 引擎 + `schema.py` 词表生成 + `errors.py` + `params.py` 内核自己那组声明）、
+  `tools/gen_conf.py`（`--check` 防漂移）、`tests/core/test_conf.py`（13 例）、
+  `docs/architecture/config.md`（用法契约）；`CONFIG_PATH` / `CONFIG_FILE_TYPE` 归位到引擎。
+  **配置各管各的**：存储那组声明在 `src/core/storage/conf.py`（不是在 `core/conf` 里替它管）；
+  投影为 `config/<hub>/<包树>/…` ↔ `schema/<hub>/<包树>/…`（hub 见下一条修正）。
+  试水 4 条（`core.log.level` / `storage.pack.max_blocks` / `storage.pack.max_bytes` /
+  `storage.version.retention_days`），**尚未接实现**（`Bucket` 仍读自己的 `BucketConfig`）。
+  顺带：**删掉 `core/types/action.py`**（`@action` / `actions_of` 全库无人用，作者确认清理）。
+  已遇问题记录：`core/__init__.py` 里 `from .conf import conf` 会把**实例**绑到 `core` 上，
+  反过来遮住 `core.conf` 子模块（`import core.conf` 拿到实例）——**不要在 `core/__init__` 里转出同名对象**；
+  包名与同名子模块也会互相覆盖，故内核自己的声明模块叫 `params.py`。
+  门禁：ruff / format / mypy(93 文件) / pytest(338 通过、覆盖率 86%) / SPDX / `gen_conf --check` 全绿。
+- 2026-09-25 · 已定 · **编辑器层落地（便利层，不是约定）**：新增 `.editorconfig`（工程级编码 / 行尾 /
+  缩进约定；**PyCharm 原生读，VS Code 需 `EditorConfig.EditorConfig` 扩展**，已进推荐位）；
+  `.vscode/spdx.code-snippets`（`hdr` / `skill` 片段）、`.vscode/tasks.json`（补头 / 全库校验两个任务，
+  调同一个 `tools/spdx.py`）、`.vscode/templates/*.template` + 根 `.fileTemplates.json`
+  （配合 `TrevorNesbitt.smart-file-templates`，**MIT**；同类 `rioj7/vscode-file-templates`
+  **无 LICENSE**，不推荐）；`.gitignore` 放行这几个文件。
+  工具侧补两处能力：无扩展名文件按 `_NAMED_STYLES` 认领（`.editorconfig` / `.gitignore` / `.gitattributes`，
+  故从 `REUSE.toml` 移出、改回内联头并纳入校验）、支持绝对路径入参（编辑器 `${file}` / `$FilePath$`）。
+  修 `.vscode/settings.json` 里指向旧路径 `D:\Project\Cairn\` 的 `qtForPython.qmlls.path`（改 `${workspaceFolder}`）。
+- 2026-09-24 · 已定 · **SPDX 头自动化（不再手抄）**：新增 `tools/spdx.py`（`--check` / `--fix`，纯标准库、
+  mypy strict、幂等）与根 `REUSE.toml`（集中声明图片 / JSON / 锁文件 / `LICENSE` / `NOTICE` / 第三方
+  vendored 的许可），`.pre-commit-config.yaml` 加 `spdx-headers` 钩子（缺头自动补，补完需重新 add）；
+  `rules/references/spdx.md` 重写为「写 / 查 / 兜底」三层机制，AGENTS.md 加命令与红线指引。
+  顺带补齐 `docs/architecture/kernel-m1-plan.md` 缺失的头 → **206 个入库文件全部合规**。
+  许可核实：`Lucas-C/pre-commit-hooks`（`insert-license`）= MIT，可用但未采用；
+  `fsfe/reuse-tool` = **GPL-3.0-or-later**，按红线不引入，仅沿用其 `REUSE.toml` 数据格式。
+- 2026-09-24 · 已定 · **AGENTS.md 事实修正**（随 SPDX 任务一并）：UI 落点改为 `src/ui_tools/` +
+  `src/app/win/`；`core/storage/` 去掉已不存在的「版本引擎」；`src/net` / `src/server` 标注为已删、待重设。
+- 2026-09-24 · 已定 · **记忆 / 规格按代码对齐（纯文档，无代码改动）**：核对内核重构落点，纠正三处失真——
+  ① M3 工具单元**不在 `core/tool/`**（该层未成包），实际落 `core/types/attr.py` + `core/types/action.py`，
+  且 **`Topic` 随重建移除**（无独立多播机制，广播走 `core.send(Intent.*)`）；
+  ② **`VersionStore` / `core/storage/version.py` 已不存在**，版本能力整体缺失（只剩 `note/versions.py` 的
+  `NoteCodec`），Q7 由"归属待定"更正为"**装回哪儿**"，并记下规格（倾向 A）与 `Note.save` 注释（倾向 B）不一致；
+  ③ 旧 `core/signal`（`events` / `bus` / `service`）已废，现为 `signal.py` 的引擎（`Signal` + `Subscription`）。
+  `kernel-spec.md` 升 v1.4、`progress.md` 同步；另记 OCR 清单表头停在 PR #16（实际已到 #19）。
+- 2026-09-24 · 已定 · **内核重建收尾**（`refactor/kernel-object-core`）：`b1e5995` 按作者口述重建内核
+  （`Core` 单例 + 两张对象表 + 引擎由内核自建）、`c35bebd` 引擎不是"可缺的挂件"、`516e7e7` 收掉旧结构残留、
+  全库转绿（收尾后实测 325 通过 / 覆盖率 85%）。
 - 2026-09-22 · 已定 · **OCR 评审（open-code-review）真问题批修**（分支 `fix/ocr-review-batch1`）：
   存储——`catalog` 版本 fail-closed（不降级覆写）、`bucket` 校验改用目录 checksum、块元数据损坏报错、
   事务回滚截断已写 pack 字节、`table.upsert` 真 upsert（`ON CONFLICT DO UPDATE`）、`version.compact` 只裁链尾；

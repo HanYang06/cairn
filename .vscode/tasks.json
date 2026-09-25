@@ -1,0 +1,27 @@
+{
+  // 复用同一个 tools/spdx.py（与 pre-commit / CI 同一份实现，不另立一套规则）。
+  // 工作区不支持键位绑定，想绑快捷键就在**用户级** keybindings.json 里加：
+  //   { "key": "ctrl+alt+h", "command": "workbench.action.tasks.runTask", "args": "SPDX: 给当前文件补头" }
+  // PyCharm 侧可以用 External Tools 调同一条命令（Program: uv，Arguments: run python tools/spdx.py --fix $FilePath$）。
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "SPDX: 给当前文件补头",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "python", "tools/spdx.py", "--fix", "${file}"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "SPDX: 全库校验",
+      "type": "shell",
+      "command": "uv",
+      "args": ["run", "python", "tools/spdx.py", "--check"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    }
+  ]
+}

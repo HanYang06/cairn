@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core import Vault
 from core.storage import Block
+from tests.conftest import make_kernel
 from ui_tools.component import Button, CardStage, Component, Label
 from ui_tools.core import App, Facet, Slot, UiError
 from ui_tools.core.bridge import Bridge
@@ -113,17 +113,17 @@ def test_button_binding_clicks() -> None:
 
 
 def test_bridge_emits_qt_signal(tmp_path: Path) -> None:
-    vault = Vault.create(tmp_path / "vault")
-    session = Session(vault.signal)
+    core = make_kernel(tmp_path)
+    session = Session(core.signal)
     bridge = Bridge(session)
     seen: list[object] = []
     bridge.changed.connect(seen.append)
 
-    vault.put_block(Block(body=b"x"))
+    core.put(Block(body=b"x"))
 
     assert len(seen) == 1
     bridge.close()
-    vault.close()
+    core.close()
 
 
 def test_scroll_slot_keeps_stretch() -> None:

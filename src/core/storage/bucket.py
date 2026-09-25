@@ -210,9 +210,9 @@ class Bucket:
         return Table(self.catalog.conn, name)
 
     def mount(self, cls: builtins.type[Block]) -> builtins.type[Block]:
-        """挂载领域类型：调用其 ``bind`` 完成关联建表等动作（幂等）。"""
+        """挂载领域类型：调用其 ``bind_tables`` 完成关联建表等动作（幂等）。"""
         if cls not in self._mounted:
-            cls.bind(self)
+            cls.bind_tables(self)
             self._mounted.add(cls)
         return cls
 

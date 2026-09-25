@@ -1,0 +1,56 @@
+{
+  // SPDX 头片段：新建文件后打 hdr + Tab 即可（比手抄快，且不会写错年份）。
+  // 真正兜底的是 pre-commit 的 spdx-headers 钩子与 CI，这里只是省一次来回。
+  "Cairn SPDX header (hash)": {
+    "scope": "python,toml,yaml,yml,ini,makefile,shellscript",
+    "prefix": "hdr",
+    "body": [
+      "# SPDX-FileCopyrightText: 2026 HanYang06",
+      "# SPDX-License-Identifier: Apache-2.0",
+      "",
+      "$0"
+    ],
+    "description": "SPDX 头（# 注释：py / toml / yml …）"
+  },
+  "Cairn SPDX header (html)": {
+    "scope": "markdown,html,xml,svg",
+    "prefix": "hdr",
+    "body": [
+      "<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->",
+      "<!-- SPDX-License-Identifier: Apache-2.0 -->",
+      "",
+      "$0"
+    ],
+    "description": "SPDX 头（<!-- --> 注释：md / html / svg）"
+  },
+  "Cairn SPDX header (semicolon)": {
+    "scope": "ini",
+    "prefix": "hdr;",
+    "body": [
+      "; SPDX-FileCopyrightText: 2026 HanYang06",
+      "; SPDX-License-Identifier: Apache-2.0",
+      "",
+      "$0"
+    ],
+    "description": "SPDX 头（; 注释：Inno Setup 的 .iss）"
+  },
+  "Cairn SKILL.md frontmatter + SPDX": {
+    "scope": "markdown",
+    "prefix": "skill",
+    "body": [
+      "---",
+      "name: ${1:skill-name}",
+      "description: \"${2:一句话说明这个技能干什么、什么时候用}\"",
+      "license: Apache-2.0",
+      "---",
+      "",
+      "<!-- SPDX-FileCopyrightText: 2026 HanYang06 -->",
+      "<!-- SPDX-License-Identifier: Apache-2.0 -->",
+      "",
+      "# ${3:标题}",
+      "",
+      "$0"
+    ],
+    "description": "SKILL.md 骨架（frontmatter 最顶 + SPDX 紧随其后）"
+  }
+}

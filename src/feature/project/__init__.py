@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from core.signal import Domain, action
-from core.storage import Attr, Block, BodyField
+from core.core import Core, Managed
+from core.storage import Block, BodyField
 from core.types import Oid
+from core.types.attr import Attr
 
 from ..shared.base import UNSET, normalize_tags
 from ..shared.kinds import Kind
@@ -46,17 +47,18 @@ class ProjectData(Block):
         return None if value is None else str(value)
 
 
-class Project(Domain):
+class Project(Managed):
     """项目域服务（单例）：创建 / 载入 / 更新 / 成员关系。"""
 
     type = Kind.Feature.Project
+    name = "project"  # 门户上的寻址键
     data = (ProjectData,)  # 本域用到的数据类
     light = [ProjectData]  # noqa: RUF012 — 最小数据单元（可多个）
 
-    def __init__(self, vault: Any) -> None:
-        self.vault = vault
+    def __init__(self, core: Core) -> None:
+        super().__init__(core)  # 接门户（登记 + 记住）
+        self.core = core
 
-    @action
     def create(
         self,
         name: str,
@@ -67,23 +69,21 @@ class Project(Domain):
     ) -> ProjectData:
         """新建项目并落盘。"""
         data = ProjectData()
-        data._vault = self.vault  # noqa: SLF001 — 服务为数据绑定库
         data.title = name
         merged = dict(props or {})
         if description is not None:
             merged["description"] = str(description)
         data.attrs["props"] = merged
         data.tags = tags or {}
-        data.save()
+        self.core.put(data)
         return data
 
-    @action
     def load(self, oid: Oid | str) -> ProjectData:
-        """按 oid 载入项目数据。"""
-        data: ProjectData = ProjectData.load(self.vault, oid)
+        """按 oid 载入项目数据（经内核）。"""
+        data: ProjectData = self.core.get(ProjectData, str(oid))
+        data.core = self.core
         return data
 
-    @action
     def update(
         self,
         data: ProjectData,
@@ -107,10 +107,9 @@ class Project(Domain):
         if tags is not None:
             data.tags = tags
         data.attrs["props"] = merged
-        data.save()
+        self.core.put(data)
         return data
 
-    @action
     def add_member(
         self,
         data: ProjectData,
@@ -120,15 +119,14 @@ class Project(Domain):
     ) -> Relation:
         """把一个对象加为项目成员（已存在则返回既有边，保证幂等）。"""
         target = Oid.parse(str(member))
-        for edge in Relation.outbound(self.vault, data.oid, relation=relation):
+        for edge in Relation.outbound(self.core, data.oid, relation=relation):
             if edge.target == target:
                 return edge
-        return Relation.create(self.vault, data.oid, member, relation=relation, domain="project")
+        return Relation.create(self.core, data.oid, member, relation=relation, domain="project")
 
-    @action
     def members(self, data: ProjectData) -> list[Oid]:
         """项目成员（``contains`` 边的目标）。"""
-        return [edge.target for edge in Relation.outbound(self.vault, data.oid, relation=CONTAINS)]
+        return [edge.target for edge in Relation.outbound(self.core, data.oid, relation=CONTAINS)]
 
 
 __all__ = ["CONTAINS", "PROJECT_KIND", "PROJECT_SCHEMA", "Project", "ProjectData"]

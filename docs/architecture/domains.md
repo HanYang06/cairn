@@ -6,7 +6,18 @@
 > 承接 [`storage.md`](./storage.md)（L0 桶 / 块）与 [`data-model.md`](./data-model.md)（对象模型总纲）。
 > 本文定义**领域层是什么**、怎么扩展，以及日志的分层约定。
 
-状态：**草案 v0.3**（按「域 / 数据两分支」重写；旧 `cairn.<domain>.<kind>` 命名空间与「五域」表述作废）
+状态：**草案 v0.4**（2026-09-22 按内核重构定向回写；旧 `cairn.<domain>.<kind>` 命名空间与「五域」表述作废）
+
+> **2026-09-22 方向更新（以 [`kernel-spec.md`](./kernel-spec.md) v1.2 为准）**：
+>
+> - **域服务经门户接入**：`class Note(Domain)` + `Note(core)`（构造即接门户、登记进实例管理）；
+>   旧的 `Domain.bind(signal)` / `_signal` / 地址树**已删除**。域的对外面是门户上的
+>   **行动作**（`@action` 标注，解析器扫描成表）与**多播声明**（`Topic`）。
+> - **`name` 改为域自报短名**（`note` / `project`），**不再是模块路径**——它是门户上的**寻址键**。
+> - **字段标注 `Attr` / `Data` 已归工具单元** `core/tool/attr.py`（不属存储层；`core.types` 不再转出）。
+> - **"域 / 数据两分支"仍是现状描述**，但**不再由"是否继承 `Block`"定义对象身份**：
+>   对象与块分离是 M4 的活（kernel-spec §5 剥离项）；本节表格按现状记录，方向以规格为准。
+> - 跨模块行为**必须经门户**（`core.portal`）；过渡期域服务仍读 `core.storage.bucket`（M4 收口）。
 
 ---
 
@@ -50,19 +61,28 @@ class Kind:
 ```python
 class Note(Domain):
     type = Kind.Feature.Note  # 身份（缺省 = 类名小写）
-    # name 缺省 = 定义它的模块路径：**解析键，不是显示名**（显示名是 UI 的事）
+    name = "note"  # 门户上的**寻址键**（短、稳定、唯一；缺省 = 模块路径）
     data = (NoteData, AssetData, CanvasData, GroupData)  # 本域用到的数据类（body 免列）
     light = [NoteData]  # 最小数据单元（可多个）
+
+    def __init__(self, core: Core) -> None:
+        super().__init__(core)  # 接门户：登记进实例管理 + 记住门户
+        self.core = core
 ```
 
-- `name`：解析键，自动派生；**领域不写显示名**（UI 侧给 title）。
+- `name`：门户上的**寻址键**（`core.get("note")` / 事件包的 `role` 命中它）；**领域不写显示名**
+  （显示名是 UI 的事）。缺省填模块路径，域应自报短名。
 - `data`：声明本域用到的数据类；`light`：最小数据单元——UI 的 `Show` 据此归集显示素材。
 - 域服务方法（`@action` 或普通方法）**以 data 为首参**；资源本体在数据块里，域只给语义与策略。
+- 跨模块调用经**门户**：`self.changed.emit(self.portal, data.oid)`；`@action` 供解析器扫描成行动作表。
 - 红线：**不改 `Block` 顶层字段**；**不 import 兄弟域**（跨域协作归 App）。
 
 ## 4. 数据的标准形
 
 ```python
+from core.tool.attr import Attr  # 字段标注工具（不属存储层）
+
+
 class NoteData(Block):
     type = Kind.Data.Notedata
     body: NoteBody = NoteBody()  # 结构化 body；裸 body 用 BodyField()

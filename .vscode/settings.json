@@ -1,12 +1,10 @@
 {
     "python.REPL.enableREPLSmartSend": false,
     "python.languageServer": "Pylance",
-    "python.analysis.autoImportCompletions": true,
     "python.analysis.languageServerMode": "full",
-    "qtForPython.qmlls.path": "D:\\Project\\Cairn\\.venv\\Lib\\site-packages\\PySide6\\qmlls.exe",
+    "qtForPython.qmlls.path": "${workspaceFolder}/.venv/Lib/site-packages/PySide6/qmlls.exe",
     "python.analysis.autoFormatStrings": true,
     "python.analysis.autoTranslateDocstrings": true,
-    "python.analysis.completeFunctionParens": true,
     "python.analysis.diagnosticsSource": "Pylance",
     "mypy-type-checker.path": [
         "${workspaceFolder}/.venv/Scripts/mypy.exe"
@@ -73,5 +71,6 @@
     "files.insertFinalNewline": true,
     "files.simpleDialog.enable": true,
     "python.terminal.activateEnvironment": false,
-    "python.analysis.typeCheckingMode": "off"
+    "python.analysis.typeCheckingMode": "off",
+    "chat.disableAIFeatures": false,
 }

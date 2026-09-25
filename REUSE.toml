@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+#
+# REUSE 集中清单（REUSE 规范的 `REUSE.toml`，取代旧的 `.reuse/dep5`）。
+#
+# 它只负责一类文件：**装不下内联 SPDX 头的**——二进制素材、JSON（没有注释语法）、
+# 锁文件与生成物、法律文书本身、以及第三方 vendored 技能。
+# 能写内联头的源文件 / 文档仍写内联头，由 `tools/spdx.py` 负责插入与检查。
+#
+# 注意：`reuse` 那个 CLI 工具本体是 GPL-3.0-or-later，与本项目红线冲突，故**不引入**；
+# 这里采用的只是它定义的**数据格式**，由本仓库自己的 `tools/spdx.py` 读写。
+
+version = 1
+
+# —— 自有素材与数据：图标 / 启动图 / 画布形状 / 主题 / schema / 编辑器配置 ——
+[[annotations]]
+path = [
+  "assets/**",
+  "config/**",
+  "schema/**",
+  ".vscode/**",
+  "skills-lock.json",
+]
+SPDX-FileCopyrightText = "2026 HanYang06"
+SPDX-License-Identifier = "Apache-2.0"
+
+# —— 工具与生成物：库锁、Python 版本、文档站构建产物 ——
+# `.gitignore` / `.gitattributes` / `.editorconfig` 能写 `#` 注释，故仍写内联头（由 tools/spdx.py
+# 按文件名认领并校验），不进这份清单。
+# `site/**` 是 `mkdocs build` 的产物（已 gitignore）；这里声明只是兜底——
+# `tools/spdx.py` 走 `git ls-files`，本来就不会把它算进"无主文件"。
+[[annotations]]
+path = [
+  "uv.lock",
+  ".python-version",
+  "site/**",
+]
+SPDX-FileCopyrightText = "2026 HanYang06"
+SPDX-License-Identifier = "Apache-2.0"
+
+# —— 编辑器模板扩展（TrevorNesbitt.smart-file-templates，MIT）的配置 ——
+[[annotations]]
+path = [".fileTemplates.json"]
+SPDX-FileCopyrightText = "2026 HanYang06"
+SPDX-License-Identifier = "Apache-2.0"
+
+# —— 法律文书本身（不给自己加头）——
+[[annotations]]
+path = [
+  "LICENSE",
+  "NOTICE",
+]
+SPDX-FileCopyrightText = "2026 HanYang06"
+SPDX-License-Identifier = "Apache-2.0"
+
+# —— 第三方 vendored 技能：保持上游原样，许可依上游 ——
+# 来源与 hash 见 `skills-lock.json`。
+[[annotations]]
+path = [".agents/skills/skill-creator/**"]
+SPDX-FileCopyrightText = "Anthropic, PBC"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = [".agents/skills/git-commit/**"]
+SPDX-FileCopyrightText = "GitHub, Inc."
+SPDX-License-Identifier = "MIT"

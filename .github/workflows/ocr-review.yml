@@ -66,6 +66,8 @@ jobs:
           llm_model: deepseek-flash
           llm_use_anthropic: 'false'
           language: Chinese
+          # 显式给 PR 号：action 自行从载荷解析时会失败（实测报 "not a positive integer"），给出即稳定命中。
+          pr_number: ${{ github.event.pull_request.number || github.event.issue.number }}
           base_ref: ${{ steps.pr-context.outputs.base_ref }}
           head_sha: ${{ steps.pr-context.outputs.head_sha }}
           background: ${{ steps.pr-context.outputs.title || github.event.pull_request.title }}

@@ -27,6 +27,17 @@ jobs:
       - name: Sync dependencies
         run: uv sync
 
+      - name: License headers (SPDX)
+        run: uv run python tools/spdx.py --check
+
+      # 书面语：文档 / 注释一律非口语化。**当前为报告模式**（全仓清扫完成前不阻断）；
+      # 清零后删除 `continue-on-error` 转为阻断门禁。标准见 rules/references/prose.md。
+      - name: Prose report (书面语)
+        run: uv run python tools/prose.py
+        continue-on-error: true
+
+
+
       - name: Lint (ruff)
         run: uv run ruff check .
 

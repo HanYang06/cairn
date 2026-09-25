@@ -3,66 +3,90 @@
 
 # Cairn · 巨石堆
 
-> 本地优先的个人知识 / 资产 / 项目工作台。
+> **本地优先的内容寻址对象池** —— 笔记、资产、项目，一台工作台。
 
 一块块往上堆。
 
+```text
+文档站     https://hanyang06.github.io/cairn/
+仓库       https://github.com/HanYang06/cairn
+```
+
 ## 定位
 
-- **本地优先**：内容寻址的桶 / 块是本体，应用只是消费者。数据落普通文件（`packs/*.pack`）+ 一个目录库 `catalog.db`（唯一真源）。
+- **本地优先**：内容寻址的桶 / 块是本体，应用只是消费者。数据落普通文件（`packs/*.pack`）
+  + 一个目录库 `catalog.db`（唯一真源）。
 - **三件套**：笔记、存储、项目管理。
 - **桌面优先**：以 Windows 为主要平台，内核与打包保持跨平台能力。
-- **内容寻址对象池**：块按 `body` 哈希去重、OID 稳定寻址；加密只用于传输 / 服务端（本地落盘明文）。这是与其他笔记软件的根本分野。
+- **内容寻址对象池**：块按内容哈希去重、OID 稳定寻址；**本地落盘明文**，
+  加密只用于传输 / 服务端（尚未实现）。这是与其他笔记软件的根本分野。
 
 ## 现状
 
-早期开发阶段，**尚未发布**。桶 / 块存储（L0）与笔记内核（行身份 + 区间样式 + 版本）已落地，
-领域功能在逐步接入；界面层（PySide6）当前**整体移除、待重建**，仓库处于内核态。
-详细进度、决策与待办见 `.agents/skills/memory/references/`。
+早期开发阶段，**尚未发布**（`0.0.1` / pre-alpha）。
+
+- ✅ 已落地：L0 存储（桶 / 块 / 内容池 / 目录）、类型地基（`Attr` / `Data` / `Cfg`）、
+  配置引擎、信号引擎与内核门户（`Core` / `Signal` / `Storage` / `Conf`）、
+  笔记领域（行身份 + 区间样式）、Windows 根壳。
+- ⚠️ 已知缺口：**版本能力整体缺失**（随内核重建移除，尚无一处写版本表）；`@action` 动作表未成立；
+  `Event` 的网络往返编解码未落。
+- 🔜 未做：对象驱动生成、多页 Tab 宿主、笔记编辑页、打包、P2P / 服务端。
+
+**详细进度与取舍不在本文件**——事实源是 [`docs/architecture/`](docs/architecture/index.md) 与代码；
+逐篇状态见 [架构文档索引](docs/architecture/index.md)。
 
 ## 快速开始
 
 需要 **Python 3.13** 与 [`uv`](https://docs.astral.sh/uv/)：
 
 ```powershell
-uv sync                    # 安装/同步依赖
-uv run pytest              # 跑内核测试（桌面入口待 UI 重建后恢复）
+uv sync                 # 安装/同步依赖
+uv run pytest           # 跑内核测试（桌面入口尚未就绪）
 ```
 
-- 开发库默认放在 `<repo>/vault/`（已 gitignore），可用环境变量 `CAIRN_VAULT` 覆盖。
-- **本地不加密**，落盘明文；`CAIRN_DEV_PASSPHRASE`（默认 `cairn-dev`）与解锁流程是 P2P / 服务端到来前的占位。
+内核不依赖 Qt，可直接用：
 
-## 技术栈
+```python
+from core import Core
+from feature import Note
 
-- **语言**：Python 3.13。
-- **界面**：PySide6（当前整体移除、待重建于 `src/ui/`；内核 Qt-free）。
-- **环境与构建**：`uv`（`uv.lock`）+ hatchling；PyPI 走阿里云镜像（见 `pyproject.toml`）。
-- **原生扩展**：预留 Rust（PyO3 + maturin），仅在性能热点被证实后启用；**不写 C++**。
-- **许可**：Apache-2.0，**禁止引入 GPL/AGPL 依赖**。
+core = Core()  # 内核是单例
+core.open("vault")  # 开（不存在则建）一个库
+note = Note(core)
+data = note.create("第一块石头", title="试笔")
+```
+
+完整步骤见 [快速开始](docs/guides/quickstart.md)。
+开发库默认 `<repo>/vault/`（已 gitignore），可用 `CAIRN_VAULT` 覆盖；
+`CAIRN_DEV_PASSPHRASE`（默认 `cairn-dev`）是 P2P / 服务端到来前的占位。
 
 ## 架构
 
 | 目录 | 职责 |
 |---|---|
-| `src/core/` | L0 桶 / 块存储，公共底座；**Qt-free、传输无关**（原语在 `core/storage/`，类型在 `core/types/`） |
-| `src/feature/` | 领域对象（note / canvas / asset / project / relation） |
-| `src/conf/` | 配置与常量 |
-| `src/ui/` | 界面层，当前整体移除、待重建 |
-| `src/net/`、`src/server/` | P2P / 服务端**实验顶层包**，不在 wheel 中 |
+| `src/core/` | L0 底座：桶 / 块存储、信号引擎、配置引擎、类型地基；**Qt-free、传输无关** |
+| `src/feature/` | 领域：`note` / `project` 域 + `shared/` 共享件（asset / canvas / group / relation / signature） |
+| `src/ui_tools/` | 界面工具箱：声明树 / 编译 / 绑定 / 模型 / 主题 / 组件 / 布局 |
+| `src/app/` | 应用组合根，按平台（`win` / `linux`）；**只有它认识领域** |
 
 顶层包一律去 `cairn.` 前缀（如 `from core.storage import Bucket`）。
+`src/net/`、`src/server/` 是已删除的实验顶层包，**待重设**。
 
-设计事实来源见 `docs/architecture/*.md`（`storage.md` 为 L0 唯一事实来源）；**有冲突以代码为准**。
+分层红线与约定见 [约定与红线](docs/guides/conventions.md)；设计事实来源见
+[架构文档](docs/architecture/index.md)（`storage.md` 为 L0 唯一事实来源）。
 
 ## 开发
 
 ```powershell
-uv run pytest                 # 全部测试（无需外部服务，全部用临时本地库）
-uv run ruff check .           # lint（--fix 自动修）
-uv run mypy src tools         # 类型检查（strict）
+uv run pytest                      # 全部测试（无需外部服务，全部用临时本地库）
+uv run ruff check .                # lint（--fix 自动修）
+uv run mypy src tools              # 类型检查（strict）
+uv run python tools/spdx.py --check  # SPDX 头门禁
+uv run mkdocs serve                # 本地预览文档站
 ```
 
-提交前顺序：`ruff -> mypy -> pytest`。
+提交前顺序：`ruff -> mypy -> pytest`。完整说明见 [参与开发](docs/guides/development.md)
+与 [怎么改文档](docs/contributing/docs.md)。
 
 ### 打包（Windows）
 
@@ -72,24 +96,18 @@ uv run python tools/build.py --clean       # 先清 build/ 与 dist/
 uv run python tools/build.py --installer   # 再出安装包（需已装 Inno Setup）
 ```
 
-- PyInstaller 配置：`packaging/cairn.spec`；安装包脚本：`packaging/windows/cairn.iss`。
-- 产物：`dist/cairn/`（免安装 zip）、`dist/installer/Cairn-<ver>-win-x64-setup.exe`。
-- CI：`.github/workflows/build-windows.yml`（打 `v*` tag 或手动触发）。
+产物：`dist/cairn/`（免安装 zip）、`dist/installer/Cairn-<ver>-win-x64-setup.exe`；
+CI 见 `.github/workflows/build-windows.yml`。
 
 ## 平台与分发（规划）
-
-内核跨平台，但打包按需投入，当前优先级：
 
 | 平台 / 形态 | 载体 | 优先级 |
 |---|---|---|
 | 源码 | sdist + wheel | P0 |
 | **Windows** 桌面 | 安装包（Inno Setup）+ 免安装 zip | **P0** |
-| Linux 服务端 / CLI | 控制台入口 + Docker | P1（待 `src/server` 成熟） |
+| Linux 服务端 / CLI | 控制台入口 + Docker | P1（待 `src/server` 重设） |
 | Linux 桌面 | AppImage | P2 |
 | macOS 桌面 | `.dmg` + 公证 | 暂缓 |
-
-Windows 打包脚本已就绪（见「开发 · 打包」）：**PyInstaller（`--onedir`）+ Inno Setup**，出免安装 zip 与安装包。
-代码签名留待发布前补齐；其余平台为规划。
 
 ## 北极星
 
@@ -97,5 +115,5 @@ Windows 打包脚本已就绪（见「开发 · 打包」）：**PyInstaller（`
 
 ## 许可
 
-Copyright 2026 HanYang06。本项目基于 [Apache License 2.0](LICENSE) 授权。
-分发时请一并保留 [`LICENSE`](LICENSE) 与 [`NOTICE`](NOTICE)。
+Copyright 2026 HanYang06。本项目基于 [Apache License 2.0](LICENSE) 授权，
+**禁止引入 GPL / AGPL 依赖**。分发时请一并保留 [`LICENSE`](LICENSE) 与 [`NOTICE`](NOTICE)。

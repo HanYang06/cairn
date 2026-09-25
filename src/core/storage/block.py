@@ -53,15 +53,14 @@ from blake3 import blake3
 
 from core.types import (
     ROLE_DATA,
-    Attr,
     CairnError,
     CorruptObjectError,
-    Data,
     Oid,
     TypeInfo,
     collect_fields,
     register,
 )
+from core.types.attr import Attr, Data
 
 if TYPE_CHECKING:
     import builtins
@@ -270,6 +269,9 @@ class Block:
 
     type: str | Enum = "block"
     kind: str | Enum = "block"
+    # 所属内核：**不写注解**——写了会被 `__init_subclass__` 当成字段包成描述符，
+    # 赋值会落进 attrs、`block.core` 取不回来。它是运行期引用，不是数据字段。
+    core = None
     body: Any = BodyField()
     _REGISTRY: ClassVar[dict[str, builtins.type[Block]]] = {}
 
@@ -308,8 +310,8 @@ class Block:
         return {}
 
     @classmethod
-    def bind(cls, bucket: Any) -> None:
-        """领域绑定：默认把 ``tables()`` 声明建出来；子类可重写加关联动作。"""
+    def bind_tables(cls, bucket: Any) -> None:
+        """领域建表：默认把 ``tables()`` 声明建出来；子类可重写加关联动作。"""
         for name, columns in cls.tables().items():
             bucket.table(name, **columns)
 
@@ -339,7 +341,9 @@ class Block:
         self.created = created
         self.updated = updated
         self.size = size
-        self._vault: Any = None
+        # 所属内核（由领域服务在创建时递进来，或 `Core.get` 载入时挂上）。
+        # **不要在这里重置为 None**：子类若已带类级 `core`（领域服务给数据类设过），
+        # 重置会把它抹掉，导致 `data.info` / `data.save()` 报"块未挂门户"。
         self._info: Any = None
 
     def validate(self) -> None:
@@ -438,7 +442,7 @@ class Block:
         """新建一个空对象，id 已分配。"""
         return cls()
 
-    # ---- 绑定库之后的通用读写（save / load / list）----
+    # ---- 挂门户之后的通用读写（save / delete / info）----
     # 领域结构直接继承本类，不再有中间层；这些方法对任何块都通用。
     @property
     def oid(self) -> Oid:
@@ -446,8 +450,11 @@ class Block:
 
     @property
     def info(self) -> Any:
+        """中立视图（``ObjectInfo``）；未挂门户时**按需向门户取**。"""
         if self._info is None:
-            raise CairnError("块未绑定库：请用 create / load")
+            if self.core is None:
+                raise CairnError("块未挂门户：请用 Core.load / attach")
+            self._info = self.core.info(self.id)
         return self._info
 
     # title / tags / authors 等业务字段**不属于块**：由各领域用 ``Attr`` 自行声明
@@ -474,39 +481,66 @@ class Block:
             raise TypeError("结构化 body 无字节视图，请用 encode_body()")
         raise TypeError(f"body 不是字节：{type(body).__name__}")
 
-    def delete(self) -> None:
-        self._require_vault().delete(self.id)
+    # ---- 门户（归属显式：字段名就叫 ``core``，不再是私藏引用）----
+    def attach(self, portal: Any) -> Self:
+        """把对象挂到门户：此后 ``save / delete / info`` 都经它。
 
-    def save(self, *, search_text: str | None = None) -> Self:
-        vault = self._require_vault()
-        vault.put_block(self, search_text=search_text)
-        self._refresh()
+        **落盘是显式动作**：领域更推荐直接 ``core.put(data)``；``save()`` 是便捷写法。
+        """
+        self.core = portal
         return self
 
-    def _refresh(self) -> None:
-        self._info = self._require_vault().info(self.id)
+    @property
+    def attached(self) -> bool:
+        """是否已挂门户（未挂的裸对象只能被存储层收下）。"""
+        return self.core is not None
 
-    def _require_vault(self) -> Any:
-        if self._vault is None:
-            raise CairnError("块未绑定库：请用 create / load")
-        return self._vault
+    def detach(self) -> Self:
+        """摘掉门户归属（变回纯值对象）。"""
+        self.core = None
+        self._info = None
+        return self
+
+    def save(self, *, search_text: str | None = None) -> Self:
+        """经门户落盘（**纯落盘**；版本由领域服务负责）。需先挂门户。"""
+        portal = self._portal()
+        portal.put(self, search_text=search_text)
+        self.sync_info(portal)
+        return self
+
+    def delete(self) -> None:
+        """经门户删除自身。需先挂门户。"""
+        self._portal().delete(self.id)
+
+    def sync_info(self, portal: Any = None) -> Self:
+        """刷新自身的中立视图（``info``）：``portal`` 缺省用已挂的门户。"""
+        source = portal if portal is not None else self._portal()
+        self._info = source.info(self.id)
+        return self
+
+    def _portal(self) -> Any:
+        if self.core is None:
+            raise CairnError("块未挂门户：请用 Core.load / attach")
+        return self.core
 
     @classmethod
-    def load(cls, vault: Any, oid: Oid | str) -> Self:
-        block: Self = vault.bucket.get(cls, str(oid))
-        block._vault = vault
-        block._info = vault.info(block.id)
+    def load(cls, portal: Any, oid: Oid | str) -> Self:
+        """经门户载入对象并挂接（``portal`` 是 `Core`）。"""
+        block: Self = portal.storage.get(cls, str(oid))
+        block.attach(portal)
+        block._info = portal.info(block.id)
         return block
 
     @classmethod
     def list(
         cls,
-        vault: Any,
+        portal: Any,
         *,
         tags: Iterable[str] | None = None,
     ) -> Iterator[Self]:
-        for info in vault.iter(type=cls.type, tags=tags):
-            yield cls.load(vault, info.oid)
+        """经门户遍历同类型对象。"""
+        for info in portal.iter(type=cls.type, tags=tags):
+            yield cls.load(portal, info.oid)
 
 
 register(

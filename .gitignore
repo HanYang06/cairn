@@ -18,6 +18,17 @@ venv/
 .coverage
 htmlcov/
 
+# 文档站构建产物（事实源是 docs/，站点不入库）
+site/
+
+# uv 缓存（默认在用户目录；沙箱内可能改到仓库本地）
+.uv-cache/
+
+# 临时目录（pytest 的 basetemp / 沙箱内的 TMP 会落在这里）
+/.tmp_run*/
+/.pytest-tmp/
+/.bt/
+
 # 打包产物
 *.spec
 !packaging/cairn.spec
@@ -27,6 +38,9 @@ htmlcov/
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/spdx.code-snippets
+!.vscode/templates/
 
 # 本地数据 / 密钥
 .env

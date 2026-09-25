@@ -14,14 +14,6 @@ class InvalidIdError(CairnError, ValueError):
     """标识符格式非法。"""
 
 
-class AuthError(CairnError):
-    """认证或解密失败。"""
-
-
-class VaultError(CairnError):
-    """库级错误。"""
-
-
 class ObjectNotFoundError(CairnError):
     """对象不存在。"""
 
@@ -32,3 +24,7 @@ class KindMismatchError(CairnError):
 
 class CorruptObjectError(CairnError):
     """对象数据损坏或校验失败。"""
+
+
+class RoleNotFoundError(CairnError, ValueError):
+    """角色不存在"""

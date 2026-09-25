@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from app import Feature  # noqa: E402
 from app.win import CairnApp  # noqa: E402
-from core import Vault  # noqa: E402
+from core import Core  # noqa: E402
 from ui_tools.core.cardview import CardStageView  # noqa: E402
 from ui_tools.core.qt import build_window  # noqa: E402
 
@@ -46,13 +46,14 @@ def main() -> int:
     out.mkdir(parents=True, exist_ok=True)
 
     root = out / "preview_vault"
-    vault = Vault.load(root) if root.exists() else Vault.create(root)
-    notes = Feature(vault, vault.signal).Note
+    core = Core()
+    core.open(root)
+    notes = Feature(core).Note
     if not notes.list_notes():
         for title, body in _SAMPLES:
             notes.create(body, title=title)
 
-    cairn = CairnApp(vault)
+    cairn = CairnApp(core)
     cairn.theme.apply(app)
     window = build_window(cairn)
     window.resize(1200, 780)
@@ -64,7 +65,7 @@ def main() -> int:
         stage.set_dense(dense=True)
         window.grab().save(str(out / "shell_details.png"))
 
-    vault.close()
+    core.close()
     print(out)
     return 0
 
