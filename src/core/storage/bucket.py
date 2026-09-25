@@ -76,11 +76,6 @@ class BucketConfig:
     pack_max_blocks: int | None = None
     pack_max_bytes: int | None = None
 
-    @classmethod
-    def resolve(cls, **overrides: int) -> BucketConfig:
-        """把**声明的默认值**装进来（显式给的覆盖掉对应项）。"""
-        return cls(**overrides)
-
     def __post_init__(self) -> None:
         """没给的项**按声明补齐**（声明是唯一事实来源，不在这里抄第二份默认值）。"""
         from .conf import conf  # noqa: PLC0415 — 与声明模块同包，运行时取
@@ -100,7 +95,7 @@ class Bucket:
 
     def __init__(self, root: Path, config: BucketConfig | None = None) -> None:
         self.root = Path(root)
-        self.config = config if config is not None else BucketConfig.resolve()
+        self.config = config if config is not None else BucketConfig()
         self.packs_dir = self.root / "packs"
         self.catalog = Catalog(self.root / CATALOG_NAME)
         self._tx_depth = 0

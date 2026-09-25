@@ -21,10 +21,15 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
+from .errors import CairnError
+
 _MISSING = object()
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,8 +111,12 @@ class Cfg:
         empty_ok: bool = False,
         item_type: type[Any] | None = None,
     ) -> None:
+        if default is None and not empty_ok:
+            raise ValueError(
+                f"默认值不得为 None（会以 null 落盘，读回来按空值报错）：{path!r}；"
+                "确实要以 null 为默认时，显式传 empty_ok=True"
+            )
         self.path = path
-        self._default = default
         self.doc = doc
         self.empty_ok = empty_ok
         self._item_type = item_type
@@ -118,6 +127,15 @@ class Cfg:
         self.fillable = default is not _MISSING
         self._default_value = None if default is _MISSING else default
         self._resolved = False
+
+    @classmethod
+    def __class_getitem__(cls, item: Any) -> Any:
+        """支持文档推荐的 ``Cfg[int]`` **注解**写法：下标即注解里的类型本身。
+
+        只服务注解（``get_type_hints`` 拿到的就是 ``int``，词表照着出类型）；
+        若要在这里返回泛型别名，取值面还得再解一层包，得不偿失。
+        """
+        return item
 
     # ---- 登记：类体里绑上即报到 ----
     def __set_name__(self, owner: type, name: str) -> None:
@@ -144,6 +162,8 @@ class Cfg:
 
         注解写成 ``Cfg[str]`` 最好（类型就是它）；写裸 ``Cfg`` 时，注解不带信息，
         就**按默认值推**（``4096`` → ``int``）——不猜、只推有把握的。
+        注解解析失败（写错名字之类）只降级并记一条日志：不该因此挡住登记，
+        但也不能静默——词表里少一条类型是看得见的差异。
         """
         if self._resolved:
             return
@@ -154,7 +174,10 @@ class Cfg:
                 from typing import get_type_hints  # noqa: PLC0415 — 仅此处需要
 
                 hint = get_type_hints(owner).get(self.field)
-            except Exception:  # noqa: BLE001 — 注解解析失败不该挡住登记
+            except (NameError, TypeError, AttributeError) as exc:
+                _logger.debug(
+                    "注解解析失败，按默认值推类型：%s.%s（%s）", owner.__name__, self.field, exc
+                )
                 hint = None
         if not isinstance(hint, type) or hint is Cfg:
             hint = type(self._default_value) if self.fillable else None
@@ -162,22 +185,38 @@ class Cfg:
 
     @staticmethod
     def _doc_of(owner: type) -> str:
-        """字段说明兜底：类体里那行注释取不到，退而用类 docstring 的首行。"""
-        return (owner.__doc__ or "").strip().splitlines()[0] if owner.__doc__ else ""
+        """字段说明兜底：类体里那行注释取不到，退而用类 docstring 的首行。
+
+        空白串（``\"\"\"   \"\"\"``）也算「没有 docstring」：先 strip 再取行，
+        否则 ``splitlines()`` 出空列表、``[0]`` 会在类体定义期抛 ``IndexError``。
+        """
+        lines = (owner.__doc__ or "").strip().splitlines()
+        return lines[0] if lines else ""
 
     # ---- 取值：属性访问即向引擎要 ----
     def __get__(self, instance: object, owner: type | None = None) -> Any:
-        from core.conf.engine import conf  # noqa: PLC0415 — 延迟导入，避免地基依赖引擎
+        """读属性 = 向引擎要值。
 
+        只兜住「引擎不可用」（地基被单独加载时读不到落点）这一种预期情况；
+        引擎自己的 `ConfigKeyError` / `ConfigValueError` **照原样冒泡**——契约是
+        「值缺失即报错、不猜」，吞掉它等于把坏配置伪装成默认值。
+        """
         try:
-            return conf.get(self.key)
-        except Exception:  # noqa: BLE001 — 引擎缺失 / 读不到时退回家底，别让属性访问炸
+            from core.conf.engine import conf  # noqa: PLC0415 — 延迟导入，避免地基依赖引擎
+        except ImportError:  # 引擎没接线：没有取值面，只能给声明里的默认值
             return self._default_value
+        return conf.get(self.key)
 
     def __set__(self, instance: object, value: Any) -> None:
-        """赋值 = 写进配置文件（不是写内存字段）——配置只有文件一个真源。"""
-        from core.conf.engine import conf  # noqa: PLC0415
+        """赋值 = 写进配置文件（不是写内存字段）——配置只有文件一个真源。
 
+        写路径没有「退回家底」这条路（值必须有落点），故引擎不可用时**显式报错**，
+        与读路径的兜底构成明确的不对称：读能给默认值，写不能假装写成功。
+        """
+        try:
+            from core.conf.engine import conf  # noqa: PLC0415
+        except ImportError as exc:
+            raise CairnError(f"配置引擎不可用，无法写入配置：{self.key}") from exc
         conf.set(self.key, value)
 
     @property

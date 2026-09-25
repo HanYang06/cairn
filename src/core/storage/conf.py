@@ -5,8 +5,10 @@
 
 跑一次 ``uv run python tools/gen_conf.py`` 就会把它们展开成两份投影::
 
-    config/core/storage/conf.json    值（带默认值）
-    schema/core/storage/conf.json    词表（IDE 提示用）
+    config/settings/core/storage/conf.json    值（带默认值）
+    schema/settings/core/storage/conf.json    词表（IDE 提示用）
+
+（``settings`` 是默认 hub；换 hub 即换一组投影，见 `core.conf.engine`。）
 
 取用::
 

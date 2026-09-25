@@ -10,8 +10,8 @@
 
     level = conf.log_level
 
-声明即登记——引擎据此把两份投影展开到 ``config/core/conf/params.json``
-与 ``schema/core/conf/params.json``。
+声明即登记——引擎据此把两份投影展开到 ``config/settings/core/conf/params.json``
+与 ``schema/settings/core/conf/params.json``（``settings`` 是默认 hub，见 `core.conf.engine`）。
 """
 
 from __future__ import annotations

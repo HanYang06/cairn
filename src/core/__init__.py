@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 
-from .conf import ConfEngine
+from .conf import ConfEngine, ConfigError
 from .conf.params import conf as _kernel_conf
 from .core import Core, Managed
 from .signal import Signal
@@ -31,7 +31,22 @@ from .types import (
     Oid,
 )
 
-logging.getLogger("core").setLevel(_kernel_conf.log_level)
+
+def _kernel_log_level() -> int:
+    """`core.log.level` → 日志级别整数。
+
+    ``setLevel`` 对级别名**大小写敏感**（``"warning"`` 会抛 ``ValueError``），
+    故先归一为大写再查；认不出、或配置本身读不出来（值被改坏、文件不可读）时
+    退回 ``INFO``——**导入期不该因一条配置值而崩**，那是使用方最难排查的位置。
+    """
+    try:
+        declared = str(_kernel_conf.log_level)
+    except ConfigError:
+        return logging.INFO
+    return logging.getLevelNamesMapping().get(declared.strip().upper(), logging.INFO)
+
+
+logging.getLogger("core").setLevel(_kernel_log_level())
 
 __all__ = [
     "CairnError",

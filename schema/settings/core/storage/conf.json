@@ -40,5 +40,5 @@
       "x-cairn-empty-ok": false
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true
 }

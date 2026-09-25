@@ -129,11 +129,6 @@ class Folder:
     hub: str = CONFIG_HUB
     """命名空间（``settings``）：生成物 / 手写口各用一个，互不覆盖。"""
 
-    @property
-    def keys(self) -> tuple[str, ...]:
-        """这个投影在配置树里的键前缀（``core/storage/conf`` → ``core.storage.conf.``）。"""
-        return (".".join(self.tree.parts) + ".",)
-
     @classmethod
     def of(cls, module: str, *, hub: str = CONFIG_HUB, source: Path | None = None) -> Folder:
         """由模块名建投影坐标（``core.storage.conf`` → ``core/storage/conf``）。"""
@@ -143,11 +138,17 @@ class Folder:
 
     @classmethod
     def of_path(cls, relative: Path, *, hub: str = CONFIG_HUB) -> Folder:
-        """由配置树里的相对路径反推（``core/storage/conf.json`` 解析用）。"""
+        """由配置树里的相对路径反推（``core/storage/conf.json`` 解析用）。
+
+        ``source`` 必须与 :meth:`of` 算出**同一个值**：``Folder`` 是 frozen dataclass，
+        ``source`` 参与相等性与哈希——差一层目录（如 ``src/core/core/storage/conf``）
+        就会让「按路径找回声明」静默失配，重名检查随之退化。故以模块根的**父目录**
+        （``src``）为基准拼 ``tree``。
+        """
         tree = relative.with_suffix("")
         parts = tree.parts
         root = Path(_MODULE_ROOTS.get(parts[0], f"src/{parts[0]}")) if parts else Path("src")
-        return cls(tree=tree, source=root / tree, name=tree.name, hub=hub)
+        return cls(tree=tree, source=root.parent / tree, name=tree.name, hub=hub)
 
 
 class ConfEngine:
@@ -218,11 +219,13 @@ class ConfEngine:
             ordered.update({key: value for key, value in merged.items() if key not in ordered})
             payload = {"$schema": self._relative_schema(value_file), **ordered}
             plans.append((value_file, payload, self._stale(value_file, payload)))
-            for path, body in (
-                (self.schema_path(folder), folder_schema(declared)),
-                (self.index_path(), self._root_schema()),
-            ):
-                plans.append((path, body, self._stale(path, body)))
+            schema_file = self.schema_path(folder)
+            schema_body = folder_schema(declared)
+            plans.append((schema_file, schema_body, self._stale(schema_file, schema_body)))
+        # 总词表只有一份：放在循环外入队一次（放在循环里会按 folder 数重复追加，且重复计算）。
+        index = self.index_path()
+        index_body = self._root_schema()
+        plans.append((index, index_body, self._stale(index, index_body)))
         return plans
 
     def conflicts(self, plans: list[tuple[Path, dict[str, Any], bool]] | None = None) -> list[str]:
@@ -239,13 +242,14 @@ class ConfEngine:
         由调用方决定搬迁还是换 hub——**绝不覆盖别人的文件**。
         """
         found: list[str] = []
+        config_root = self.root / self.base
         for path, payload, stale in plans if plans is not None else self.plan():
             if not stale or not path.exists():
                 continue
             try:
                 existing = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError) as exc:
-                if path.parent.parent.name == self.base:
+                if config_root in path.parents:
                     raise ConfigFileError(f"配置文件不可读：{path}") from exc
                 found.append(f"{path}（不是合法 JSON，不敢覆盖）")
                 continue
@@ -262,12 +266,16 @@ class ConfEngine:
         return found
 
     def _keys_of(self, path: Path) -> tuple[str, ...]:
-        """这个投影路径"像自己人"的证据：本引擎为它登记过哪些键。"""
+        """这个投影路径"像自己人"的证据：本引擎为它**登记过**的具体键。
+
+        找不回声明（路径不在声明树里）就返回空——空证据即「不像自己人」，
+        重名检查按**拒写**处理（fail closed：宁可拦下来交人工，也不覆盖别人的文件）。
+        """
         try:
             folder = self._folder_of_path(path)
         except (ValueError, IndexError):
             return ()
-        return tuple(item.key for item in self._declared().get(folder, ())) or folder.keys
+        return tuple(item.key for item in self._declared().get(folder, ()))
 
     def sync(self) -> list[tuple[Path, bool]]:
         """把声明展开成 ``config`` / ``schema`` 两侧的文件。
@@ -395,8 +403,9 @@ class ConfEngine:
         return Folder.of_path(Path(*relative.parts[1:]), hub=relative.parts[0])
 
     def _write_json(self, path: Path, payload: dict[str, Any]) -> None:
+        """写一份投影：行尾固定为 LF，保证同一份生成物在各平台字节一致（可复现）。"""
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(_dumps(payload), encoding="utf-8")
+        path.write_text(_dumps(payload), encoding="utf-8", newline="\n")
 
     def _stale(self, path: Path, payload: dict[str, Any]) -> bool:
         """磁盘上这份投影是否已经与生出来的一致（一致则不改动）。"""

@@ -3,8 +3,10 @@
 
 """配置：**声明即事实，两个投影落在磁盘上**。
 
-    config/<包树>/<file_name>.<config_file_type>   ← 值（软配置）
-    schema/<包树>/<file_name>.json                 ← 词表（永远 json）
+    config/settings/<包树>/<file_name>.<config_file_type>   ← 值（软配置）
+    schema/settings/<包树>/<file_name>.json                 ← 词表（永远 json）
+
+（``settings`` 是默认 hub；换 hub 即换一组投影，见 `core.conf.engine`。）
 
 声明用 ``core.types.cfg.Cfg`` 写在各模块自己的声明模块里（**各管各的**；可叫 ``conf.py``，
 但 ``core/conf`` 自己那个得叫 ``params.py``——包名与同名子模块会互相覆盖），绑上即报到；

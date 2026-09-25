@@ -54,7 +54,12 @@ def root_schema(grouped: dict[Any, list[CfgItem]]) -> dict[str, Any]:
 
 
 def folder_schema(declared: list[CfgItem]) -> dict[str, Any]:
-    """分片词表：只含这一份值文件里的键。"""
+    """分片词表：只含这一份值文件里的键。
+
+    ``additionalProperties`` **故意不设 False**：引擎的投影策略是「只补缺失的键，
+    已有的键一个字都不动」（见 :meth:`ConfEngine.plan`），用户自己加的键会被保留下来；
+    若在这里宣布它们非法，值文件顶部的 ``$schema`` 会让 IDE 把合法文件标成错的。
+    """
     return {
         "$schema": SCHEMA_DRAFT,
         "title": "Cairn 配置",
@@ -64,7 +69,7 @@ def folder_schema(declared: list[CfgItem]) -> dict[str, Any]:
             "$schema": {"type": "string"},
             **{item.key: property_of(item) for item in declared},
         },
-        "additionalProperties": False,
+        "additionalProperties": True,
     }
 
 
@@ -85,7 +90,11 @@ def property_of(item: CfgItem) -> dict[str, Any]:
 
 
 def type_schema(hint: Any) -> dict[str, Any]:
-    """类型 → ``{"type": …}`` / ``{"anyOf": …}``；认不出就返回空（不猜类型）。"""
+    """类型 → ``{"type": …}`` / ``{"anyOf": …}``；认不出就返回空（**不猜类型**）。
+
+    认得出的只有 :data:`_SIMPLE` 里的内建类型与 ``Union``；自定义类不下 ``object``
+    之类的猜测约束——词表宁可少一条，也不给错一条。
+    """
     if hint is None:
         return {}
     if isinstance(hint, type) and hint in _SIMPLE:
@@ -97,8 +106,6 @@ def type_schema(hint: Any) -> dict[str, Any]:
         branches = [type_schema(arg) for arg in get_args(hint)]
         found = [branch for branch in branches if branch]
         return {"anyOf": found} if len(found) > 1 else (found[0] if found else {})
-    if isinstance(hint, type):
-        return {"type": "object"}
     return {}
 
 

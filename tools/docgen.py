@@ -38,7 +38,7 @@ SETTINGS_SCHEMA = ROOT / "schema" / "settings.json"
 #: 生成出来的参考页
 CONFIG_PAGE = ROOT / "docs" / "reference" / "config.md"
 
-#: 公共 API 的 docstring 覆盖门禁阈值（当前未达标，见 `--coverage`；达标后接 CI）
+#: 公共 API 的 docstring 覆盖阈值（`--coverage` 用它给出达标 / 未达标判定；达标后接 CI）
 DOCSTRING_MIN = 0.95
 
 #: 覆盖率统计只看这四层（与 API 参考页一致）
@@ -84,7 +84,7 @@ _PAGE_TAIL = """
 - 值文件与词表分别落在 `config/<hub>/…` 与 `schema/<hub>/…`；总词表是 `schema/settings.json`。
 - 格式版本号（`CATALOG_VERSION` / `BLOCK_VERSION` 这类改了会坏库的）**故意不进配置**，留在实现处。
 - 想加一条配置：在**用到它的那个包**里声明（例：`src/core/storage/conf.py`），
-  然后跑 `uv run python tools/gen_conf.py --fix` 与 `uv run python tools/docgen.py --write`。
+  然后跑 `uv run python tools/gen_conf.py` 与 `uv run python tools/docgen.py --write`。
 """
 
 Residue = tuple[str, int, int]
@@ -95,7 +95,7 @@ def read_settings() -> dict[str, Any]:
     if not SETTINGS_SCHEMA.is_file():
         raise FileNotFoundError(
             f"找不到配置词表 {SETTINGS_SCHEMA.relative_to(ROOT)}："
-            "先跑 `uv run python tools/gen_conf.py --fix` 重新生成投影"
+            "先跑 `uv run python tools/gen_conf.py` 重新生成投影"
         )
     data: dict[str, Any] = json.loads(SETTINGS_SCHEMA.read_text(encoding="utf-8"))
     return data
@@ -171,11 +171,12 @@ def docstring_stats() -> tuple[int, int, list[Residue]]:
 
 
 def coverage_report() -> str:
-    """docstring 覆盖率报告（含缺口清单），供人看。"""
+    """docstring 覆盖率报告（含缺口清单与阈值判定），供人看。"""
     documented, total, holes = docstring_stats()
     ratio = documented / total if total else 1.0
+    verdict = "达标" if ratio >= DOCSTRING_MIN else f"未达阈值 {DOCSTRING_MIN:.0%}"
     lines = [
-        f"[docgen] 公共类 / 函数 docstring 覆盖：{documented}/{total}（{ratio:.1%}）",
+        f"[docgen] 公共类 / 函数 docstring 覆盖：{documented}/{total}（{ratio:.1%}，{verdict}）",
         (
             f"[docgen] 文档站里 {total - documented} 个公共成员因缺 docstring 被隐藏"
             "（mkdocstrings 的 `show_if_no_docstring: false`）。"

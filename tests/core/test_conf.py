@@ -26,12 +26,13 @@ from core.conf import (
     ConfigFileError,
     ConfigKeyError,
     ConfigValueError,
+    Folder,
 )
 from core.conf import conf as engine_conf
 from core.conf.params import conf as kernel_conf
 from core.storage import Bucket, BucketConfig
 from core.storage.conf import conf as storage_conf
-from core.types.cfg import Cfg, clear, items, register
+from core.types.cfg import Cfg, clear, item, items, register
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -63,8 +64,8 @@ def _isolated_registry() -> Iterator[None]:
     """测试自己管登记表：跑完清干净，再**把真声明放回去**（别让别的用例失明）。"""
     yield
     clear()
-    for item in _REAL_ITEMS:
-        register(item)
+    for declared_item in _REAL_ITEMS:
+        register(declared_item)
 
 
 @pytest.fixture
@@ -316,3 +317,66 @@ def test_config_file_drives_bucket_config(tmp_path: Path) -> None:
 def test_kernel_log_level_is_applied() -> None:
     """`core.log.level` 真接到 `core.*` 这族 logger 上。"""
     assert logging.getLogger("core").level == logging.getLevelName(kernel_conf.log_level)
+
+
+# ---- 评审回归：投影坐标 / 计划去重 / 坏文件判定 / 描述符边界 ----
+
+
+def test_folder_of_path_matches_folder_of() -> None:
+    """由配置路径反推的 `Folder` 必须与由模块名建的那个**相等**。
+
+    `Folder` 是 frozen dataclass，`source` 参与相等性与哈希——差一层目录
+    （`src/core/core/storage/conf`）会让「按路径找回声明」静默失配，重名检查随之退化。
+    """
+    assert Folder.of_path(Path("core/storage/conf.json")) == Folder.of("core.storage.conf")
+    assert Folder.of_path(Path("core/storage/conf.json")).source == Path("src/core/storage/conf")
+
+
+@pytest.mark.usefixtures("declared")
+def test_plan_lists_each_projection_once(engine: ConfEngine) -> None:
+    """每份投影只入队一次：总词表若放在按 folder 的循环里，会被重复追加与重复写入。"""
+    paths = [path for path, _body, _stale in engine.plan()]
+
+    assert len(paths) == len(set(paths))
+    assert paths.count(engine.index_path()) == 1
+
+
+@pytest.mark.usefixtures("declared")
+def test_broken_value_file_raises_file_error_in_conflicts(engine: ConfEngine) -> None:
+    """config 侧读到坏文件 → `ConfigFileError`（「文件坏了」比「像不像自己人」更准）。"""
+    engine.sync()
+    _value_file(engine).write_text("{ 不是 json", encoding="utf-8")
+    engine.reload()
+
+    with pytest.raises(ConfigFileError, match="不可读"):
+        engine.conflicts()
+
+
+def test_annotated_item_type_wins_over_the_default() -> None:
+    """文档推荐的 `Cfg[int]` 写法必须真的生效（下标即注解里的类型，不退化成按默认值推）。"""
+    field = Cfg("core.demo.typed.size", "默认值是字符串")
+    holder = type("TypedCfg", (), {"__annotations__": {"size": Cfg[int]}, "size": field})
+
+    assert holder is not None
+    declared = item("core.demo.typed.size")
+    assert declared is not None
+    assert declared.type is int
+    assert declared.default == "默认值是字符串"
+
+
+def test_none_default_is_rejected_unless_empty_ok() -> None:
+    """默认值 `None` 会写出读不回来的配置（null 按空值报错）→ 声明期即拒绝。"""
+    with pytest.raises(ValueError, match="默认值不得为 None"):
+        Cfg("core.demo.pack.none_default", None)
+
+    allowed = Cfg("core.demo.pack.none_default", None, empty_ok=True)
+    assert allowed.default is None
+
+
+def test_blank_docstring_does_not_break_registration() -> None:
+    """类 docstring 是空白串时不得在类体定义期抛 `IndexError`（登记仍要完成）。"""
+    field = Cfg("core.demo.blank.doc", 1)
+    holder = type("BlankDoc", (), {"__doc__": "   ", "value": field})
+
+    assert holder is not None
+    assert item("core.demo.blank.doc") is not None
