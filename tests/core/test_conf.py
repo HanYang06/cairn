@@ -500,6 +500,12 @@ def test_sync_leaves_no_temporary_files(engine: ConfEngine) -> None:
         assert not path.with_name(f"{path.name}.tmp").exists()
 
 
+def test_caller_default_is_not_cached(engine: ConfEngine) -> None:
+    """未登记键的「调用方 default」不进缓存：同一个 key 换一个 default 必须给新值。"""
+    assert engine.get("core.demo.unknown", 5) == 5
+    assert engine.get("core.demo.unknown", 9) == 9
+
+
 def test_blank_docstring_does_not_break_registration() -> None:
     """类 docstring 是空白串时不得在类体定义期抛 `IndexError`（登记仍要完成）。"""
     field = Cfg("core.demo.blank.doc", 1)

@@ -25,7 +25,10 @@ import ast
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:  # 直接跑脚本时，`tools` 未必在导入路径上
@@ -111,6 +114,11 @@ def _cell(value: Any) -> str:
     return f"`{value}`"
 
 
+def _text(value: Any) -> str:
+    """自由文本进单元格前的转义：`|` 会截断表格、换行会断开整张表。"""
+    return str(value).replace("|", "\\|").replace("\r", "").replace("\n", "<br>")
+
+
 def config_table(settings: dict[str, Any] | None = None) -> str:
     """由总词表渲染配置表（键 / 类型 / 默认值 / 说明 / 归属）。"""
     data = settings if settings is not None else read_settings()
@@ -120,7 +128,7 @@ def config_table(settings: dict[str, Any] | None = None) -> str:
         spec: dict[str, Any] = properties[key] or {}
         lines.append(
             f"| `{key}` | `{spec.get('type', '—')}` | {_cell(spec.get('default'))} "
-            f"| {spec.get('description', '—')} | `{spec.get('x-cairn-owner', '—')}` |"
+            f"| {_text(spec.get('description', '—'))} | `{_text(spec.get('x-cairn-owner', '—'))}` |"
         )
     return "\n".join(lines)
 
@@ -138,14 +146,28 @@ def current_page() -> str:
 
 
 def _public_defs(source: Path) -> list[ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef]:
-    """模块里的**公共**类 / 函数（`_` 开头的不算，与 API 参考的过滤一致）。"""
+    """模块**顶层**与**类体内**的公共类 / 函数（`_` 开头的不算，与 API 参考的过滤一致）。
+
+    **不递归进函数体**：`ast.walk` 会把函数内部的局部 `def` 也算作公共成员，
+    而文档站（mkdocstrings 的 `show_if_no_docstring: false`）只渲染顶层与类成员——
+    局部定义进分母只会把覆盖率稀释掉，缺口因此更难被发现。
+    """
     tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
-    return [
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef)
-        and not node.name.startswith("_")
-    ]
+    found: list[ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef] = []
+
+    def collect(nodes: Iterable[ast.stmt]) -> None:
+        for node in nodes:
+            if isinstance(node, ast.ClassDef):
+                if not node.name.startswith("_"):
+                    found.append(node)
+                collect(node.body)
+            elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef) and not (
+                node.name.startswith("_")
+            ):
+                found.append(node)
+
+    collect(tree.body)
+    return found
 
 
 def docstring_stats() -> tuple[int, int, list[Residue]]:

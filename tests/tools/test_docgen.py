@@ -98,3 +98,36 @@ def test_unknown_argument_is_rejected() -> None:
     assert docgen.main(["--chek"]) == 1
     assert docgen.main(["--wrte"]) == 1
     assert docgen.main(["--gate"]) == 0  # `--gate` 单独出现即普通防漂移检查
+
+
+def test_table_escapes_the_description_cell() -> None:
+    """说明里的 `|` 与换行不得撑破表格（`doc=` 是自由文本，生成器不能假设它干净）。"""
+    table = docgen.config_table(
+        {"properties": {"k": {"type": "string", "description": "a|b\nc", "default": "x"}}}
+    )
+
+    assert "a\\|b<br>c" in table
+    row = next(line for line in table.splitlines() if line.startswith("| `k`"))
+    assert row.replace("\\|", "").count("|") == 6  # 每行仍是 5 列（转义的那个不算分隔符）
+
+
+def test_public_defs_skips_function_locals(tmp_path: Path) -> None:
+    """函数体内部的局部 `def` 不算公共 API：文档站不渲染它，计入只会稀释覆盖率。"""
+    source = tmp_path / "sample.py"
+    source.write_text(
+        "def outer():\n"
+        "    def inner():\n"
+        "        return 1\n"
+        "    return inner()\n"
+        "\n"
+        "class Public:\n"
+        "    def method(self) -> int:\n"
+        "        def nested() -> int:\n"
+        "            return 2\n"
+        "        return nested()\n",
+        encoding="utf-8",
+    )
+
+    names = [node.name for node in docgen._public_defs(source)]
+
+    assert names == ["outer", "Public", "method"]

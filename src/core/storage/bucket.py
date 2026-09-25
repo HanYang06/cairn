@@ -97,7 +97,7 @@ class BucketConfig:
             if isinstance(current, bool) or not isinstance(current, int) or current < 1:
                 raise CairnError(
                     f"桶配置 {name} 必须是正整数，得到 {current!r}"
-                    "（检查 config/<hub>/core/storage/conf.json 里这一项）"
+                    "（检查声明 core.storage.conf 与传入的覆盖值）"
                 )
 
 

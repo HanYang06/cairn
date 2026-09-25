@@ -376,7 +376,9 @@ class ConfEngine:
             return self._remember(key, value)
         if declared is None:
             if default is not None:
-                return self._remember(key, default)
+                # **不写缓存**：缓存键只有 key，把调用方给的 default 记进去，
+                # 下次换一个 default 取同一个 key 会拿到旧值。
+                return default
             raise ConfigKeyError(f"配置项未登记，文件里也没有：{key}")
         if declared.fillable:
             self._repair(declared)
