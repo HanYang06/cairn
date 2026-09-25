@@ -36,12 +36,15 @@ def _kernel_log_level() -> int:
     """`core.log.level` → 日志级别整数。
 
     ``setLevel`` 对级别名**大小写敏感**（``"warning"`` 会抛 ``ValueError``），
-    故先归一为大写再查；认不出、或配置本身读不出来（值被改坏、文件不可读）时
-    退回 ``INFO``——**导入期不该因一条配置值而崩**，那是使用方最难排查的位置。
+    故先归一为大写再查；认不出时退回 ``INFO``。
+
+    读这一条会经引擎：键缺失时引擎会**顺手补写**配置文件的默认值（引擎的既有口径），
+    若部署在只读目录，补写会抛 ``OSError``——那也不该让 ``import core`` 失败，
+    故与配置错误一并兜住。**导入期不该因一条配置值而崩**。
     """
     try:
         declared = str(_kernel_conf.log_level)
-    except ConfigError:
+    except (ConfigError, OSError):
         return logging.INFO
     return logging.getLevelNamesMapping().get(declared.strip().upper(), logging.INFO)
 

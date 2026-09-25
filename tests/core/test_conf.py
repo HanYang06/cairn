@@ -32,6 +32,7 @@ from core.conf import conf as engine_conf
 from core.conf.params import conf as kernel_conf
 from core.storage import Bucket, BucketConfig
 from core.storage.conf import conf as storage_conf
+from core.types import CairnError
 from core.types.cfg import Cfg, clear, item, items, register
 
 if TYPE_CHECKING:
@@ -314,6 +315,17 @@ def test_config_file_drives_bucket_config(tmp_path: Path) -> None:
         engine_conf.set("storage.pack.max_blocks", original)
 
 
+def test_bucket_config_rejects_non_integer_value() -> None:
+    """值文件里的整数项被改成字符串 → 在配置边界报清楚，不在分片关键路径上抛 `TypeError`。"""
+    original = engine_conf.get("storage.block.max_bytes")
+    try:
+        engine_conf.set("storage.block.max_bytes", "1048576")
+        with pytest.raises(CairnError, match="必须是正整数"):
+            BucketConfig()
+    finally:
+        engine_conf.set("storage.block.max_bytes", original)
+
+
 def test_kernel_log_level_is_applied() -> None:
     """`core.log.level` 真接到 `core.*` 这族 logger 上。"""
     assert logging.getLogger("core").level == logging.getLevelName(kernel_conf.log_level)
@@ -350,6 +362,38 @@ def test_broken_value_file_raises_file_error_in_conflicts(engine: ConfEngine) ->
 
     with pytest.raises(ConfigFileError, match="不可读"):
         engine.conflicts()
+
+
+@pytest.mark.usefixtures("declared")
+def test_conflicts_reports_every_problem_at_once(engine: ConfEngine) -> None:
+    """坏文件与重名同时存在时，异常信息里两者都要有（先收集、末尾统一抛）。
+
+    计划直接构造为「已过期」，模拟「算计划时还好、写盘时已坏」的时序：
+    中途 `raise` 会把这一轮已经查到的重名项一起丢掉。
+    """
+    value, schema = _value_file(engine), _schema_file(engine)
+    value.parent.mkdir(parents=True, exist_ok=True)
+    schema.parent.mkdir(parents=True, exist_ok=True)
+    plans = [(value, {"$schema": "x"}, True), (schema, {"$schema": "y"}, True)]
+    value.write_text("{ 也不是 json", encoding="utf-8")
+    schema.write_text("{ 不是 json", encoding="utf-8")
+
+    with pytest.raises(ConfigFileError, match="另有 1 处重名"):
+        engine.conflicts(plans)
+
+
+@pytest.mark.usefixtures("declared")
+def test_set_refuses_to_overwrite_a_foreign_file(engine: ConfEngine) -> None:
+    """单值写也不得覆盖别人的文件：`set()` 与 `sync()` 同一口径（整份重写同样危险）。"""
+    path = _value_file(engine)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"别人的键": 1}', encoding="utf-8")
+    engine.reload()
+
+    with pytest.raises(ConfigConflictError, match="重名"):
+        engine.set(_REAL, 5)
+
+    assert json.loads(path.read_text(encoding="utf-8")) == {"别人的键": 1}  # 一个字没动
 
 
 def test_annotated_item_type_wins_over_the_default() -> None:

@@ -6,9 +6,11 @@
 跑法（提交新声明后跑一次，和 `tools/spdx.py` 一样是工程工具）::
 
     uv run python tools/gen_conf.py            # 展开 / 补齐
+    uv run python tools/gen_conf.py --write    # 同上（写盘意图显式化）
     uv run python tools/gen_conf.py --check    # 只查不写（CI 防漂移）
 
-**声明是唯一事实来源**：这个工具不发明任何值，只把声明展开到磁盘。
+未知参数一律报错退出：拼错成 `-check` 之类的写法若被当成"默认展开"，
+会在意图是"只看一眼"的时候写盘。**声明是唯一事实来源**：这个工具不发明任何值，只把声明展开到磁盘。
 """
 
 from __future__ import annotations
@@ -29,6 +31,10 @@ from tools._iosafe import _say  # noqa: E402 — 仓根在 sys.path[0] 后即可
 
 
 def main(argv: list[str]) -> int:
+    unknown = [arg for arg in argv if arg not in {"--check", "--write"}]
+    if unknown:
+        _say(f"未知参数 {unknown}：用法 `gen_conf.py [--check|--write]`（不带参数=展开 / 补齐）")
+        return 1
     check = "--check" in argv
     engine = ConfEngine(ROOT)
     plans = engine.plan()

@@ -83,3 +83,11 @@ def test_docstring_report_mentions_counts() -> None:
     documented, total, _ = docgen.docstring_stats()
     assert f"{documented}/{total}" in report
     assert 0 < documented <= total
+
+
+def test_coverage_gate_flag_controls_the_exit_code() -> None:
+    """报告模式不阻断；`--gate` 低于阈值即非零——是否当门禁由调用方显式选择。"""
+    assert docgen.main(["--coverage"]) == 0
+
+    expected = 1 if docgen.coverage_ratio() < docgen.DOCSTRING_MIN else 0
+    assert docgen.main(["--coverage", "--gate"]) == expected

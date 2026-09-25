@@ -77,10 +77,15 @@ class BucketConfig:
     pack_max_bytes: int | None = None
 
     def __post_init__(self) -> None:
-        """没给的项**按声明补齐**（声明是唯一事实来源，不在这里抄第二份默认值）。"""
+        """没给的项**按声明补齐**，并校验成整数（声明是唯一事实来源，不在这里抄默认值）。
+
+        值文件是**可被用户编辑**的，而引擎取值不做类型校验（只搬 JSON 原值）：
+        把 ``storage.block.max_bytes`` 写成字符串，会在分片的关键路径上抛
+        ``TypeError: '<=' not supported ...``，难定位。故在配置边界就报清楚。
+        """
         from .conf import conf  # noqa: PLC0415 — 与声明模块同包，运行时取
 
-        filled = {
+        filled: dict[str, int] = {
             "block_max_bytes": conf.block_max_bytes,
             "pack_max_blocks": conf.pack_max_blocks,
             "pack_max_bytes": conf.pack_max_bytes,
@@ -88,6 +93,12 @@ class BucketConfig:
         for name, value in filled.items():
             if getattr(self, name) is None:
                 object.__setattr__(self, name, value)
+            current = getattr(self, name)
+            if isinstance(current, bool) or not isinstance(current, int) or current < 1:
+                raise CairnError(
+                    f"桶配置 {name} 必须是正整数，得到 {current!r}"
+                    "（检查 config/<hub>/core/storage/conf.json 里这一项）"
+                )
 
 
 class Bucket:

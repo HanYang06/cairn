@@ -12,7 +12,8 @@
 
     uv run python tools/docgen.py --write      # 重新生成 docs/reference/config.md
     uv run python tools/docgen.py --check      # 防漂移门禁（页面与词表不一致即失败）
-    uv run python tools/docgen.py --coverage   # 只打印 docstring 覆盖率报告
+    uv run python tools/docgen.py --coverage   # 只打印 docstring 覆盖率报告（报告模式）
+    uv run python tools/docgen.py --coverage --gate   # 同上，并低于阈值即非零退出（门禁模式）
 
 生成的文件自己带 SPDX 头与"勿手改"声明；正文**没有一句是手写的**——表来自词表，
 说明文字来自本文件的模板常量（改口径改这里，不改正生成物）。
@@ -170,6 +171,12 @@ def docstring_stats() -> tuple[int, int, list[Residue]]:
     return documented, total, holes
 
 
+def coverage_ratio() -> float:
+    """公共类 / 函数的 docstring 覆盖率（`--coverage --gate` 的判据）。"""
+    documented, total, _holes = docstring_stats()
+    return documented / total if total else 1.0
+
+
 def coverage_report() -> str:
     """docstring 覆盖率报告（含缺口清单与阈值判定），供人看。"""
     documented, total, holes = docstring_stats()
@@ -214,11 +221,14 @@ def _write() -> int:
 
 
 def main(argv: list[str]) -> int:
-    """`--write` 生成 / `--check` 门禁 / `--coverage` 报告。"""
+    """`--write` 生成 / `--check` 防漂移 / `--coverage` 报告（`--gate` 时按阈值判退出码）。"""
     if "--write" in argv:
         return _write()
     if "--coverage" in argv:
         _say(coverage_report())
+        if "--gate" in argv and coverage_ratio() < DOCSTRING_MIN:
+            _say(f"[docgen] docstring 覆盖率低于阈值 {DOCSTRING_MIN:.0%}：门禁模式下失败。")
+            return 1
         return 0
     return _gate()
 

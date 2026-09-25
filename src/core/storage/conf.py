@@ -43,7 +43,7 @@ class StorageConf:
     version_retention_days: Cfg = Cfg(
         "storage.version.retention_days",
         30,
-        doc="版本保留窗（天），过期由惰性压实回收",
+        doc="版本保留窗（天）：**预留**——惰性压实尚未实现，当前无读取点",
     )
 
 

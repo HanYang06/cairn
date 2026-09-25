@@ -31,7 +31,7 @@
 | `storage.block.max_bytes` | `integer` | `1048576` | 单个块的字节上限，超过即分片（分片 + 索引块） | `core.storage.conf.StorageConf` |
 | `storage.pack.max_blocks` | `integer` | `4096` | 单个载体最多装多少块，写满即封口 | `core.storage.conf.StorageConf` |
 | `storage.pack.max_bytes` | `integer` | `1073741824` | 单个载体字节上限，写满即封口 | `core.storage.conf.StorageConf` |
-| `storage.version.retention_days` | `integer` | `30` | 版本保留窗（天），过期由惰性压实回收 | `core.storage.conf.StorageConf` |
+| `storage.version.retention_days` | `integer` | `30` | 版本保留窗（天）：**预留**——惰性压实尚未实现，当前无读取点 | `core.storage.conf.StorageConf` |
 
 ## 另见
 

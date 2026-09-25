@@ -43,7 +43,9 @@ jobs:
       - name: Generated config reference (no drift)
         run: uv run python tools/docgen.py --check
 
-      - name: Docstring coverage report
+      # 报告模式：`DOCSTRING_MIN` 是既定阈值，但当前覆盖率未达标，故不阻断。
+      # 达标后把这一步改成 `docgen.py --coverage --gate` 即成为门禁（与 prose 步同款两段式）。
+      - name: Docstring coverage report (报告模式)
         run: uv run python tools/docgen.py --coverage
 
       - name: Lint (ruff)

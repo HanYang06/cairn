@@ -178,9 +178,9 @@ class ConfEngine:
         return self.root / self.base / folder.hub / folder.tree.parent / name
 
     def schema_path(self, folder: Folder) -> Path:
-        """词表文件：``schema/<hub>/<包树>/<name>.json``。"""
+        """词表文件：``schema/<hub>/<包树>/<name>.<SCHEMA_FILE_TYPE>``。"""
         base = self.root / "schema" / folder.hub / folder.tree.parent
-        return base / f"{folder.name}.json"
+        return base / f"{folder.name}.{SCHEMA_FILE_TYPE}"
 
     def index_path(self) -> Path:
         """总词表（给人看的入口，含 ``$id``）。"""
@@ -240,30 +240,53 @@ class ConfEngine:
 
         命中即**拒写**（:meth:`sync` 抛 :class:`ConfigConflictError`），
         由调用方决定搬迁还是换 hub——**绝不覆盖别人的文件**。
+
+        坏文件是**先收集、末尾统一抛**：中途抛出会丢掉已经查到的冲突项，
+        调用方一次只能看到一个毛病，反而更难排查。
         """
         found: list[str] = []
-        config_root = self.root / self.base
+        broken: list[Path] = []
         for path, payload, stale in plans if plans is not None else self.plan():
             if not stale or not path.exists():
                 continue
             try:
-                existing = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError) as exc:
-                if config_root in path.parents:
-                    raise ConfigFileError(f"配置文件不可读：{path}") from exc
-                found.append(f"{path}（不是合法 JSON，不敢覆盖）")
+                clash = self._clash(path, payload)
+            except ConfigFileError:
+                broken.append(path)
                 continue
-            if not isinstance(existing, dict):
-                found.append(f"{path}（根不是对象，不敢覆盖）")
-                continue
-            marker = str(existing.get("$schema", ""))
-            if marker:
-                if marker != str(payload.get("$schema", "")):
-                    found.append(f"{path}（$schema 指向别处：{marker}）")
-                continue
-            if not any(key in existing for key in self._keys_of(path)):
-                found.append(f"{path}（无 $schema，也不像本引擎的投影）")
+            if clash:
+                found.append(clash)
+        if broken:
+            detail = "；".join(str(path) for path in broken)
+            others = f"（另有 {len(found)} 处重名：{'；'.join(found)}）" if found else ""
+            raise ConfigFileError(f"配置文件不可读：{detail}{others}")
         return found
+
+    # 守卫式逐条排除：每条判据一个提前返回，比层层嵌套好读（故放行 PLR0911）。
+    def _clash(self, path: Path, payload: dict[str, Any]) -> str | None:  # noqa: PLR0911
+        """该目标路径上是否压着"不是本引擎写的"文件；是则返回一句说明，否则 ``None``。
+
+        判据只此一处：:meth:`conflicts` 与 :meth:`set` 共用，
+        免得"批量写守规矩、单值写不守"。
+        """
+        if not path.exists():
+            return None
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            if (self.root / self.base) in path.parents:
+                raise ConfigFileError(f"配置文件不可读：{path}") from exc
+            return f"{path}（不是合法 JSON，不敢覆盖）"
+        if not isinstance(existing, dict):
+            return f"{path}（根不是对象，不敢覆盖）"
+        marker = str(existing.get("$schema", ""))
+        if marker:
+            if marker != str(payload.get("$schema", "")):
+                return f"{path}（$schema 指向别处：{marker}）"
+            return None
+        if not any(key in existing for key in self._keys_of(path)):
+            return f"{path}（无 $schema，也不像本引擎的投影）"
+        return None
 
     def _keys_of(self, path: Path) -> tuple[str, ...]:
         """这个投影路径"像自己人"的证据：本引擎为它**登记过**的具体键。
@@ -347,14 +370,20 @@ class ConfEngine:
         raise ConfigKeyError(f"配置项丢了且没有默认值可以补：{key}")
 
     def set(self, key: str, value: Any) -> None:
-        """写一个值进配置文件（**这是配置唯一的写入口**）。"""
+        """写一个值进配置文件（**这是配置唯一的写入口**）。
+
+        写入前过一遍 :meth:`_clash`：路径上压着别人的文件时同样**拒写**——
+        「绝不覆盖别人的文件」不是只有批量写才守；单值写也同样整份重写目标文件。
+        """
         declared = _declared_map().get(key)
         if declared is None:
             raise ConfigKeyError(f"配置项未登记，不能写：{key}")
         path = self.config_path(self._folder_of(declared))
-        data = self._read_file(path)
-        data[key] = value
-        self._write_value_file(path, data)
+        payload = {"$schema": self._relative_schema(path), **self._read_file(path), key: value}
+        clash = self._clash(path, payload)
+        if clash:
+            raise ConfigConflictError(f"配置投影与已有文件重名，拒写：{clash}")
+        self._write_json(path, payload)
         self._cache.pop(key, None)
 
     def reload(self) -> None:
@@ -449,6 +478,7 @@ conf = ConfEngine()
 
 __all__ = [
     "CONFIG_FILE_TYPE",
+    "CONFIG_HUB",
     "CONFIG_PATH",
     "SCHEMA_FILE_TYPE",
     "SETTINGS_SCHEMA_ID",

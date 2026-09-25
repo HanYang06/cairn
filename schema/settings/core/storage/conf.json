@@ -33,7 +33,7 @@
     },
     "storage.version.retention_days": {
       "type": "integer",
-      "description": "版本保留窗（天），过期由惰性压实回收",
+      "description": "版本保留窗（天）：**预留**——惰性压实尚未实现，当前无读取点",
       "default": 30,
       "x-cairn-owner": "core.storage.conf.StorageConf",
       "x-cairn-fillable": true,
