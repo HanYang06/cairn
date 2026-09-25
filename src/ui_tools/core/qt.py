@@ -137,7 +137,7 @@ def run(
     title: str = "Cairn",
     size: tuple[int, int] = (1200, 780),
 ) -> int:
-    """启动 Qt 事件循环：套主题 → 建窗 → 显示 → `exec`（App 级入口用，一行搞定）。"""
+    """启动 Qt 事件循环：应用主题 → 建窗 → 显示 → `exec`（供 App 级入口调用，一行完成）。"""
     qapp = QApplication.instance() or QApplication([])
     app.theme.apply(qapp)
     window = build_window(app)

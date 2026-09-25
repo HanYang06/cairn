@@ -59,6 +59,7 @@ nav:
       - 内核规格: architecture/kernel-spec.md
       - 内核: architecture/kernel.md
       - 领域: architecture/domains.md
+      - 配置引擎: architecture/config.md
       - 笔记模型: architecture/note-model.md
       - 内嵌资源: architecture/access.md
       - UI 内核: architecture/ui-kernel.md
@@ -73,6 +74,7 @@ nav:
       - ui_tools（界面工具层）: api/ui-tools.md
       - app（应用组合根）: api/app.md
   - 术语: reference/glossary.md
+  - 配置项参考: reference/config.md
   - 贡献:
       - contributing/index.md
       - 怎么改文档: contributing/docs.md

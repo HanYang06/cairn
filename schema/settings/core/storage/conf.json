@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cairn 配置",
+  "description": "由声明自动生成，勿手改。",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "storage.block.max_bytes": {
+      "type": "integer",
+      "description": "单个块的字节上限，超过即分片（分片 + 索引块）",
+      "default": 1048576,
+      "x-cairn-owner": "core.storage.conf.StorageConf",
+      "x-cairn-fillable": true,
+      "x-cairn-empty-ok": false
+    },
+    "storage.pack.max_blocks": {
+      "type": "integer",
+      "description": "单个载体最多装多少块，写满即封口",
+      "default": 4096,
+      "x-cairn-owner": "core.storage.conf.StorageConf",
+      "x-cairn-fillable": true,
+      "x-cairn-empty-ok": false
+    },
+    "storage.pack.max_bytes": {
+      "type": "integer",
+      "description": "单个载体字节上限，写满即封口",
+      "default": 1073741824,
+      "x-cairn-owner": "core.storage.conf.StorageConf",
+      "x-cairn-fillable": true,
+      "x-cairn-empty-ok": false
+    },
+    "storage.version.retention_days": {
+      "type": "integer",
+      "description": "版本保留窗（天），过期由惰性压实回收",
+      "default": 30,
+      "x-cairn-owner": "core.storage.conf.StorageConf",
+      "x-cairn-fillable": true,
+      "x-cairn-empty-ok": false
+    }
+  },
+  "additionalProperties": false
+}

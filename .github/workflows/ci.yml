@@ -36,7 +36,11 @@ jobs:
         run: uv run python tools/prose.py
         continue-on-error: true
 
+      - name: Generated config reference (no drift)
+        run: uv run python tools/docgen.py --check
 
+      - name: Docstring coverage report
+        run: uv run python tools/docgen.py --coverage
 
       - name: Lint (ruff)
         run: uv run ruff check .

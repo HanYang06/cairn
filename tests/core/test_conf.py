@@ -1,0 +1,318 @@
+# SPDX-FileCopyrightText: 2026 HanYang06
+# SPDX-License-Identifier: Apache-2.0
+
+"""配置引擎：注册即事实，两个投影落盘，取值三条规则。
+
+- 带值注册（``Cfg("k", 4096)``）→ ``config`` 与 ``schema`` 两侧都出现；
+- 不带值（``Cfg("k")``）→ 只有 ``schema`` 出现，值丢了就报错（补不了）；
+- key 在但值为空 → **报错**（不猜、不自动修）；
+- 补只补缺失的键，**用户改过的值一个字都不动**。
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import subprocess
+import sys
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+import pytest
+
+from core.conf import (
+    ConfEngine,
+    ConfigConflictError,
+    ConfigFileError,
+    ConfigKeyError,
+    ConfigValueError,
+)
+from core.conf import conf as engine_conf
+from core.conf.params import conf as kernel_conf
+from core.storage import Bucket, BucketConfig
+from core.storage.conf import conf as storage_conf
+from core.types.cfg import Cfg, clear, items, register
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+# 本文件之外的真声明（内核 / 存储那几组）：每例收尾要放回去，别让它被清掉。
+_REAL_ITEMS = tuple(items())
+
+_REAL = "core.demo.pack.max_blocks"
+_VERSION = "core.demo.catalog.version"
+_LEVEL = "core.demo.log.level"
+_EMPTY_OK = "core.demo.pack.empty_ok"
+
+# 从 Python 3.14 起，模块级注解的求值不再受 `from __future__` 影响。
+_REAL_DEFAULT = 4096
+
+
+def _declared_fields() -> dict[str, object]:
+    """每次现造声明对象：描述符带 ``_resolved`` 缓存，跨用例复用会串味。"""
+    return {
+        "max_blocks": Cfg(_REAL, _REAL_DEFAULT, doc="单个载体最多装多少块"),
+        "version": Cfg(_VERSION, doc="格式版本：只登记，不给值"),
+        "level": Cfg(_LEVEL, "WARNING"),
+        "empty_ok": Cfg(_EMPTY_OK, 7, empty_ok=True),
+    }
+
+
+@pytest.fixture(autouse=True)
+def _isolated_registry() -> Iterator[None]:
+    """测试自己管登记表：跑完清干净，再**把真声明放回去**（别让别的用例失明）。"""
+    yield
+    clear()
+    for item in _REAL_ITEMS:
+        register(item)
+
+
+@pytest.fixture
+def declared() -> type:
+    """每个用例重新声明一遍：登记表由用例清干净，声明得跟着重来。"""
+    fields = _declared_fields()
+    return type(
+        "DemoCfg",
+        (),
+        {"__annotations__": dict.fromkeys(fields, Cfg), **fields},
+    )
+
+
+@pytest.fixture
+def engine(tmp_path: Path) -> ConfEngine:
+    """隔离的引擎：根在临时目录，不碰仓库里的真配置。"""
+    return ConfEngine(tmp_path)
+
+
+def _value_file(engine: ConfEngine) -> Path:
+    """值文件：``config/<hub>/<包树>/<源文件名>.<type>``。"""
+    return engine.root / "config" / engine.hub / "tests" / "core" / "test_conf.json"
+
+
+def _schema_file(engine: ConfEngine) -> Path:
+    """词表文件：与值文件同构（只换根目录、固定 ``.json``）。"""
+    return engine.root / "schema" / engine.hub / "tests" / "core" / "test_conf.json"
+
+
+def _write(engine: ConfEngine, data: dict[str, object]) -> None:
+    path = _value_file(engine)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    engine.reload()
+
+
+# ---- 两个投影 ----
+
+
+@pytest.mark.usefixtures("declared")
+def test_sync_writes_both_sides(engine: ConfEngine) -> None:
+    """带值注册 → 两侧都有；不带值 → 只有词表有。"""
+    engine.sync()
+    assert _value_file(engine).is_file()
+    assert _schema_file(engine).is_file()
+    values = json.loads(_value_file(engine).read_text(encoding="utf-8"))
+    schema = json.loads(_schema_file(engine).read_text(encoding="utf-8"))
+    assert values[_REAL] == _REAL_DEFAULT
+    assert _VERSION not in values  # 没默认值 → 值文件里不呈现
+    assert _VERSION in schema["properties"]  # 但词表里承认它
+    assert schema["properties"][_REAL]["type"] == "integer"
+    assert schema["properties"][_REAL]["description"] == "单个载体最多装多少块"
+    assert schema["properties"][_VERSION]["x-cairn-fillable"] is False
+
+
+@pytest.mark.usefixtures("declared")
+def test_value_file_points_at_its_schema(engine: ConfEngine) -> None:
+    """值文件顶部的 ``$schema`` 指向对应词表（IDE 提示的入口）。"""
+    engine.sync()
+    values = json.loads(_value_file(engine).read_text(encoding="utf-8"))
+    assert (
+        values["$schema"].replace("\\", "/").endswith("schema/settings/tests/core/test_conf.json")
+    )
+
+
+@pytest.mark.usefixtures("declared")
+def test_root_schema_collects_everything(engine: ConfEngine) -> None:
+    engine.sync()
+    root = json.loads(engine.index_path().read_text(encoding="utf-8"))
+    assert _REAL in root["properties"]
+    assert root["additionalProperties"] is False
+
+
+# ---- 取值三条 ----
+
+
+@pytest.mark.usefixtures("declared")
+def test_get_returns_file_value_then_default(engine: ConfEngine) -> None:
+    engine.sync()
+    assert engine.get(_REAL) == _REAL_DEFAULT
+    _write(engine, {_REAL: 512})
+    assert engine.get(_REAL) == 512  # 文件说了算
+
+
+@pytest.mark.usefixtures("declared")
+def test_missing_key_with_default_is_refilled(engine: ConfEngine) -> None:
+    """key 丢了但有默认值 → 补回来（文件删了也能重展开）。"""
+    engine.sync()
+    _write(engine, {})
+    assert engine.get(_REAL) == _REAL_DEFAULT
+    values = json.loads(_value_file(engine).read_text(encoding="utf-8"))
+    assert values[_REAL] == _REAL_DEFAULT  # 真写回文件了
+
+
+@pytest.mark.usefixtures("declared")
+def test_missing_key_without_default_raises(engine: ConfEngine) -> None:
+    """key 丢了且没默认值 → 报错（补不了）。"""
+    engine.sync()
+    with pytest.raises(ConfigKeyError, match="没有默认值"):
+        engine.get(_VERSION)
+
+
+@pytest.mark.usefixtures("declared")
+def test_empty_value_raises(engine: ConfEngine) -> None:
+    """key 在、值空 → 报错，不自动修。"""
+    engine.sync()
+    _write(engine, {_REAL: None})
+    with pytest.raises(ConfigValueError, match="值为空"):
+        engine.get(_REAL)
+
+
+@pytest.mark.usefixtures("declared")
+def test_empty_ok_treats_empty_as_default(engine: ConfEngine) -> None:
+    """``empty_ok=True``（增强写法）：空值也按默认处理。"""
+    engine.sync()
+    for blank in (None, "", []):
+        _write(engine, {_EMPTY_OK: blank})
+        assert engine.get(_EMPTY_OK) == 7
+
+
+# ---- 写与维护 ----
+
+
+@pytest.mark.usefixtures("declared")
+def test_user_value_is_never_overwritten(engine: ConfEngine) -> None:
+    """补只补缺失的键；用户改过的值一个字都不动。"""
+    engine.sync()
+    engine.set(_REAL, 128)
+    engine.sync()
+    engine.sync()
+    assert engine.get(_REAL) == 128
+
+
+@pytest.mark.usefixtures("declared")
+def test_set_unknown_key_raises(engine: ConfEngine) -> None:
+    engine.sync()
+    with pytest.raises(ConfigKeyError, match="未登记"):
+        engine.set("core.demo.nope", 1)
+
+
+def test_attribute_access_reports_engine_state(
+    engine: ConfEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """属性访问 = 引擎的判据：引擎说读到什么，属性就给什么。
+
+    真值路径由 `test_get_returns_file_value_then_default` 等用例覆盖；这里只钉住
+    "描述符确实把判据交给引擎"——把引擎换成隔离的那份，写什么就读到什么。
+    """
+    monkeypatch.setattr("core.conf.engine.conf", engine)
+    holder = type(
+        "Holder",
+        (),
+        {"__annotations__": {"max_blocks": Cfg}, "max_blocks": Cfg(_REAL, _REAL_DEFAULT)},
+    )
+    engine.set(_REAL, 64)
+    assert holder.max_blocks == 64
+    engine.set(_REAL, _REAL_DEFAULT)
+    assert holder.max_blocks == _REAL_DEFAULT
+
+
+@pytest.mark.usefixtures("declared")
+def test_sync_is_idempotent(engine: ConfEngine) -> None:
+    """同步是投影：重复跑不产生新文件、不改内容、第二次不再写。"""
+    first = sorted(path for path, _touched in engine.sync())
+    before = {path: path.read_bytes() for path in first}
+    second = sorted(path for path, _touched in engine.sync())
+    after = {path: path.read_bytes() for path in second}
+    assert first == second
+    assert before == after
+    assert all(not touched for _path, touched in engine.sync())
+
+
+@pytest.mark.usefixtures("declared")
+def test_broken_file_raises(engine: ConfEngine) -> None:
+    engine.sync()
+    _value_file(engine).write_text("{ 不是 json", encoding="utf-8")
+    engine.reload()
+    with pytest.raises(ConfigFileError, match="不可读"):
+        engine.get(_REAL)
+
+
+# ---- 重名检查（不覆盖别人的文件） ----
+
+
+@pytest.mark.usefixtures("declared")
+def test_foreign_file_is_refused_not_overwritten(engine: ConfEngine) -> None:
+    """值文件位置上压着一份别人的文件（无 ``$schema``、也没有我们的键）→ 拒写。"""
+    path = _value_file(engine)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"别人的键": 1}', encoding="utf-8")
+    engine.reload()
+    found = engine.conflicts()
+    assert any("重名" not in line and str(path) in line for line in found)
+    with pytest.raises(ConfigConflictError, match="重名"):
+        engine.sync()
+    assert json.loads(path.read_text(encoding="utf-8")) == {"别人的键": 1}  # 一个字没动
+
+
+@pytest.mark.usefixtures("declared")
+def test_file_pointing_elsewhere_is_refused(engine: ConfEngine) -> None:
+    """值文件带着指向**别处**的 ``$schema`` → 拒写（那是别人的词表）。"""
+    path = _value_file(engine)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"$schema": "../../schema/other.json"}', encoding="utf-8")
+    engine.reload()
+    assert any("$schema 指向别处" in line for line in engine.conflicts())
+    with pytest.raises(ConfigConflictError):
+        engine.sync()
+
+
+def test_repo_projections_match_declarations() -> None:
+    """端到端：仓库里已提交的投影与声明一致（`gen_conf.py --check` 的等价断言）。"""
+    root = Path(__file__).resolve().parents[2]
+    command = [sys.executable, str(root / "tools" / "gen_conf.py"), "--check"]
+    done = subprocess.run(
+        command,
+        cwd=root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",  # 工具按 UTF-8 打印中文；别让子进程按活动代码页解码
+        check=False,
+    )
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+# ---- 接线：声明的默认值真的生效 ----
+
+
+def test_bucket_config_defaults_come_from_declarations() -> None:
+    """桶配置的默认值来自存储自己的声明（不是写死在 `BucketConfig` 里）。"""
+    resolved = BucketConfig()
+    assert resolved.block_max_bytes == storage_conf.block_max_bytes
+    assert resolved.pack_max_blocks == storage_conf.pack_max_blocks
+    assert resolved.pack_max_bytes == storage_conf.pack_max_bytes
+
+
+def test_config_file_drives_bucket_config(tmp_path: Path) -> None:
+    """改配置文件 → 桶跟着变（**文件说了算**），改完还原。"""
+    original = engine_conf.get("storage.pack.max_blocks")
+    try:
+        engine_conf.set("storage.pack.max_blocks", 7)
+        assert BucketConfig().pack_max_blocks == 7
+        bucket = Bucket.create(tmp_path / "bucket")
+        assert bucket.config.pack_max_blocks == 7
+    finally:
+        engine_conf.set("storage.pack.max_blocks", original)
+
+
+def test_kernel_log_level_is_applied() -> None:
+    """`core.log.level` 真接到 `core.*` 这族 logger 上。"""
+    assert logging.getLogger("core").level == logging.getLevelName(kernel_conf.log_level)
