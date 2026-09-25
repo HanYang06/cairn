@@ -104,8 +104,11 @@ def type_schema(hint: Any) -> dict[str, Any]:
         return schema
     if isinstance(hint, UnionType) or get_origin(hint) is Union:
         branches = [type_schema(arg) for arg in get_args(hint)]
-        found = [branch for branch in branches if branch]
-        return {"anyOf": found} if len(found) > 1 else (found[0] if found else {})
+        # 有分支认不出就整体不给约束：只留认得出的那支会把联合**收敛成单类型**
+        # （`int | MyEnum` 输出"只能是整数"），给出过窄的错约束比不给更糟。
+        if any(not branch for branch in branches):
+            return {}
+        return {"anyOf": branches} if len(branches) > 1 else branches[0]
     return {}
 
 

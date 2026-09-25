@@ -30,6 +30,7 @@ from core.conf import (
 )
 from core.conf import conf as engine_conf
 from core.conf.params import conf as kernel_conf
+from core.conf.schema import type_schema
 from core.storage import Bucket, BucketConfig
 from core.storage.conf import conf as storage_conf
 from core.types import CairnError
@@ -396,6 +397,37 @@ def test_set_refuses_to_overwrite_a_foreign_file(engine: ConfEngine) -> None:
     assert json.loads(path.read_text(encoding="utf-8")) == {"别人的键": 1}  # 一个字没动
 
 
+@pytest.mark.usefixtures("declared")
+def test_repair_refuses_to_adopt_a_foreign_file(engine: ConfEngine) -> None:
+    """补缺失键（`_repair`）同样不得把别人的文件据为己有，也不得注入自己的 `$schema`。"""
+    path = _value_file(engine)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('{"别人的键": 1}', encoding="utf-8")
+    engine.reload()
+
+    with pytest.raises(ConfigConflictError, match="重名"):
+        engine.get(_REAL)
+
+    assert json.loads(path.read_text(encoding="utf-8")) == {"别人的键": 1}
+
+
+@pytest.mark.usefixtures("declared")
+def test_runtime_write_does_not_drift_from_the_plan(engine: ConfEngine) -> None:
+    """运行期写值之后文件必须与 `plan()` 的期望逐字节一致（键序也要一致）。
+
+    `gen_conf.py --check` 按文本比较：写值若另排一种键序，配置会被误报成漂移。
+    """
+    engine.sync()
+    path = _value_file(engine)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps({"zz.user": 1, **data}, ensure_ascii=False), encoding="utf-8")
+    engine.reload()
+
+    engine.set(_REAL, 128)
+
+    assert all(not stale for _path, _payload, stale in engine.plan())
+
+
 def test_annotated_item_type_wins_over_the_default() -> None:
     """文档推荐的 `Cfg[int]` 写法必须真的生效（下标即注解里的类型，不退化成按默认值推）。"""
     field = Cfg("core.demo.typed.size", "默认值是字符串")
@@ -409,12 +441,48 @@ def test_annotated_item_type_wins_over_the_default() -> None:
 
 
 def test_none_default_is_rejected_unless_empty_ok() -> None:
-    """默认值 `None` 会写出读不回来的配置（null 按空值报错）→ 声明期即拒绝。"""
-    with pytest.raises(ValueError, match="默认值不得为 None"):
-        Cfg("core.demo.pack.none_default", None)
+    """空默认值（`None` / 空串 / 空容器）都会写出读不回来的配置 → 声明期即拒绝。"""
+    for blank in (None, "", [], {}, ()):
+        with pytest.raises(ValueError, match="默认值不得为空"):
+            Cfg("core.demo.pack.none_default", blank)
 
     allowed = Cfg("core.demo.pack.none_default", None, empty_ok=True)
     assert allowed.default is None
+
+
+def test_zero_and_false_are_not_empty_defaults() -> None:
+    """`0` 与 `False` 不算空值（与引擎的空值口径一致），可以正常带值注册。"""
+    assert Cfg("core.demo.pack.zero", 0).default == 0
+
+    disabled = False
+    assert Cfg("core.demo.pack.off", disabled).default is disabled
+
+
+def test_union_annotation_reaches_the_schema() -> None:
+    """`Cfg[int | None]` 必须被采纳：按「必须是 type」筛掉会让显式声明被无声吞掉。"""
+    field = Cfg("core.demo.typed.optional", 0)
+    holder = type(
+        "OptionalCfg",
+        (),
+        {"__annotations__": {"optional": Cfg[int | None]}, "optional": field},
+    )
+
+    assert holder is not None
+    declared = item("core.demo.typed.optional")
+    assert declared is not None
+    assert declared.type == int | None
+    assert type_schema(declared.type) == {"anyOf": [{"type": "integer"}, {"type": "null"}]}
+
+
+def test_type_schema_does_not_narrow_a_union() -> None:
+    """联合里有认不出的分支时整体不给约束——只留认得的那支会给出过窄的错约束。"""
+
+    class Custom:
+        """词表不认的自定义类型。"""
+
+    assert type_schema(int | Custom) == {}
+    assert type_schema(str | int) == {"anyOf": [{"type": "string"}, {"type": "integer"}]}
+    assert type_schema(Custom) == {}
 
 
 def test_blank_docstring_does_not_break_registration() -> None:

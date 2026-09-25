@@ -64,10 +64,10 @@ blocks = conf.pack_max_blocks  # 读属性 = 向引擎要值
 | 参数 | 含义 |
 |---|---|
 | `path` | 点分键（`storage.pack.max_blocks`）；也是分组依据 |
-| `default` | **带了值 → 这条会展开进 `config/`**；不带 → 只进词表，值丢了报错。**不得传 `None`**（会写出读不回来的 `null`，声明期即拒绝）——确需以 `null` 为默认时配 `empty_ok=True` |
+| `default` | **带了值 → 这条会展开进 `config/`**；不带 → 只进词表，值丢了报错。**不得传空值**（`None` / 空串 / 空容器都会写出读不回来的默认值，声明期即拒绝）——确需以空为默认时配 `empty_ok=True` |
 | `doc` | 写进词表的说明（IDE 悬停能看到） |
-| `empty_ok` | `default=True` 那套增强写法：空值（`""` / `None` / `[]`）也按默认处理 |
-| `item_type` | 显式类型；不写就取注解 `Cfg[int]`，注解没信息再按默认值推 |
+| `empty_ok` | `empty_ok=True` 那套增强写法：空值（`""` / `None` / `[]`）也按默认处理 |
+| `item_type` | 显式类型；不写就取注解 `Cfg[int]`，注解没信息再按默认值推。联合与泛型（`int \| None`、`list[int]`）同样采纳 |
 
 ## 4. 取值三条（引擎的判据）
 

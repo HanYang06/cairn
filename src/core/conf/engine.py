@@ -198,6 +198,17 @@ class ConfEngine:
             found.sort(key=lambda one: one.key)
         return grouped
 
+    def _ordered(self, folder: Folder, merged: dict[str, Any]) -> dict[str, Any]:
+        """值文件的键序：**在册键按声明顺序在前，用户自己加的键在后**。
+
+        只调顺序、不删不改值；:meth:`plan` 与 :meth:`_write_value_file` **共用这一处**——
+        `_stale()` 按文本逐字节比较，两处若各排一种序，写出来的文件会被 `--check` 误报成漂移。
+        """
+        declared = self._declared().get(folder, ())
+        ordered = {item.key: merged[item.key] for item in declared if item.key in merged}
+        ordered.update({key: value for key, value in merged.items() if key not in ordered})
+        return ordered
+
     # ---- 投影：plan（只看不写）/ sync（写）----
     def plan(self) -> list[tuple[Path, dict[str, Any], bool]]:
         """算出两个投影**应该**是什么样，返回 ``[(文件, 内容, 是否与磁盘不一致)]``。
@@ -214,10 +225,10 @@ class ConfEngine:
             for item in declared:
                 if item.fillable and item.key not in merged:
                     merged[item.key] = item.default
-            # 按声明顺序排列（在册的在前、用户自己加的在后）：只调顺序，不删不改值。
-            ordered = {item.key: merged[item.key] for item in declared if item.key in merged}
-            ordered.update({key: value for key, value in merged.items() if key not in ordered})
-            payload = {"$schema": self._relative_schema(value_file), **ordered}
+            payload = {
+                "$schema": self._relative_schema(value_file),
+                **self._ordered(folder, merged),
+            }
             plans.append((value_file, payload, self._stale(value_file, payload)))
             schema_file = self.schema_path(folder)
             schema_body = folder_schema(declared)
@@ -279,6 +290,9 @@ class ConfEngine:
             return f"{path}（不是合法 JSON，不敢覆盖）"
         if not isinstance(existing, dict):
             return f"{path}（根不是对象，不敢覆盖）"
+        if not existing:
+            # 空对象（`{}`）：没有任何"别人的内容"可覆盖，补键不构成侵占。
+            return None
         marker = str(existing.get("$schema", ""))
         if marker:
             if marker != str(payload.get("$schema", "")):
@@ -327,7 +341,7 @@ class ConfEngine:
         return [
             {
                 "key": item.key,
-                "type": item.type.__name__ if item.type else "",
+                "type": _type_label(item.type),
                 "default": item.default,
                 "doc": item.doc,
                 "fillable": item.fillable,
@@ -379,11 +393,7 @@ class ConfEngine:
         if declared is None:
             raise ConfigKeyError(f"配置项未登记，不能写：{key}")
         path = self.config_path(self._folder_of(declared))
-        payload = {"$schema": self._relative_schema(path), **self._read_file(path), key: value}
-        clash = self._clash(path, payload)
-        if clash:
-            raise ConfigConflictError(f"配置投影与已有文件重名，拒写：{clash}")
-        self._write_json(path, payload)
+        self._write_value_file(path, {**self._read_file(path), key: value})
         self._cache.pop(key, None)
 
     def reload(self) -> None:
@@ -418,8 +428,19 @@ class ConfEngine:
         return raw
 
     def _write_value_file(self, path: Path, data: dict[str, Any]) -> None:
-        """写值文件：顶部带上指向词表的 ``$schema``。"""
-        self._write_json(path, {"$schema": self._relative_schema(path), **data})
+        """写值文件：**键序规范化 + 顶部带指向词表的 ``$schema`` + 重名检查**。
+
+        所有值文件的写入口都走这里（:meth:`set` 与 :meth:`_repair`），
+        故「绝不覆盖别人的文件」与「键序与 :meth:`plan` 一致」只需守一道。
+        """
+        payload = {
+            "$schema": self._relative_schema(path),
+            **self._ordered(self._folder_of_path(path), data),
+        }
+        clash = self._clash(path, payload)
+        if clash:
+            raise ConfigConflictError(f"配置投影与已有文件重名，拒写：{clash}")
+        self._write_json(path, payload)
 
     def _relative_schema(self, path: Path) -> str:
         """值文件顶部的 ``$schema``：相对指向它对应的词表文件。"""
@@ -459,6 +480,13 @@ def _dumps(payload: dict[str, Any]) -> str:
 def _declared_map() -> dict[str, CfgItem]:
     """登记表按路径索引（``Cfg`` 登记的口）。"""
     return {item.key: item for item in items()}
+
+
+def _type_label(hint: Any) -> str:
+    """类型提示的可读名：普通类取 ``__name__``，联合 / 泛型走 ``str()``。"""
+    if hint is None:
+        return ""
+    return hint.__name__ if isinstance(hint, type) else str(hint)
 
 
 def _is_empty(value: Any) -> bool:

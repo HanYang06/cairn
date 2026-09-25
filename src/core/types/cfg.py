@@ -32,6 +32,18 @@ _MISSING = object()
 _logger = logging.getLogger(__name__)
 
 
+def _is_empty_default(value: Any) -> bool:
+    """与引擎的「空值」口径一致（``None`` / 空串 / 空容器；``0`` 与 ``False`` **不算空**）。
+
+    本模块只依赖标准库，故就地判断，不反向引用 ``core.conf`` 引擎。
+    """
+    if value is _MISSING:
+        return False
+    if value is None or value == "":
+        return True
+    return isinstance(value, (list, dict, tuple, set)) and not value
+
+
 @dataclass(frozen=True, slots=True)
 class CfgItem:
     """一条配置声明的**静态描述**（登记表里的事实）。"""
@@ -48,11 +60,12 @@ class CfgItem:
     item: str
     """宿主类里的字段名。"""
 
-    type: type[Any] | None = None
+    type: Any = None
+    """类型提示：可以是普通类，也可以是 ``int | None`` / ``list[int]`` 这类联合与泛型。"""
     default: Any = None
     doc: str = ""
     empty_ok: bool = False
-    """``default=True`` 的增强写法：空值也按默认处理。"""
+    """``empty_ok=True`` 的增强写法：空值（``None`` / 空串 / 空容器）也按默认处理。"""
     fillable: bool = False
     """是否带值注册（带值才能补进 ``config/``）。"""
 
@@ -109,12 +122,12 @@ class Cfg:
         *,
         doc: str = "",
         empty_ok: bool = False,
-        item_type: type[Any] | None = None,
+        item_type: Any = None,
     ) -> None:
-        if default is None and not empty_ok:
+        if not empty_ok and _is_empty_default(default):
             raise ValueError(
-                f"默认值不得为 None（会以 null 落盘，读回来按空值报错）：{path!r}；"
-                "确实要以 null 为默认时，显式传 empty_ok=True"
+                f"默认值不得为空（会写出读不回来的空值，读的时候按空值报错）：{path!r}；"
+                "确实要以空为默认时，显式传 empty_ok=True"
             )
         self.path = path
         self.doc = doc
@@ -123,7 +136,7 @@ class Cfg:
         self.key = path
         self.owner = ""
         self.field = ""
-        self.type: type[Any] | None = None
+        self.type: Any = None
         self.fillable = default is not _MISSING
         self._default_value = None if default is _MISSING else default
         self._resolved = False
@@ -162,6 +175,9 @@ class Cfg:
 
         注解写成 ``Cfg[str]`` 最好（类型就是它）；写裸 ``Cfg`` 时，注解不带信息，
         就**按默认值推**（``4096`` → ``int``）——不猜、只推有把握的。
+        **联合与泛型提示同样采纳**（``Cfg[int | None]`` / ``item_type=list[int]``）：
+        词表的 `type_schema` 认得它们，若在这里按「必须是 ``type``」筛掉，
+        显式传参就被无声吞掉，两条口径还会打架。
         注解解析失败（写错名字之类）只降级并记一条日志：不该因此挡住登记，
         但也不能静默——词表里少一条类型是看得见的差异。
         """
@@ -179,9 +195,9 @@ class Cfg:
                     "注解解析失败，按默认值推类型：%s.%s（%s）", owner.__name__, self.field, exc
                 )
                 hint = None
-        if not isinstance(hint, type) or hint is Cfg:
+        if hint is None or hint is Cfg:
             hint = type(self._default_value) if self.fillable else None
-        self.type = hint if isinstance(hint, type) else None
+        self.type = hint
 
     @staticmethod
     def _doc_of(owner: type) -> str:
