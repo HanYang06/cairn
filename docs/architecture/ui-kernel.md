@@ -7,12 +7,23 @@
 > 关系：数据内核对侧见 [`data-model.md`](./data-model.md) / [`storage.md`](./storage.md)；
 > 横切设施见 [`kernel.md`](./kernel.md)；主题与配置细则见 [`ui-theme.md`](./ui-theme.md)（待改写）。
 
-状态：**草案 v0.2**。技术路线已定（Widgets 宿主 + QML 岛）；下述四项为目标设计，分阶段落地。
+状态：**草案 v0.3**。技术路线已定（Widgets 宿主 + QML 岛）；下述四项为目标设计，分阶段落地。
 **未实现者标「未实现」，未定者标「待定」；不以本文替代实现。**
 
+> **2026-09-22 方向更新（以 [`kernel-spec.md`](./kernel-spec.md) v1.2 为准）**：
+> UI 消费的是**门户上的事件包**（`core.kernel` 的 `Event` / `Signal`）：
+>
+> - `Session(portal)` 订阅门户，包一到即整体失效并重算模型（**单向数据流**不变）。
+> - 本文里「内核信号代理」= **门户**；「通知非命令」与「统一调用主干」两版口径**均作废**——
+>   主轴是**事件对象**，不是调用总线。
+> - 旧的 `core/signal`（地址树 / `Action` / `Topic` / `EventBus`）已删除；`Vault` 已解散，
+>   组合根持 `Core`（`Core.portal` 是 UI 唯一入口）。
+> - UI 侧 `ui_tools/core/signal.py` 的 `UiSignal`（界面信号代理）**保留**：它属 UI 侧，
+>   与内核门户同名不同物（架构红线：`ui_tools` 只认门户，不碰存储与领域）。
+
 > **2026-09-19 现状导引**：界面代码现为 **`src/ui_tools/`（工具箱）**，实际 UI 载体与组合在 **`src/app/`**
-> （App 层，按平台 `win` / `linux`）；通信主干为 `core/signal`（**静态挂载**，无动态注册）。本文部分章节
-> （尤其 §3.1.1 信号层、§10 待定 1）已随后续调整更新，**以 `decisions.md` 与代码为准**。
+> （App 层，按平台 `win` / `linux`）。本文部分章节（尤其 §3.1.1 信号层、§10 待定 1）以 `kernel-spec.md`
+> 与代码为准。
 
 ---
 

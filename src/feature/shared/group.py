@@ -13,8 +13,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
-from core.storage import Attr, Block, BodyField
+from core.storage import Block, BodyField
 from core.types import Oid
+from core.types.attr import Attr  # noqa: TC001 — 标注工具在类体里被解析器扫描，运行期必须存在
 
 from .base import DomainError
 from .kinds import Kind
@@ -53,7 +54,7 @@ class GroupData(Block):
     @classmethod
     def create(  # noqa: PLR0913 — 构造入口参数面，均有默认值
         cls,
-        vault: Any,
+        core: Any,
         title: str = "",
         *,
         parent: GroupData | None = None,
@@ -63,21 +64,21 @@ class GroupData(Block):
     ) -> Self:
         """新建一个组并落盘；给了 ``parent`` 则同时加入父组。"""
         data = cls()
-        data._vault = vault
+        data.core = core  # 数据对象身上带内核（它继承 Block，不继承 Managed）
         data.gid = str(Oid.new())
         data.title = title
         data.key = key
         data.owner = owner
         data.member = [str(item) for item in member or ()]
-        data.save()
+        core.put(data)
         if parent is not None:
             parent.add(data)
         return data
 
     @classmethod
-    def by_gid(cls, vault: Any, gid: str) -> GroupData | None:
+    def by_gid(cls, core: Any, gid: str) -> GroupData | None:
         """按域 ID 找组。"""
-        for group in cls.list(vault):
+        for group in cls.list(core):
             if group.gid == gid:
                 return group
         return None
@@ -121,7 +122,7 @@ class GroupData(Block):
         self.require_unlocked()
         self.group = [ref for ref in self.group if ref != self.ref_of(child)]
         Relation.delete(
-            self._require_vault(),
+            self.core,
             source=self.oid,
             target=self.target_of(child),
             relation=_CONTAINS,
@@ -142,12 +143,12 @@ class GroupData(Block):
     # ---- 解析 ----
     def subgroups(self) -> list[GroupData]:
         """按 ``gid`` 解析出子组（引用不到的忽略），保持列表顺序。"""
-        index = {group.gid: group for group in GroupData.list(self._require_vault())}
+        index = {group.gid: group for group in GroupData.list(self.core)}
         return [index[ref] for ref in self.group if ref in index]
 
     def _link(self, child: Block | str) -> None:
         Relation.create(
-            self._require_vault(),
+            self.core,
             self.oid,
             self.target_of(child),
             relation=_CONTAINS,
@@ -155,19 +156,19 @@ class GroupData(Block):
         )
 
 
-def list_groups(vault: Any) -> Iterator[GroupData]:
+def list_groups(core: Any) -> Iterator[GroupData]:
     """列出全部组。"""
-    return GroupData.list(vault)
+    return GroupData.list(core)
 
 
-def all_gids(vault: Any) -> set[str]:
+def all_gids(core: Any) -> set[str]:
     """全部组的 ``gid`` 集合（判定子项是组还是普通块）。"""
-    return {group.gid for group in GroupData.list(vault)}
+    return {group.gid for group in GroupData.list(core)}
 
 
-def roots(vault: Any) -> list[GroupData]:
+def roots(core: Any) -> list[GroupData]:
     """没有被任何组包含的组。"""
-    groups = list(GroupData.list(vault))
+    groups = list(GroupData.list(core))
     contained: set[str] = set()
     for group in groups:
         contained.update(group.group)

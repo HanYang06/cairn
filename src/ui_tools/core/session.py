@@ -3,9 +3,9 @@
 
 """UI 内核 · 投影缓存、类型化模型与变更源（Qt-free）。
 
-`Session` 是 UI 与通信主干的**接入点**：消费主干上的存储事件与领域信号，
-维护投影缓存 / 模型并通知观察者；主干一变，模型自动重算（单向数据流）。
-本层**不 import `feature`、不碰 `Vault`**。
+`Session` 是 UI 与内核**引擎**的接入点：订阅引擎上的事件包，维护投影缓存 / 模型并
+通知观察者；链路上有事件包跑过，模型自动重算（单向数据流）。
+本层**不 import `feature`、不碰 `Core`/`Storage` 内部**——只认事件流。
 """
 
 from __future__ import annotations
@@ -14,12 +14,12 @@ import logging
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any, cast
 
-from core.signal import Event, Subscription
+from core.types.event import Event
 
 from .model import Model
 
 if TYPE_CHECKING:
-    from core.signal import Signal
+    from core.signal import Signal, Subscription
 
 type Observer = Callable[[Event], None]
 
@@ -29,18 +29,18 @@ _log = logging.getLogger(__name__)
 class Session:
     """UI 侧的投影缓存 + 模型 + 变更源（Qt-free）。"""
 
-    def __init__(self, signal: Signal) -> None:
-        self._signal = signal
+    def __init__(self, engine: Signal) -> None:
+        self._engine = engine
         self._observers: list[Observer] = []
         self._cache: dict[str, Any] = {}
         self._models: list[tuple[Callable[[], Iterable[Any]], Model[Any]]] = []
         self._closed = False
-        self._sub: Subscription = signal.events.subscribe(self._on_event, Event)
+        self._sub: Subscription = engine.subscribe(self._on_event)
 
     @property
-    def signal(self) -> Signal:
-        """所属通信主干。"""
-        return self._signal
+    def engine(self) -> Signal:
+        """所属内核引擎（事件流）。"""
+        return self._engine
 
     def watch(self, callback: Observer) -> Callable[[], None]:
         """观察主干变更；返回取消函数（重复注册去重，取消移除全部匹配）。"""

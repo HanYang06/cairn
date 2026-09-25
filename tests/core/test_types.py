@@ -8,14 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from core.conf.core import FORMAT_VERSION, VAULT_META_CONTEXT
 from core.types import (
-    Attr,
     Cid,
     InvalidIdError,
     ObjectInfo,
     Oid,
 )
+from core.types.attr import Attr
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -170,7 +169,3 @@ def test_value_types_are_frozen() -> None:
     )
     with pytest.raises(FrozenInstanceError):
         info.size = 1  # type: ignore[misc]
-
-
-def test_vault_meta_context_tracks_format_version() -> None:
-    assert f"cairn/v{FORMAT_VERSION}/vault/meta" == VAULT_META_CONTEXT

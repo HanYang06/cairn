@@ -9,7 +9,7 @@ from enum import Enum
 
 import pytest
 
-from core.signal import Domain
+from core.core import Managed
 from core.types import (
     ROLE_DATA,
     ROLE_DOMAIN,
@@ -20,7 +20,7 @@ from core.types import (
     types,
     unit_infos,
 )
-from feature import CanvasData, Kind, Note, NoteData, Project
+from feature import CanvasData, Kind, Note, NoteData
 
 
 def test_domain_and_data_have_distinct_types() -> None:
@@ -40,7 +40,7 @@ def test_type_info_defaults_to_domain() -> None:
 
     assert info is not None
     assert info.role == ROLE_DOMAIN
-    assert info.name == Note.__module__
+    assert info.name == "note"
     assert info.deps == ("notedata", "asset", "canvas", "group")
 
 
@@ -72,7 +72,7 @@ def test_domain_of_finds_owner_by_unit() -> None:
 
 
 def test_light_accepts_a_list_of_types() -> None:
-    class Multi(Domain):
+    class Multi(Managed):
         name = "多单元"
         type = "test.multi"
         light = (NoteData, CanvasData)
@@ -121,7 +121,7 @@ def test_project_is_domain() -> None:
     info = type_info(Kind.Feature.Project, role=ROLE_DOMAIN)
 
     assert info is not None
-    assert info.name == Project.__module__
+    assert info.name == "project"
 
 
 def test_kind_values_are_short_names() -> None:

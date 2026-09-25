@@ -3,10 +3,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from feature.note import Form, Line
 from feature.note.shapes import Param, ShapeSpec, build_vertices, graphic_from, load_shape_set
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def test_load_shape_set() -> None:
@@ -75,7 +80,7 @@ def test_graphic_from_generates_points_and_keeps_provenance() -> None:
     assert graphic.to_seq()  # 可落盘
 
 
-def test_invalid_spec_raises_with_context(tmp_path) -> None:
+def test_invalid_spec_raises_with_context(tmp_path: Path) -> None:
     path = tmp_path / "s.json"
     path.write_text('{"shapes": [{"id": 1}]}', encoding="utf-8")
 
@@ -83,7 +88,7 @@ def test_invalid_spec_raises_with_context(tmp_path) -> None:
         load_shape_set(path)
 
 
-def test_duplicate_ids_raise(tmp_path) -> None:
+def test_duplicate_ids_raise(tmp_path: Path) -> None:
     path = tmp_path / "s.json"
     path.write_text(
         '{"shapes": [{"id": 1, "key": "a"}, {"id": 1, "key": "b"}]}',

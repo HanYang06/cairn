@@ -37,6 +37,8 @@ dev = [
     "pytest-cov>=7.1.0",
     "pre-commit>=4.6.2",
     "modelscope>=1.40.1",
+    "mkdocs-material>=9.7",
+    "mkdocstrings[python]>=0.30",
 ]
 
 [build-system]

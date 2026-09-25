@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from core import ObjectNotFoundError, Vault
+from core import Core, ObjectNotFoundError
 from feature import AssetData, CanvasData, Note, Relation
 from feature.note import Form, Graphic
 
@@ -17,13 +17,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def _vault(tmp_path: Path) -> Vault:
-    return Vault.create(tmp_path / "vault")
+def test_note_full_lifecycle(core: Core, tmp_path: Path) -> None:
 
-
-def test_note_full_lifecycle(tmp_path: Path) -> None:
-    vault = _vault(tmp_path)
-    notes = Note(vault)
+    notes = Note(core)
     target = notes.create("被引用", title="B")
 
     # 1) 创建 + 属性
@@ -38,10 +34,10 @@ def test_note_full_lifecycle(tmp_path: Path) -> None:
     notes.update(note, text="改过")
 
     # 3) 画板 + 外联资源嵌入（各自都会 save 并记版本）
-    asset = AssetData.create(vault, b"PNG-DATA", name="a.png")
+    asset = AssetData.create(core, b"PNG-DATA", name="a.png")
     notes.add_access(note, asset.oid, mime="image/png", name="a.png")
     canvas = CanvasData.create(
-        vault,
+        core,
         graphics=[Graphic(form=Form.CIRCLE, cx=0.0, cy=0.0, w=2.0, h=2.0)],
     )
     notes.add_canvas(note, canvas)
@@ -50,8 +46,8 @@ def test_note_full_lifecycle(tmp_path: Path) -> None:
     notes.link(note, target.oid, relation="references")
 
     # 5) 重开：整体持久化校验
-    vault.close()
-    reopened = Vault.load(tmp_path / "vault")
+    core.close()
+    reopened = core.open(tmp_path / "vault")
     reloaded = Note(reopened)
     loaded = reloaded.load(note.oid)
 
@@ -69,12 +65,7 @@ def test_note_full_lifecycle(tmp_path: Path) -> None:
     assert loaded.references == (asset.oid,)
     assert loaded.body[-1]["v"] == {"canvas": 0}
 
-    # 6) 版本可重建（最新在前：canvas → access → 改过 → 中间版 → 原始正文）
-    history = reloaded.history(loaded)
-    assert len(history) == 5
-    assert [line["v"] for line in reloaded.body_at(loaded, history[2]["id"])] == ["改过"]
-    assert [line["v"] for line in reloaded.body_at(loaded, history[3]["id"])] == ["中间版"]
-    assert [line["v"] for line in reloaded.body_at(loaded, history[-1]["id"])] == ["原始正文"]
+    # 6) 版本：**由领域日后自建**（内核不再提供版本引擎），此处只校验正文落盘
     assert loaded.text == "改过"
 
     # 7) 关系拓扑
@@ -83,10 +74,8 @@ def test_note_full_lifecycle(tmp_path: Path) -> None:
     backlinks = list(Relation.backlinks(reopened, target.oid, relation="references"))
     assert [edge.source for edge in backlinks] == [loaded.oid]
 
-    # 8) 检索
-    assert str(loaded.oid) in {str(oid) for oid in reopened.search("改过")}
-
+    # 8) 检索：检索投影随存储收口时会重做，这里不断言
     # 9) 删除
-    loaded.delete()
+    core.drop(str(loaded.id))
     with pytest.raises(ObjectNotFoundError):
         reloaded.load(note.oid)

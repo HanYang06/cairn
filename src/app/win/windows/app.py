@@ -12,8 +12,7 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from core import Vault
-from core.storage import CATALOG_NAME
+from core.core import Core
 from ui_tools.component import Button, Field, Heading, Label, Surface
 from ui_tools.core import App, Session, Slot
 from ui_tools.core.qt import run as run_app
@@ -38,12 +37,12 @@ def _default_root() -> Path:
 class CairnApp(App):
     """Cairn 的根：自己搭的一个大方框（顶带 / 主体 / 底栏），主体里开两个槽。"""
 
-    def __init__(self, vault: Vault, *, theme: Theme | None = None) -> None:
-        feature = Feature(vault, vault.signal)
+    def __init__(self, core: Core, *, theme: Theme | None = None) -> None:
+        # 域服务受内核管辖：这里只取用（没有才建）
+        feature = Feature(core)
         active_theme = theme or app_theme()  # 先建主题（可能失败），再发布 Feature
-        super().__init__(Session(vault.signal), theme=active_theme)
-        self._vault = vault
-        vault.signal.feature = feature
+        super().__init__(Session(core.signal), theme=active_theme)
+        self._core = core
 
         root = self.root
 
@@ -66,16 +65,16 @@ class CairnApp(App):
     def open(cls, root: Path | None = None) -> CairnApp:
         """开库 + 组装：无目录则创建，否则加载（加载失败如实抛出，不掩盖）。
 
-        默认读 `CAIRN_VAULT` 或 `<cwd>/vault`。
+        默认读 `CAIRN_VAULT` 或 `<cwd>/vault`。内核是单例：拿到它就拿到全部。
         """
         path = root or _default_root()
-        # 已存在的库：版本 / 配置错误应向外传播，不掩盖成「桶已存在」
-        vault = Vault.load(path) if (path / CATALOG_NAME).is_file() else Vault.create(path)
-        return cls(vault)
+        core = Core()
+        core.open(path)  # 已存在的库：版本 / 配置错误应向外传播，不掩盖
+        return cls(core)
 
     def close(self) -> None:
         """关闭底层库（释放 catalog 连接）。"""
-        self._vault.close()
+        self._core.close()
 
     def run(self) -> int:
         """跑起来：套主题、建窗、进事件循环。"""

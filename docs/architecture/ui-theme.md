@@ -39,8 +39,8 @@
 | **字体** | 内置一款无衬线保证跨平台一致 | 打包体积 |
 | **无边框窗** | `Qt.FramelessWindowHint` + 自绘标题栏、原生圆角 | 缩放 / 拖拽需自补命中区 |
 
-**结论**：用 **QML 令牌 + Qt Quick Controls 定制 + 少量自绘 / `MultiEffect`** 就能做出体面的界面；
-动效只做**功能性**的（淡入、位移，界面里统一走 `CairnTheme.dur*`），不做装饰性花活。
+**结论**：用 **QML 令牌 + Qt Quick Controls 定制 + 少量自绘 / `MultiEffect`** 即可达到可接受的界面完成度；
+动效只做**功能性**的（淡入、位移，界面里统一走 `CairnTheme.dur*`），不做装饰性效果。
 
 > 历史包袱：`ui/theme/`（`tokens.py` / `qss.py` / `manager.py`）是 Widgets + QSS 时代的产物，
 > 应用已不再引用（仅 `tests/ui/test_theme.py` 还在测）；**待决：迁移为 QML 令牌或删除**。

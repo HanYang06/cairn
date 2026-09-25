@@ -18,8 +18,9 @@ from typing import Any, ClassVar
 
 from blake3 import blake3
 
-from core.storage import Attr, Block, Body, canonical
+from core.storage import Block, Body, canonical
 from core.types import InvalidIdError, Oid
+from core.types.attr import Attr
 
 from ..shared.base import normalize_tags
 from ..shared.canvas import CanvasBody, CanvasData, Form, Graphic, Line, Link, Paint

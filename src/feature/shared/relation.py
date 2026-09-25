@@ -40,8 +40,8 @@ _COLUMNS = {
 }
 
 
-def _table(vault: Any) -> Any:
-    return vault.bucket.table(_TABLE, **_COLUMNS)
+def _table(core: Any) -> Any:
+    return core.storage.table(_TABLE, **_COLUMNS)
 
 
 class Relation:
@@ -51,7 +51,6 @@ class Relation:
 
     def __init__(  # noqa: PLR0913, PLR0917 — 关系行的扁平字段构造器
         self,
-        vault: Any,
         id: str,
         src: str,
         dst: str,
@@ -61,7 +60,6 @@ class Relation:
         attrs: dict[str, Any] | None = None,
         created: int = 0,
     ) -> None:
-        self._vault = vault
         self.id = id
         self._src = src
         self._dst = dst
@@ -108,7 +106,7 @@ class Relation:
     @classmethod
     def create(  # noqa: PLR0913 — 建边入口：描述字段均有默认值
         cls,
-        vault: Any,
+        core: Any,
         source: Oid | str,
         target: Oid | str,
         relation: str = REFERENCES,
@@ -127,7 +125,7 @@ class Relation:
                 attrs["tags"] = {tags: None}
             else:
                 attrs["tags"] = {str(item): None for item in tags}
-        _table(vault).insert(
+        _table(core).insert(
             {
                 "id": rid,
                 "src": str(Oid.parse(str(source))),
@@ -139,13 +137,13 @@ class Relation:
                 "created": now_ms(),
             }
         )
-        vault.bucket.commit()
-        return cls.load(vault, rid)
+        core.storage.commit()
+        return cls.load(core, rid)
 
     @classmethod
     def delete(
         cls,
-        vault: Any,
+        core: Any,
         *,
         source: Oid | str,
         target: Oid | str,
@@ -161,25 +159,24 @@ class Relation:
         }
         if relation is not None:
             where["kind"] = str(relation)
-        removed = int(_table(vault).delete(**where))
+        removed = int(_table(core).delete(**where))
         if removed:
-            vault.bucket.commit()
+            core.storage.commit()
         return removed
 
     # ---- 读 ----
     @classmethod
-    def load(cls, vault: Any, oid: Oid | str) -> Relation:
-        rows = _table(vault).select(id=str(oid))
+    def load(cls, core: Any, oid: Oid | str) -> Relation:
+        rows = _table(core).select(id=str(oid))
         if not rows:
             raise ObjectNotFoundError(f"{oid} 不是关系")
-        return cls._from_row(vault, rows[0])
+        return cls._from_row(rows[0])
 
     @classmethod
-    def _from_row(cls, vault: Any, row: Any) -> Relation:
+    def _from_row(cls, row: Any) -> Relation:
         raw = row["attrs"]
         attrs = decode_canonical(bytes(raw)) if raw else {}
         return cls(
-            vault,
             str(row["id"]),
             str(row["src"]),
             str(row["dst"]),
@@ -191,14 +188,14 @@ class Relation:
         )
 
     @classmethod
-    def list(cls, vault: Any) -> Iterator[Relation]:
-        for row in _table(vault).all():
-            yield cls._from_row(vault, row)
+    def list(cls, core: Any) -> Iterator[Relation]:
+        for row in _table(core).all():
+            yield cls._from_row(row)
 
     @classmethod
     def outbound(
         cls,
-        vault: Any,
+        core: Any,
         source: Oid | str,
         *,
         relation: str | None = None,
@@ -206,13 +203,13 @@ class Relation:
         where: dict[str, Any] = {"src": str(Oid.parse(str(source)))}
         if relation is not None:
             where["kind"] = relation
-        for row in _table(vault).select(**where):
-            yield cls._from_row(vault, row)
+        for row in _table(core).select(**where):
+            yield cls._from_row(row)
 
     @classmethod
     def backlinks(
         cls,
-        vault: Any,
+        core: Any,
         target: Oid | str,
         *,
         relation: str | None = None,
@@ -220,8 +217,8 @@ class Relation:
         where: dict[str, Any] = {"dst": str(Oid.parse(str(target)))}
         if relation is not None:
             where["kind"] = relation
-        for row in _table(vault).select(**where):
-            yield cls._from_row(vault, row)
+        for row in _table(core).select(**where):
+            yield cls._from_row(row)
 
 
 __all__ = [

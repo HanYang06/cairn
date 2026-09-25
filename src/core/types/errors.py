@@ -14,14 +14,6 @@ class InvalidIdError(CairnError, ValueError):
     """标识符格式非法。"""
 
 
-class AuthError(CairnError):
-    """认证或解密失败。"""
-
-
-class VaultError(CairnError):
-    """库级错误。"""
-
-
 class ObjectNotFoundError(CairnError):
     """对象不存在。"""
 

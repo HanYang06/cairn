@@ -30,6 +30,40 @@ def type_name(value: object) -> str:
     return str(value)
 
 
+def identity_key(identity: str, value: object) -> object:
+    """按身份算**查表键**：``role_obj`` 要带类型标签，ID / 名称原样。
+
+    "拿什么查就按什么返回"的前提是**登记与查询用同一套键**——算法只此一处，
+    免得内核与引擎各写一份、迟早漂移（`role_obj` 那格就踩过一次）。
+    """
+    if identity != "role_obj":
+        return value
+    try:
+        hash(value)
+    except TypeError:
+        return (type(value), id(value))
+    return (type(value), value)
+
+
+def unit_names(declared: object) -> tuple[str, ...]:
+    """把"声明"归一成 `type` 名元组：单个数据类，或它们的列表 / 元组。
+
+    域服务用它把 ``data`` / ``light`` 声明转成类型名（``Block`` 子类自带 ``type``）。
+    声明项取不到 ``type`` 时**抛错**：静默跳过会让 ``units`` 悄悄残缺，
+    下游 ``unit_infos`` 也就不再报错，把"写错了"伪装成"本来就没有"。
+    """
+    if declared is None:
+        return ()
+    items = declared if isinstance(declared, (list, tuple)) else (declared,)
+    names: list[str] = []
+    for item in items:
+        name = type_name(getattr(item, "type", "") or "")
+        if not name:
+            raise LookupError(f"声明的数据单元取不到 type：{item!r}")
+        names.append(name)
+    return tuple(names)
+
+
 @dataclass(frozen=True)
 class TypeInfo:
     """一个类型的元数据。
@@ -122,9 +156,11 @@ __all__ = [
     "TypeInfo",
     "collect_fields",
     "domain_of",
+    "identity_key",
     "register",
     "type_info",
     "type_name",
     "types",
     "unit_infos",
+    "unit_names",
 ]

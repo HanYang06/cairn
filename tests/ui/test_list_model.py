@@ -8,8 +8,7 @@ from typing import TYPE_CHECKING
 import pytest
 from PySide6.QtWidgets import QListView
 
-from core import Vault
-from feature import Note
+from tests.conftest import make_kernel
 from ui_tools.component import List
 from ui_tools.core import App, Facet, Session, Slot
 from ui_tools.core.qt import WindowHost
@@ -22,11 +21,11 @@ pytestmark = pytest.mark.usefixtures("qapp")
 
 
 def test_list_refreshes_on_change(tmp_path: Path) -> None:
-    vault = Vault.create(tmp_path / "vault")
-    notes = Note(vault).bind(vault.signal)
+    core = make_kernel(tmp_path)
+    notes = core.role("note")
     notes.create("a", title="A")
 
-    session = Session(vault.signal)
+    session = Session(core.signal)
     model = session.model(lambda: [str(data.title) for data in notes.list_notes()])
 
     facet = Facet(object(), name="note")
@@ -45,4 +44,4 @@ def test_list_refreshes_on_change(tmp_path: Path) -> None:
     notes.create("b", title="B")
     assert view.model().rowCount() == 2
 
-    vault.close()
+    core.close()

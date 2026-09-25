@@ -263,6 +263,17 @@ class Catalog:
         for row in cursor:
             yield str(row["oid"])
 
+    def iter_block_rows(self) -> Iterator[sqlite3.Row]:
+        """遍历全部块行（按 oid 排序）——批量视图用，免去逐块取回内容。"""
+        yield from self.conn.execute("SELECT * FROM block ORDER BY oid")
+
+    def type_names(self) -> dict[int, str]:
+        """一次取回类型码表（code → name），供批量视图避免逐行查名。"""
+        return {
+            int(row["code"]): str(row["name"])
+            for row in self.conn.execute("SELECT code, name FROM block_type")
+        }
+
     # ---- 通用表（供领域自描述的业务表用）----
     def table_exists(self, name: str) -> bool:
         row = self.conn.execute(

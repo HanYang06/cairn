@@ -15,7 +15,7 @@ license: Apache-2.0
 
 1. 判断当前任务命中哪个场景（见下表）。
 2. **只读**对应那条 `references/*.md`；没有命中的规则直接跳过，不要全读。
-3. 规则与代码或 `docs/architecture/*.md` 冲突时，以代码与文档为准，并顺手修正规则。
+3. 规则与代码或 `docs/architecture/*.md` 冲突时，以代码与文档为准，并一并修正规则。
 
 ## 场景路由
 
@@ -24,6 +24,8 @@ license: Apache-2.0
 | 提交 / commit message | [`references/commit.md`](references/commit.md)（并加载 `git-commit` 技能） |
 | 新增依赖、引入第三方主题 / 画布 / 库 | [`references/licensing.md`](references/licensing.md) |
 | 新建或修改任何源文件 / 文档 | [`references/spdx.md`](references/spdx.md) |
+| **写任何文档 / 注释 / commit message（书面语）** | [`references/prose.md`](references/prose.md) |
+| 写 / 改文档、加文档页面、动 API 参考或文档站 | [`references/docs.md`](references/docs.md) |
 | 质量门禁 / ruff / mypy / pytest 配置 | [`references/quality.md`](references/quality.md) |
 | 新增 / 修改 UI（Widgets / QML / 组件 / 主题） | [`references/ui-boundary.md`](references/ui-boundary.md) |
 

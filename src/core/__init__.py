@@ -1,45 +1,38 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-"""核心层：本地内容寻址的桶 / 块存储（L0）。
+"""核心层：**内核**（配置 + 信号引擎 + 存储 + 类型地基）。
 
-对外只有一套极简门面与动词：Vault 与 ObjectInfo。所有内容都是块。
+对外：
+
+- `core.core.Core`：内核本体（单例；两张对象表 + 引擎挂载点 + 最小 API）
+- `core.signal.Signal`：信号与事件处理引擎
+- `core.storage`：存储实现（桶 / 块 / 目录）与它的引擎角色
+- `core.conf.Conf`：配置（**预留**：实例化即报错，配置引擎随下一片引入）
+- `core.types`：类型地基（错误 / 标识符 / 类型表 / 标注 / 事件数据结构）
 """
 
 from __future__ import annotations
 
-from .policy import Audience, ShareKind, is_private, target_audience, visible_to
-from .signal import (
-    Event,
-    ObjectDeleted,
-    ObjectPut,
-    Subscription,
-)
+from .conf import Conf
+from .core import Core, Managed
+from .signal import Signal
 from .types import (
     CairnError,
     CorruptObjectError,
     ObjectInfo,
     ObjectNotFoundError,
     Oid,
-    VaultError,
 )
-from .vault import Vault
 
 __all__ = [
-    "Audience",
     "CairnError",
+    "Conf",
+    "Core",
     "CorruptObjectError",
-    "Event",
-    "ObjectDeleted",
+    "Managed",
     "ObjectInfo",
     "ObjectNotFoundError",
-    "ObjectPut",
     "Oid",
-    "ShareKind",
-    "Subscription",
-    "Vault",
-    "VaultError",
-    "is_private",
-    "target_audience",
-    "visible_to",
+    "Signal",
 ]

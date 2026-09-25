@@ -1,0 +1,20 @@
+{
+  ".*\\.py$": [
+    {
+      "label": "Cairn Python 模块（带 SPDX 头）",
+      "template_path": ".vscode/templates/python.template"
+    }
+  ],
+  ".*SKILL\\.md$": [
+    {
+      "label": "Cairn SKILL.md（frontmatter + SPDX 头）",
+      "template_path": ".vscode/templates/skill.template"
+    }
+  ],
+  ".*\\.md$": [
+    {
+      "label": "Cairn Markdown（带 SPDX 头）",
+      "template_path": ".vscode/templates/markdown.template"
+    }
+  ]
+}

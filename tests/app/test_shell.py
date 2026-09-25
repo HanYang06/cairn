@@ -10,27 +10,26 @@ from PySide6.QtWidgets import QListView, QMainWindow, QPushButton
 
 from app.win import CairnApp
 from app.win.windows.theme import app_theme
-from core import Vault
-from feature import Note
+from tests.conftest import make_kernel
 from ui_tools.core.qt import build_window
 
 pytestmark = pytest.mark.usefixtures("qapp")
 
 
 def test_shell_window_has_bands(tmp_path) -> None:
-    vault = Vault.create(tmp_path / "vault")
+    core = make_kernel(tmp_path)
 
-    window = build_window(CairnApp(vault))
+    window = build_window(CairnApp(core))
 
     assert isinstance(window, QMainWindow)
     assert window.findChild(QListView, "stage") is not None
     assert window.findChild(QPushButton, "density") is not None
-    vault.close()
+    core.close()
 
 
 def test_density_toggle_switches_view(tmp_path) -> None:
-    vault = Vault.create(tmp_path / "vault")
-    window = build_window(CairnApp(vault))
+    core = make_kernel(tmp_path)
+    window = build_window(CairnApp(core))
 
     stage = window.findChild(QListView, "stage")
     button = window.findChild(QPushButton, "density")
@@ -40,22 +39,22 @@ def test_density_toggle_switches_view(tmp_path) -> None:
     assert stage.viewMode() == QListView.ViewMode.IconMode
     button.click()
     assert stage.viewMode() == QListView.ViewMode.ListMode
-    vault.close()
+    core.close()
 
 
 def test_stage_shows_real_notes(tmp_path) -> None:
-    vault = Vault.create(tmp_path / "vault")
-    notes = Note(vault).bind(vault.signal)
+    core = make_kernel(tmp_path)
+    notes = core.role("note")
     notes.create("hello", title="你好")
     notes.create("world", title="世界")
 
-    window = build_window(CairnApp(vault))
+    window = build_window(CairnApp(core))
 
     stage = window.findChild(QListView, "stage")
     assert stage is not None
     assert stage.model() is not None
     assert stage.model().rowCount() == 2
-    vault.close()
+    core.close()
 
 
 def test_theme_falls_back_on_broken_file(tmp_path, monkeypatch) -> None:

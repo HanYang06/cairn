@@ -3,7 +3,9 @@
 
 """应用层：组合内核 / 领域 / `ui_tools`，按平台发布。
 
-**只有 App 认识领域**（构造域服务、静态挂载）；平台 UI 在子包（`win` / …）。
+**只有 App 认识领域**（建域服务、受内核管辖）；平台 UI 在子包（`win` / …）。
+
+内核是**单例**：域服务只需要建一次；重复建会撞名字（`core.role("note")` 已经是它）。
 """
 
 from __future__ import annotations
@@ -13,17 +15,17 @@ from typing import TYPE_CHECKING
 from feature import Note
 
 if TYPE_CHECKING:
-    from core import Vault
-    from core.signal import Signal
+    from core.core import Core
 
 
 class Feature:
-    """静态声明的领域容器（IDE 可识别；无动态注册 / 内省）。"""
+    """静态声明的领域装配：**已经有了就取用，没有才建**。"""
 
     Note: Note
 
-    def __init__(self, vault: Vault, signal: Signal) -> None:
-        self.Note = Note(vault).bind(signal)
+    def __init__(self, core: Core) -> None:
+        existing = core.role("note")
+        self.Note = existing if isinstance(existing, Note) else Note(core)
 
 
 __all__ = ["Feature"]
