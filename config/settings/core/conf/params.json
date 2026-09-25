@@ -1,0 +1,4 @@
+{
+  "$schema": "../../../../schema/settings/core/conf/params.json",
+  "core.log.level": "WARNING"
+}

@@ -36,6 +36,18 @@ jobs:
       - name: Prose report (书面语)
         run: uv run python tools/prose.py --report
 
+      # 两个投影（config/ 与 schema/）是否与声明一致：docgen 只比参考页，投影漂移看这里
+      - name: Config projections (no drift)
+        run: uv run python tools/gen_conf.py --check
+
+      - name: Generated config reference (no drift)
+        run: uv run python tools/docgen.py --check
+
+      # 报告模式：`DOCSTRING_MIN` 是既定阈值，但当前覆盖率未达标，故不阻断。
+      # 达标后把这一步改成 `docgen.py --coverage --gate` 即成为门禁（与 prose 步同款两段式）。
+      - name: Docstring coverage report (报告模式)
+        run: uv run python tools/docgen.py --coverage
+
       - name: Lint (ruff)
         run: uv run ruff check .
 

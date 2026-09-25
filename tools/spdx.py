@@ -27,25 +27,16 @@ import tomllib
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:  # 直接跑脚本时，`tools` 未必在导入路径上
+    sys.path.insert(0, str(ROOT))
+
+from tools._iosafe import _say  # noqa: E402 — 见上：先补路径再导入
+
 MANIFEST = "REUSE.toml"
 COPYRIGHT = "SPDX-FileCopyrightText: 2026 HanYang06"
 LICENSE_ID = "SPDX-License-Identifier: Apache-2.0"
 SKILL_LICENSE = "license: Apache-2.0"
 SKILL_NAME = "SKILL.md"
-
-
-def _say(message: str) -> None:
-    """打印一行：确保 UTF-8 输出。
-
-    CI 的 Windows 控制台默认用活动代码页编码 stdout，中文输出会抛
-    `UnicodeEncodeError: charmap` 而失败（本地 UTF-8 终端看不出来）。
-    """
-    stream = getattr(sys.stdout, "buffer", None)
-    if stream is None:
-        print(message)
-        return
-    stream.write((message + "\n").encode("utf-8"))
-    stream.flush()
 
 
 _HASH = "hash"

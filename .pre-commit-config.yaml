@@ -1,11 +1,28 @@
 # SPDX-FileCopyrightText: 2026 HanYang06
 # SPDX-License-Identifier: Apache-2.0
 
-# 企业级-ε 质量门禁（提交前）：ruff -> mypy。测试与覆盖率门禁在 CI。
+# 企业级-ε 质量门禁（提交前）：SPDX 头 -> 书面语 -> ruff -> mypy。测试与覆盖率门禁在 CI。
 default_install_hook_types: [pre-commit]
 repos:
   - repo: local
     hooks:
+      # SPDX 头：缺了自动补（补完需重新 git add）。装不下头的文件走 REUSE.toml 集中声明。
+      - id: spdx-headers
+        name: SPDX headers
+        entry: uv run python tools/spdx.py --fix
+        language: system
+        require_serial: true
+
+      # 书面语：所有文档一律非口语化（词典本体在 tools/prose.py）。只查本次提交的文件。
+      # **报告语义**：`--report` 命中不阻断（与 CI 的 `Prose report` 步同口径），
+      # 工具自身异常仍然失败；全仓清扫归零后去掉 `--report` 转为阻断。verbose 保证报告可见。
+      - id: prose
+        name: prose (书面语)
+        entry: uv run python tools/prose.py --report
+        language: system
+        require_serial: true
+        verbose: true
+
       - id: ruff-check
         name: ruff check
         entry: uv run ruff check --force-exclude --fix

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/HanYang06/cairn/schema/settings.json",
+  "title": "Cairn 配置（总词表）",
+  "description": "由声明自动生成，勿手改：改配置请改 config/ 下对应的值文件。",
+  "type": "object",
+  "properties": {
+    "core.log.level": {
+      "type": "string",
+      "description": "内核日志级别",
+      "default": "WARNING",
+      "x-cairn-owner": "core.conf.params.CoreConf",
+      "x-cairn-fillable": true,
+      "x-cairn-empty-ok": false
+    },
+    "storage.block.max_bytes": {
+      "type": "integer",
+      "description": "单个块的字节上限，超过即分片（分片 + 索引块）",
+      "default": 1048576,
+      "x-cairn-owner": "core.storage.conf.StorageConf",
+      "x-cairn-fillable": true,
+      "x-cairn-empty-ok": false
+    },
+    "storage.pack.max_blocks": {
+      "type": "integer",
+      "description": "单个载体最多装多少块，写满即封口",
+      "default": 4096,
+      "x-cairn-owner": "core.storage.conf.StorageConf",
+      "x-cairn-fillable": true,
+      "x-cairn-empty-ok": false
+    },
+    "storage.pack.max_bytes": {
+      "type": "integer",
+      "description": "单个载体字节上限，写满即封口",
+      "default": 1073741824,
+      "x-cairn-owner": "core.storage.conf.StorageConf",
+      "x-cairn-fillable": true,
+      "x-cairn-empty-ok": false
+    },
+    "storage.version.retention_days": {
+      "type": "integer",
+      "description": "版本保留窗（天）：**预留**——惰性压实尚未实现，当前无读取点",
+      "default": 30,
+      "x-cairn-owner": "core.storage.conf.StorageConf",
+      "x-cairn-fillable": true,
+      "x-cairn-empty-ok": false
+    }
+  },
+  "additionalProperties": false
+}

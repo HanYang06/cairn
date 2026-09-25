@@ -34,7 +34,7 @@ import os
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, cast
 
 from core.types import (
     CairnError,
@@ -63,11 +63,42 @@ _NO_BLOCK_DEDUP = frozenset({PART_TYPE, INDEX_TYPE})
 
 @dataclass(frozen=True, slots=True)
 class BucketConfig:
-    """桶的配置：只有开关和上限，没有业务语义。"""
+    """桶的配置：只有开关和上限，没有业务语义。
 
-    block_max_bytes: int = 1024 * 1024
-    pack_max_blocks: int = 4096
-    pack_max_bytes: int = 1024 * 1024 * 1024
+    值**不是写死在这里的**——默认值来自存储自己声明的配置项（`core.storage.conf`）。
+    声明改了，这里跟着改；已建好的桶把自己那份值存在目录里（重开时读回来），
+    所以老库不会被新默认值悄悄改掉。
+
+    用法：``BucketConfig()``（全默认）/ ``BucketConfig(pack_max_blocks=7)``（只覆盖一项）。
+    """
+
+    block_max_bytes: int | None = None
+    pack_max_blocks: int | None = None
+    pack_max_bytes: int | None = None
+
+    def __post_init__(self) -> None:
+        """没给的项**按声明补齐**，并校验成整数（声明是唯一事实来源，不在这里抄默认值）。
+
+        值文件是**可被用户编辑**的，而引擎取值不做类型校验（只搬 JSON 原值）：
+        把 ``storage.block.max_bytes`` 写成字符串，会在分片的关键路径上抛
+        ``TypeError: '<=' not supported ...``，难定位。故在配置边界就报清楚。
+        """
+        from .conf import conf  # noqa: PLC0415 — 与声明模块同包，运行时取
+
+        filled: dict[str, int] = {
+            "block_max_bytes": conf.block_max_bytes,
+            "pack_max_blocks": conf.pack_max_blocks,
+            "pack_max_bytes": conf.pack_max_bytes,
+        }
+        for name, value in filled.items():
+            if getattr(self, name) is None:
+                object.__setattr__(self, name, value)
+            current = getattr(self, name)
+            if isinstance(current, bool) or not isinstance(current, int) or current < 1:
+                raise CairnError(
+                    f"桶配置 {name} 必须是正整数，得到 {current!r}"
+                    "（检查声明 core.storage.conf 与传入的覆盖值）"
+                )
 
 
 class Bucket:
@@ -75,7 +106,7 @@ class Bucket:
 
     def __init__(self, root: Path, config: BucketConfig | None = None) -> None:
         self.root = Path(root)
-        self.config = config or BucketConfig()
+        self.config = config if config is not None else BucketConfig()
         self.packs_dir = self.root / "packs"
         self.catalog = Catalog(self.root / CATALOG_NAME)
         self._tx_depth = 0
@@ -230,7 +261,7 @@ class Bucket:
         self, data: bytes, *, kind: str = "asset", attrs: dict[str, Any] | None = None
     ) -> str:
         """写入一段内容：小则一块；大则分片，由索引块聚合成一个可引用的 id。"""
-        if len(data) <= self.config.block_max_bytes:
+        if len(data) <= cast("int", self.config.block_max_bytes):
             return self.put(Block(body=data, attrs=attrs, type=kind)).id
         if self._tx_depth > 0:  # 已在事务内：交由外层事务保证原子性
             return self._write_shards(data, kind=kind, attrs=attrs)
@@ -238,7 +269,7 @@ class Bucket:
             return self._write_shards(data, kind=kind, attrs=attrs)
 
     def _write_shards(self, data: bytes, *, kind: str, attrs: dict[str, Any] | None) -> str:
-        step = self.config.block_max_bytes
+        step = cast("int", self.config.block_max_bytes)
         parts = [
             self.put(Block(body=data[start : start + step], type=PART_TYPE)).id
             for start in range(0, len(data), step)
@@ -347,10 +378,9 @@ class Bucket:
         row = self.catalog.active_pack()
         if row is not None:
             pack_id = int(row["id"])
-            full = (
-                int(row["blocks"]) >= self.config.pack_max_blocks
-                or int(row["bytes"]) >= self.config.pack_max_bytes
-            )
+            full = int(row["blocks"]) >= cast("int", self.config.pack_max_blocks) or int(
+                row["bytes"]
+            ) >= cast("int", self.config.pack_max_bytes)
             if not full:
                 return pack_id
             self.catalog.seal_pack(pack_id)
