@@ -21,6 +21,7 @@ from core.storage import Storage
 from feature import Note, Project
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
 __all__ = ["make_kernel"]
@@ -36,6 +37,11 @@ def make_kernel(tmp_path: Path) -> Core:
 
 
 @pytest.fixture
-def core(tmp_path: Path) -> Core:
-    """测试用内核：每个用例一份临时库（内核实例本身是单例，挂件可换）。"""
-    return make_kernel(tmp_path)
+def core(tmp_path: Path) -> Iterator[Core]:
+    """测试用内核：每个用例一份临时库；用例结束关库，释放上次挂上的连接与文件句柄。
+
+    内核实例本身是单例，挂件可换；故清理只能是**关掉当前挂件**。
+    """
+    kernel = make_kernel(tmp_path)
+    yield kernel
+    kernel.close()

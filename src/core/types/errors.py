@@ -24,7 +24,3 @@ class KindMismatchError(CairnError):
 
 class CorruptObjectError(CairnError):
     """对象数据损坏或校验失败。"""
-
-
-class RoleNotFoundError(CairnError, ValueError):
-    """角色不存在"""

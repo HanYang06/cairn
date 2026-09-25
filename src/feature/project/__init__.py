@@ -56,8 +56,7 @@ class Project(Managed):
     light = [ProjectData]  # noqa: RUF012 — 最小数据单元（可多个）
 
     def __init__(self, core: Core) -> None:
-        super().__init__(core)  # 接门户（登记 + 记住）
-        self.core = core
+        super().__init__(core)  # 接门户（登记 + 记住内核）
 
     def create(
         self,
@@ -69,6 +68,7 @@ class Project(Managed):
     ) -> ProjectData:
         """新建项目并落盘。"""
         data = ProjectData()
+        data.core = self.core  # 数据对象身上带内核（它继承 Block，不继承 Managed）
         data.title = name
         merged = dict(props or {})
         if description is not None:

@@ -14,6 +14,7 @@
 
     uv run python tools/prose.py            # 全仓检查（退出码 1 = 有命中）
     uv run python tools/prose.py docs src   # 只查指定目录 / 文件
+    uv run python tools/prose.py --report   # 报告模式：有命中也不阻断
     uv run python tools/prose.py --list     # 打印词典
 """
 
@@ -25,7 +26,7 @@ import re
 import sys
 import tokenize
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -44,6 +45,21 @@ class Term:
 
     pattern: re.Pattern[str]
     why: str
+
+
+def _say(message: str) -> None:
+    """打印一行：确保 UTF-8 输出。
+
+    CI 的 Windows 控制台默认用活动代码页编码 stdout，中文输出会抛
+    `UnicodeEncodeError: charmap` 而失败（本地 UTF-8 终端看不出来）。
+    本工具的输出全部为中文，故一律走本助手，不用 `print`。
+    """
+    stream = getattr(sys.stdout, "buffer", None)
+    if stream is None:
+        print(message)
+        return
+    stream.write((message + "\n").encode("utf-8"))
+    stream.flush()
 
 
 def _term(pattern: str, why: str) -> Term:
@@ -95,8 +111,11 @@ _LEXICON: tuple[Term, ...] = (
     _term(r"233+", "网络用语，删除"),
 )
 
-#: 不扫描的目录：构建产物、本地数据、依赖缓存
+#: 不扫描的目录：按**仓库相对路径**的组成部分判定；构建产物、本地数据、依赖缓存
 _SKIP_DIRS = frozenset({".git", ".venv", "build", "dist", "site", "vault", "__pycache__"})
+
+#: 可扫描的文本类型
+_SUFFIXES = frozenset({".md", ".py"})
 
 
 @dataclass
@@ -110,31 +129,35 @@ class Hit:
     why: str
 
 
-def _texts(path: Path) -> list[tuple[int, str]]:
-    """取出待检文本：`.md` 取全文；`.py` 只取 docstring 与注释，不取字符串字面量。"""
-    if path.suffix == ".md":
-        return list(enumerate(path.read_text(encoding="utf-8").splitlines(), start=1))
-    if path.suffix != ".py":
+def _texts(text: str, suffix: str) -> list[tuple[int, str]]:
+    """取出待检文本：`.md` 取全文；`.py` 只取 docstring 与注释，不取字符串字面量。
+
+    行号与 `str.splitlines()` 对齐，均为 1 基。
+    """
+    if suffix == ".md":
+        return list(enumerate(text.splitlines(), start=1))
+    if suffix != ".py":
         return []
-    raw = path.read_text(encoding="utf-8")
     found: list[tuple[int, str]] = []
-    tree = ast.parse(raw, filename=str(path))
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
-            continue
-        first = node.body[0] if node.body else node
-        doc = ast.get_docstring(node, clean=False)
-        if not doc:
-            continue
-        for offset, line in enumerate(doc.splitlines()):
-            found.append((first.lineno - 1 + offset, line))
+    # 语法不完整的文件（更高版本语法 / 写作中途）跳过 docstring，注释仍需检查，
+    # 与下方 tokenize 的保护保持对称。
+    with contextlib.suppress(SyntaxError):
+        tree = ast.parse(text)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+                continue
+            first = node.body[0] if node.body else node
+            doc = ast.get_docstring(node, clean=False)
+            if not doc:
+                continue
+            for offset, line in enumerate(doc.splitlines()):
+                found.append((first.lineno + offset, line))
     with (
-        path.open(encoding="utf-8") as handle,
         contextlib.suppress(tokenize.TokenError),  # 源码不完整时停止取注释
     ):
         found.extend(
             (token.start[0], token.string)
-            for token in tokenize.generate_tokens(handle.readline)
+            for token in tokenize.generate_tokens(iter(text.splitlines(keepends=True)).__next__)
             if token.type == tokenize.COMMENT
         )
     return found
@@ -142,9 +165,10 @@ def _texts(path: Path) -> list[tuple[int, str]]:
 
 def _scan_file(path: Path) -> list[Hit]:
     """扫描单个文件，返回全部命中。"""
-    rel = path.relative_to(ROOT).as_posix()
+    rel = path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else path.as_posix()
+    text = path.read_text(encoding="utf-8")
     hits: list[Hit] = []
-    for line_no, line in _texts(path):
+    for line_no, line in _texts(text, path.suffix):
         hits.extend(
             Hit(
                 path=rel,
@@ -159,58 +183,89 @@ def _scan_file(path: Path) -> list[Hit]:
     return hits
 
 
-def _targets(argv: list[str]) -> list[Path]:
-    """将命令行参数展开为待检文件；未提供参数时扫描全仓。"""
+def _absolute(item: str) -> Path:
+    """把命令行条目折成绝对路径；相对路径按当前工作目录解析。"""
+    candidate = Path(item)
+    return candidate.resolve() if candidate.is_absolute() else (Path.cwd() / candidate).resolve()
+
+
+def _skip_relative(rel: str, suffix: str) -> bool:
+    """按**仓库相对路径**判断该路径是否排除在扫描之外。
+
+    只认相对路径的组成部分：检出目录的祖先若名为 `build` / `dist` 等，
+    不影响仓库内文件的判定。
+    """
+    if any(part in _SKIP_DIRS for part in PurePosixPath(rel).parts):
+        return True
+    if any(rel.startswith(prefix) for prefix in _MARKDOWN_SKIP):
+        return True
+    # API 参考页由 mkdocstrings 渲染，无自有散文
+    return suffix == ".md" and rel.startswith("docs/api/")
+
+
+def _targets(argv: list[str]) -> tuple[list[Path], list[str]]:
+    """将命令行参数展开为待检文件；未提供参数时扫描全仓。
+
+    返回 `(待检文件, 跳过的路径)`；仓库外的路径不进入扫描集，且显式列出。
+    """
     given = [arg for arg in argv if not arg.startswith("--")]
-    roots: list[Path] = (
-        [ROOT / item if not Path(item).is_absolute() else Path(item) for item in given]
-        if given
-        else [ROOT]
-    )
+    roots = [_absolute(item) for item in given] if given else [ROOT]
     found: list[Path] = []
+    skipped: list[str] = []
     for root in roots:
+        if not root.is_relative_to(ROOT):
+            skipped.append(root.as_posix())
+            continue
         if root.is_file():
-            found.append(root)
+            if root.suffix in _SUFFIXES and not _skip_relative(
+                root.relative_to(ROOT).as_posix(), root.suffix
+            ):
+                found.append(root)
             continue
         for path in sorted(root.rglob("*")):
-            if not path.is_file() or path.suffix not in {".md", ".py"}:
+            if not path.is_file() or path.suffix not in _SUFFIXES:
                 continue
-            if any(part in _SKIP_DIRS for part in path.parts):
+            if _skip_relative(path.relative_to(ROOT).as_posix(), path.suffix):
                 continue
-            rel = path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else ""
-            if any(rel.startswith(skip) for skip in _MARKDOWN_SKIP):
-                continue
-            if path.suffix == ".md" and rel.startswith("docs/api/"):
-                continue  # API 参考页由 mkdocstrings 渲染，无自有散文
             found.append(path)
-    return found
+    return found, skipped
 
 
 def main(argv: list[str]) -> int:
-    """检查并报告；返回退出码（有命中即 1）。"""
+    """检查并报告；返回退出码。
+
+    默认有命中即返回 1；`--report` 为报告模式，有命中仍返回 0。
+    脚本自身的异常不在此处理，一律以非零退出码终止。
+    """
     if "--list" in argv:
         for term in _LEXICON:
-            print(f"{term.pattern.pattern}\t{term.why}")
+            _say(f"{term.pattern.pattern}\t{term.why}")
         return 0
 
+    report_only = "--report" in argv
     hits: list[Hit] = []
-    files = _targets(argv)
+    files, skipped = _targets(argv)
     for path in files:
         hits.extend(_scan_file(path))
+
+    for item in skipped:
+        _say(f"[prose] 跳过（不在本仓库内）：{item}")
 
     by_file: dict[str, int] = {}
     for hit in hits:
         by_file[hit.path] = by_file.get(hit.path, 0) + 1
 
     for shown, count in sorted(by_file.items(), key=lambda item: (-item[1], item[0])):
-        print(f"{count:>4}  {shown}")
-    print(f"\n[prose] 扫描 {len(files)} 个文件，命中 {len(hits)} 处。")
+        _say(f"{count:>4}  {shown}")
+    _say(f"\n[prose] 扫描 {len(files)} 个文件，命中 {len(hits)} 处。")
     if hits:
-        print("明细（最多 60 条）：")
+        _say("明细（最多 60 条）：")
         for hit in hits[:60]:
-            print(f"  {hit.path}:{hit.line}  [{hit.term}]  {hit.text}")
+            _say(f"  {hit.path}:{hit.line}  [{hit.term}]  {hit.text}  （{hit.why}）")
         if len(hits) > 60:
-            print(f"  …… 其余 {len(hits) - 60} 处")
+            _say(f"  …… 其余 {len(hits) - 60} 处")
+    if report_only:
+        return 0
     return 1 if hits else 0
 
 

@@ -3,6 +3,32 @@
 
 # 变更
 
+- 2026-09-26 · 已定 · **PR #20 评审整改**（OCR 三轮 65 条去重后全修，分支 `fix/pr20-review`，基于 `9437d13`）：
+  **内核**——`put` / `drop` / `call` 检查 `Outcome` 并在失败时抛出**原异常**（落盘失败不再被吞成"存成功"）；
+  `role()` 只返回登记的**实例**，未登记返回 `None`（原回退成类型表里的类）；`_ready` 挪到两张表与引擎
+  建好之后置位；`_store` 不再为无 ID 对象登记**空键**（多个无 ID 对象曾挤在同一格互相覆盖）；
+  `mount` 换挂件时把旧对象从三种身份格摘净；`open()` 先关旧存储再挂新的；`Managed.name` 只认本类
+  `__dict__`（子类不再改写父类的类型登记）；`iter()` 改走新增的 `Storage.infos()` 批量视图
+  （一次读回块行 + 类型码表），去掉 N+1 次查询。
+  **事件**——结果同时汇入 `Outcome.slot`（原先只落各自的 `action.slot`）；落槽判据由身份**值**
+  改为身份**名**（`__bool__` 为假的目标不再被静默丢结果）；公开字段 `call_arges` 更名 **`call_args`**
+  （测试同步）；删掉无引用的 `RoleNotFoundError` 与语义含糊的 `Slot.put`；`Step.ok` / `Outcome.failed`
+  的 docstring 与实现对齐。
+  **存储**——`Block.delete()` 改走门户真实删除口 `Core.drop`（原先指向不存在的方法，一调即
+  `AttributeError`）；去掉 `Bucket` 已做的重复提交；`info.author` 改读块顶层字段（原先恒为空串）；
+  `catalog.db` 字面量改用 `CATALOG_NAME`。
+  **领域**——`Note.list_notes` 先按类型过滤再解码（库里有非笔记块不再中断）并真正实现 `tags` 筛选；
+  变更广播带上主体 oid（`Event.target`，新增 `Core.send(target=...)`）；`Project.create` /
+  `CanvasData.create` 落盘前绑定内核；`Relation` 删掉从未读取的 `_core`。
+  **工具与 CI**——`prose.py`：仓库外路径不再崩溃、`_SKIP_DIRS` 按仓库相对路径判定、docstring 行号
+  修正、`ast.parse` 容错、中文输出走 UTF-8 直写，新增 `--report`（命中不阻断、工具异常仍失败）；
+  `spdx.py`：`--fix` 不再叠加头、读写保留原行尾、相对路径做越界校验、`git ls-files` 指定编码；
+  `ci.yml` 去掉 `continue-on-error`（改用 `--report`）；`docs.yml` 加 `timeout-minutes`、第三方
+  action 固定到 commit SHA、补齐 PR 触发路径；`.editorconfig` 把 `.svg` 归还文本规则；`Conf`
+  实例化即报错（配置引擎随下一片引入）；`conftest.py` 的 `core` fixture 改为用例结束关库。
+  门禁：ruff / mypy（strict）/ pytest（337 通过，覆盖率 86.4%）/ SPDX（全部入库文件）/ mkdocs `--strict` 全过；
+  书面语报告模式余量见 `progress.md`。
+
 - 2026-09-26 · 已定 · **删掉 GitHub 给的 Jekyll Pages 模板**（作者从 GitHub 捞回 `.github/workflows/jekyll-gh-pages.yml`，
   确认后删除）：它是 GitHub 开启 Pages 时引导生成的起始模板（**无 SPDX 头**、`checkout` → `jekyll-build-pages`
   从**仓库根** `./` 构建到 `./_site` → `upload-pages-artifact` → `deploy-pages`），

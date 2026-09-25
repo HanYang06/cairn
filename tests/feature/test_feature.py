@@ -3,15 +3,21 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 
 from core import Core, ObjectNotFoundError
+from core.storage import Block
 from feature import (
     Note,
     Relation,
     Signature,
     known_kinds,
 )
+
+if TYPE_CHECKING:
+    from core.types.event import Event
 
 
 def test_registry_has_builtin_kinds() -> None:
@@ -59,6 +65,39 @@ def test_note_list_and_delete(core: Core) -> None:
 
     core.drop(str(first.id))
     assert {note.oid for note in notes.list_notes()} == {second.oid}
+
+
+def test_note_list_skips_other_block_types(core: Core) -> None:
+    """库里混入非笔记块时，列笔记**不得**中断：先按类型过滤，再按命中的 id 解码。"""
+    notes = Note(core)
+    note = notes.create("x")
+    core.put(Block(body=b"asset", type="asset"))
+
+    assert {item.oid for item in notes.list_notes()} == {note.oid}
+
+
+def test_note_list_filters_by_tags(core: Core) -> None:
+    """`tags` 是签名里的承诺：给出时必须真的筛选，不得静默忽略。"""
+    notes = Note(core)
+    kept = notes.create("x", tags={"作者": "韩"})
+    notes.create("y", tags={"作者": "石"})
+
+    assert {item.oid for item in notes.list_notes(tags={"作者": "韩"})} == {kept.oid}
+
+
+def test_change_broadcast_carries_the_subject(core: Core) -> None:
+    """变更广播带上主体 oid：订阅方据此定位是哪条笔记变了。"""
+    notes = Note(core)
+    subjects: list[object] = []
+
+    def on_event(event: Event) -> None:
+        if not event.actions:  # 广播 = 不带动作链（带动作链的是"落盘"那类事件）
+            subjects.append(event.target)
+
+    with core.signal.subscribe(on_event):
+        note = notes.create("x")
+
+    assert subjects == [str(note.oid)]
 
 
 def test_relation_load_missing_raises_not_found(core: Core) -> None:

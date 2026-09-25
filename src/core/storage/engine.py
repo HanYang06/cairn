@@ -15,7 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from core.storage import Block, Bucket
+from core.storage import CATALOG_NAME, Block, Bucket
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -41,7 +41,7 @@ class Storage:
     def open(cls, path: Path | str) -> Storage:
         """开库（不存在则建）。"""
         root = Path(path)
-        if (root / "catalog.db").is_file():
+        if (root / CATALOG_NAME).is_file():
             return cls(root, Bucket.open(root))
         return cls.create(root)
 
@@ -51,9 +51,11 @@ class Storage:
 
     # ---- 引擎调用的动作面 ----
     def store(self, obj: Block) -> Block:
-        """**存**一个对象（写 块行 + 内容池）。"""
+        """**存**一个对象（写 块行 + 内容池）。
+
+        ``Bucket.put`` 内部已提交，此处不再补一次提交。
+        """
         self._bucket.put(obj)
-        self._bucket.commit()
         return obj
 
     def get[T: Block](self, cls: type[T], oid: str) -> T:
@@ -65,11 +67,8 @@ class Storage:
         return self._bucket.get(Block, str(oid))
 
     def drop(self, oid: str) -> bool:
-        """**删**一个对象；返回它此前是否存在。"""
-        removed = self._bucket.delete(str(oid))
-        if removed:
-            self._bucket.commit()
-        return removed
+        """**删**一个对象；返回它此前是否存在（``Bucket.delete`` 内部已提交）。"""
+        return self._bucket.delete(str(oid))
 
     # ---- 库级视图 ----
     def commit(self) -> None:
@@ -102,8 +101,40 @@ class Storage:
             title=attrs.get("title"),
             tags=_tags_of(attrs.get("tags")),
             seq=1,
-            author=str(attrs.get("author") or ""),
+            # 作者是**块的顶层持久化字段**，不在 attrs 里（旧写法读 attrs 恒为空串）。
+            author=str(block.author or ""),
         )
+
+    def infos(self) -> list[Any]:
+        """**批量**取中立视图：一次读回全部块行与类型码表，不逐块读载体内容。
+
+        单件 :meth:`info_of` 会顺带取回并校验内容；整表列举用这里，
+        否则 N 个对象要 N+1 次查询、并把每份内容都读进内存。
+        """
+        from core.types.ids import Oid as _Oid  # noqa: PLC0415 — 避免加载期互引
+        from core.types.kind import type_name as _type_name  # noqa: PLC0415
+        from core.types.objects import ObjectInfo  # noqa: PLC0415 — 避免加载期互引
+
+        names = self._bucket.catalog.type_names()
+        infos: list[ObjectInfo] = []
+        for row in self._bucket.catalog.iter_block_rows():
+            params = _params_of_row(row)
+            attrs = params.get("attrs") or {}
+            infos.append(
+                ObjectInfo(
+                    oid=_Oid.parse(str(row["oid"])),
+                    type=_type_name(names.get(int(row["type"]), "")),
+                    mime=attrs.get("mime"),
+                    size=int(row["size"]),
+                    created=int(row["created"]),
+                    updated=int(row["updated"]),
+                    title=attrs.get("title"),
+                    tags=_tags_of(attrs.get("tags")),
+                    seq=1,
+                    author=str(params.get("author") or ""),
+                )
+            )
+        return infos
 
     def query(self, sql: str, params: tuple[Any, ...] | list[Any] = ()) -> list[Any]:
         """只读查询。"""
@@ -123,6 +154,23 @@ class Storage:
 
 
 __all__ = ["Storage"]
+
+
+def _params_of_row(row: Any) -> dict[str, Any]:
+    """块行里那份持久化附属参数（``attrs`` / ``config`` / ``author``）；空则空字典。"""
+    from core.storage.block import decode_canonical  # noqa: PLC0415 — 避免加载期互引
+    from core.types import CorruptObjectError  # noqa: PLC0415
+
+    raw = row["data"]
+    if not raw:
+        return {}
+    try:
+        params: Any = decode_canonical(bytes(raw))
+    except Exception as exc:  # 解不出即数据损坏，如实抛出
+        raise CorruptObjectError(f"块元数据解析失败: {row['oid']}") from exc
+    if not isinstance(params, dict):
+        raise CorruptObjectError(f"块元数据非法: {row['oid']}")
+    return {str(key): value for key, value in params.items()}
 
 
 def _tags_of(raw: Any) -> dict[str, Any]:

@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 
 from core.core import Core, Managed
 from core.types.event import Intent
-from core.types.kind import type_name
 
 from ..shared.asset import AssetData
 from ..shared.base import UNSET
@@ -98,14 +97,12 @@ class Note(Managed):
         *,
         tags: Iterable[str] | Mapping[str, Any] | None = None,
     ) -> list[NoteData]:
-        """列出笔记数据（按标签筛选待补）。"""
-        del tags  # 按标签筛选待补：旧 iter 随内核重构移除
-        notes: list[NoteData] = []
-        for block_id in self.core.storage_ids():
-            block = self.core.get(NoteData, block_id)
-            if type_name(block.type) == type_name(NOTE_KIND):
-                notes.append(block)
-        return notes
+        """列出笔记数据；``tags`` 给出时按标签筛选（口径同 `Core.iter`）。
+
+        先取中立视图按类型过滤，再按命中的 id 解码：库里的资产 / 画板 / 分组 / 关系
+        都不是笔记，直接对每个 id 调 ``get(NoteData, ...)`` 会在第一个非笔记块上抛错中断。
+        """
+        return [self.load(info.oid) for info in self.core.iter(type=NOTE_KIND, tags=tags)]
 
     # ---- 正文操作（编辑器接线用；只改内存，落盘由 save / persist 负责）----
     def set_text(self, data: NoteData, text: str) -> None:
@@ -274,20 +271,23 @@ class Note(Managed):
 
     # ---- 落盘 ----
     def save(self, data: NoteData) -> NoteData:
-        """落盘。版本由领域日后自建，这里只管存。"""
+        """**落盘 + 广播**：写进去，并让订阅方知道这条笔记变了。版本由领域日后自建。"""
         self.core.put(data)
         self.notify(data)
         return data
 
     def persist(self, data: NoteData) -> NoteData:
-        """只**落盘当前内容**（与 `save` 同一条路；版本不在内核里）。"""
+        """**只落盘**：连续编辑的自动保存走这里，不广播（与 `save` 的差别仅此一处）。"""
         self.core.put(data)
         return data
 
     def notify(self, data: NoteData) -> None:
-        """把"这条笔记变了"作为**事件**发出去（不带角色 = 广播，谁关心谁听）。"""
-        del data
-        self.core.send(Intent.PUT)
+        """把"这条笔记变了"作为**事件**发出去（不带动作 = 广播，谁关心谁听）。
+
+        事件带上变更对象的 oid（``Event.target``）：订阅方据此定位是哪条笔记，
+        否则只能收到一次无主体的 PUT 广播。
+        """
+        self.core.send(Intent.PUT, target=str(data.oid))
 
     # ---- 属性 / 关系 / 嵌入 ----
     def update(

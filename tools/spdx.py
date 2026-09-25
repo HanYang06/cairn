@@ -104,10 +104,14 @@ def _style_of(path: str) -> str | None:
 
 
 def _relative(path: str) -> str | None:
-    """把绝对路径（编辑器 / IDE 任务传进来的）折成仓库相对路径；不在仓库内返回 None。"""
+    """把命令行给的路径折成仓库相对路径；不在仓库内返回 None。
+
+    绝对路径直接用；相对路径按当前工作目录解析。`../` 这类可以越过仓库根的
+    相对路径同样过 `relative_to` 校验，越界返回 None，不留读写通路。
+    """
     candidate = Path(path)
     if not candidate.is_absolute():
-        return PurePosixPath(path).as_posix()
+        candidate = Path.cwd() / candidate
     try:
         return candidate.resolve().relative_to(ROOT).as_posix()
     except ValueError:
@@ -120,7 +124,15 @@ def _tracked() -> list[str]:
     git = shutil.which("git")
     if git is None:
         raise SystemExit("找不到 git：本工具用 `git ls-files` 取文件清单")
-    done = subprocess.run([git, "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True)
+    done = subprocess.run(
+        [git, "ls-files"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="surrogateescape",
+        check=True,
+    )
     return [line for line in done.stdout.splitlines() if line]
 
 
@@ -224,25 +236,34 @@ def _insert_skill_license(raw: list[str]) -> list[str]:
     return [*raw[:end], f"{SKILL_LICENSE}{_eol(raw)}", *raw[end:]]
 
 
+def _has_spdx_field(region: list[str]) -> bool:
+    """区间内是否已出现任一 SPDX 字段名（不要求内容正确）。"""
+    fields = {marker.split(":")[0] for marker in (COPYRIGHT, LICENSE_ID)}
+    return any(field in line for field in fields for line in region)
+
+
 def _fix(path: str, style: str, text: str) -> bool:
     """补头（SKILL.md 连带补 frontmatter 的 license 行）；返回是否改动。
 
-    **已存在的头绝不重复插入**——否则每次提交都会叠一层。缺 frontmatter 的 SKILL.md
-    属结构问题，不猜、交给人工。
+    **已存在的头绝不重复插入**——否则每次提交都会叠一层。判定不看内容是否相符，
+    只看区间内是否已有 SPDX 字段名：形似而内容不符的头（例如版权年份写错）同样
+    算「已存在」，此时不插入、返回 False，由 `_process` 报成 problem 交人工处理。
+    缺 frontmatter 的 SKILL.md 属结构问题，同样不猜。
     """
     raw = text.splitlines(keepends=True)
     is_skill = PurePosixPath(path).name == SKILL_NAME
     if is_skill and _frontmatter_end(raw) is None:
         return False
     region = [line.rstrip("\r\n") for line in raw[slice(*_header_region(path, raw))]]
-    if not any(COPYRIGHT in line for line in region):
+    if not _has_spdx_field(region):
         raw = _insert_header(path, style, raw)
     if is_skill:
         raw = _insert_skill_license(raw)
     updated = "".join(raw)
     if updated == text:
         return False
-    (ROOT / path).write_text(updated, encoding="utf-8")
+    with (ROOT / path).open("w", encoding="utf-8", newline="") as handle:
+        handle.write(updated)
     return True
 
 
@@ -268,7 +289,7 @@ def _resolve_targets(targets: list[str]) -> list[str]:
     for target in targets:
         rel = _relative(target)
         if rel is None:
-            print(f"[SPDX] 跳过（不在本仓库内）：{target}")
+            _say(f"[SPDX] 跳过（不在本仓库内）：{target}")
         else:
             paths.append(rel)
     return paths
@@ -284,7 +305,8 @@ def _process(path: str, patterns: list[str], *, fix: bool) -> tuple[str, str]:
     file = ROOT / path
     if not file.is_file():  # 已删除但仍在清单里
         return _OK, ""
-    text = file.read_text(encoding="utf-8")
+    with file.open(encoding="utf-8", newline="") as handle:  # newline="" 保留原行尾
+        text = handle.read()
     issues = _violations(path, text)
     if not issues:
         return _OK, ""

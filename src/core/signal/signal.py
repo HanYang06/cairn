@@ -65,7 +65,7 @@ class Step:
 
     @property
     def ok(self) -> bool:
-        """这一步是否有结果。"""
+        """这一步是否**未出错**（方法返回 ``None`` 也算成功）。"""
         return self.error is None
 
     def __repr__(self) -> str:
@@ -75,7 +75,12 @@ class Step:
 
 @dataclass
 class Outcome:
-    """一次事件处理的**全貌**：每一步的经过 + 结果槽。"""
+    """一次事件处理的**全貌**：每一步的经过 + 结果槽。
+
+    ``slot`` 是各步结果的**汇总**（按动作所用的身份索引）：同一步的结果既落在
+    该动作自己的 ``action.slot``，也汇进这里，故调用方读全貌即可；
+    多步用到同一身份时，后一步覆盖前一步。
+    """
 
     event: Event
     steps: list[Step] = field(default_factory=list)
@@ -83,12 +88,12 @@ class Outcome:
 
     @property
     def ok(self) -> bool:
-        """是否每一步都有结果（**期望 vs 实得**的粗判）。"""
+        """是否**每一步都未出错**。"""
         return all(step.ok for step in self.steps)
 
     @property
     def failed(self) -> list[Step]:
-        """没有结果的那些步骤。"""
+        """出错的那些步骤。"""
         return [step for step in self.steps if not step.ok]
 
     def __repr__(self) -> str:
@@ -159,6 +164,7 @@ class Signal:
 
         找不到目标这种**机制性错误**：本步记为失败、放进 `Step.error`，**继续往下走**——
         因为"结果是否合理"是调用方按全貌判断的（见 `Outcome.failed`）。
+        结果同时落两处：该动作自己的 ``action.slot`` 与全貌 ``outcome.slot``。
         """
         outcome = Outcome(event=event)
         if not event.is_sendable():
@@ -172,7 +178,7 @@ class Signal:
             try:
                 step.target = self.resolve(action)
                 step.result = self.invoke(step.target, action)
-                self.stash(action, step)
+                self.stash(action, step, outcome.slot)
             except Exception as exc:  # noqa: BLE001 — 机制性失败交出去，不吞不掩
                 step.error = exc
                 _logger.debug("步骤失败：%r -> %s", action, exc)
@@ -188,14 +194,20 @@ class Signal:
             )
         if not callable(method):
             raise TypeError(f"{type(target).__name__}.{action.call_function} 不是可调用的")
-        return method(**action.call_arges)
+        return method(**action.call_args)
 
-    def stash(self, action: Action, step: Step) -> None:
-        """把结果落进**寄存器**：拿什么查的，就按什么返回。"""
-        identity, value = action.identity()
-        if not value:
+    def stash(self, action: Action, step: Step, *sinks: Slot) -> None:
+        """把结果落进**寄存器**：拿什么查的，就按什么返回。
+
+        判据是身份**名**（``identity``）而不是身份**值**：身份值为假（``0`` / ``""`` /
+        自定义 ``__bool__`` 为假的对象）同样是合法目标，按值判断会把它静默丢掉。
+        """
+        identity, _ = action.identity()
+        if not identity:
             return
         action.slot.add(identity, step.result)
+        for sink in sinks:
+            sink.add(identity, step.result)
 
 
 __all__ = ["Handler", "Outcome", "Signal", "Step", "Subscription", "Table"]

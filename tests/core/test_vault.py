@@ -107,3 +107,29 @@ def test_storage_ids_lists_every_object(core: Core) -> None:
     second = _put(core, b"b")
 
     assert set(core.storage_ids()) == {first.id, second.id}
+
+
+def test_info_reports_the_block_author(core: Core) -> None:
+    """作者是**块的顶层字段**，不在 attrs 里：中立视图须读块字段，不得恒为空串。"""
+    block = Block(body=b"x", author="韩")
+    core.put(block)
+
+    assert core.info(block.id).author == "韩"
+
+
+def test_iter_returns_the_same_views_as_info(core: Core) -> None:
+    """整表列举与单件查询必须给出同一份视图（批量走的是不同的读路径）。"""
+    note = _put(core, b"a", type="note", attrs={"title": "A", "tags": ["x"]})
+    listed = {info.oid: info for info in core.iter()}
+
+    assert listed[note.oid] == core.info(note.id)
+
+
+def test_block_delete_goes_through_the_portal(core: Core) -> None:
+    """块的 `delete()` 必须走门户真实的删除口（`Core.drop`），不得指向不存在的方法。"""
+    block = _put(core, b"x").attach(core)
+
+    block.delete()
+
+    with pytest.raises(ObjectNotFoundError):
+        core.read(block.id)

@@ -52,14 +52,8 @@ class Slot:
                 self._cells[key] = value
 
     # ---- 写 ----
-    def put(self, key: str, value: Any = None) -> Slot:
-        """往某个身份格子里放值；``value`` 缺省即放身份本身（用于登记）。"""
-        self._require_key(key)
-        self._cells[key] = self._cells.get(key) if value is None else value
-        return self
-
     def add(self, key: str, value: Any) -> Slot:
-        """登记一个身份 → 值（`put` 的直白写法）。"""
+        """登记一个身份 → 值（唯一的写入口：动作的执行结果就落在这里）。"""
         self._require_key(key)
         self._cells[key] = value
         return self
@@ -110,7 +104,7 @@ class Action:
     role_name: str = ""
     role_obj: object | None = None
     call_function: str = ""
-    call_arges: dict[str, Any] = field(default_factory=dict)
+    call_args: dict[str, Any] = field(default_factory=dict)
     slot: Slot = field(default_factory=Slot)
 
     def identity(self) -> tuple[str, Any]:

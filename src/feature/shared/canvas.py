@@ -244,6 +244,7 @@ class CanvasData(Block):
     ) -> CanvasData:
         """新建一块画板并落盘（数据结构的构造入口）。"""
         data = cls(graphics=graphics, links=links, mode=mode)
+        data.core = core  # 数据对象身上带内核（它继承 Block，不继承 Managed）
         core.put(data)
         return data
 
