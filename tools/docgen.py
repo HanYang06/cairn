@@ -221,7 +221,15 @@ def _write() -> int:
 
 
 def main(argv: list[str]) -> int:
-    """`--write` 生成 / `--check` 防漂移 / `--coverage` 报告（`--gate` 时按阈值判退出码）。"""
+    """`--write` 生成 / `--check` 防漂移 / `--coverage` 报告（`--gate` 时按阈值判退出码）。
+
+    未知参数一律报错退出（与 `tools/gen_conf.py` 同口径）：拼错成 `--chek` 之类的写法
+    若静默落进默认的防漂移门禁，本意写盘的人只会看到"检查通过"，意图与行为对不上。
+    """
+    unknown = [arg for arg in argv if arg not in {"--write", "--check", "--coverage", "--gate"}]
+    if unknown:
+        _say(f"未知参数 {unknown}：用法 `docgen.py [--write|--check|--coverage [--gate]]`")
+        return 1
     if "--write" in argv:
         return _write()
     if "--coverage" in argv:

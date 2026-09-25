@@ -89,26 +89,36 @@ def property_of(item: CfgItem) -> dict[str, Any]:
     return schema
 
 
-def type_schema(hint: Any) -> dict[str, Any]:
+# 逐类识别、各自提前返回：比层层嵌套好读（故放行 PLR0911）。
+def type_schema(hint: Any) -> dict[str, Any]:  # noqa: PLR0911
     """类型 → ``{"type": …}`` / ``{"anyOf": …}``；认不出就返回空（**不猜类型**）。
 
-    认得出的只有 :data:`_SIMPLE` 里的内建类型与 ``Union``；自定义类不下 ``object``
-    之类的猜测约束——词表宁可少一条，也不给错一条。
+    认得出的：内建简单类型、``Union``（含 ``X | None``）、参数化的 ``list`` / ``tuple`` /
+    ``dict``；其余（自定义类、未覆盖的泛型）一律不给约束——词表宁可少一条，也不给错一条。
+    参数化泛型必须在这里认，因为 :meth:`Cfg._resolve_type` 会照单采纳 ``list[int]`` 这类注解，
+    在此漏掉就等于把声明里的数组类型静默丢掉。
     """
     if hint is None:
         return {}
-    if isinstance(hint, type) and hint in _SIMPLE:
-        schema: dict[str, Any] = {"type": _SIMPLE[hint]}
-        if hint in {list, tuple}:
-            schema["items"] = {}
-        return schema
-    if isinstance(hint, UnionType) or get_origin(hint) is Union:
+    origin = get_origin(hint)
+    if origin in {list, tuple}:
+        args = get_args(hint)
+        item = type_schema(args[0]) if len(args) == 1 else {}
+        return {"type": "array", "items": item or {}}
+    if origin is dict:
+        return {"type": "object"}
+    if isinstance(hint, UnionType) or origin is Union:
         branches = [type_schema(arg) for arg in get_args(hint)]
         # 有分支认不出就整体不给约束：只留认得出的那支会把联合**收敛成单类型**
         # （`int | MyEnum` 输出"只能是整数"），给出过窄的错约束比不给更糟。
         if any(not branch for branch in branches):
             return {}
         return {"anyOf": branches} if len(branches) > 1 else branches[0]
+    if isinstance(hint, type) and hint in _SIMPLE:
+        schema: dict[str, Any] = {"type": _SIMPLE[hint]}
+        if hint in {list, tuple}:
+            schema["items"] = {}
+        return schema
     return {}
 
 

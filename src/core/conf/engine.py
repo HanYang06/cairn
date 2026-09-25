@@ -453,9 +453,16 @@ class ConfEngine:
         return Folder.of_path(Path(*relative.parts[1:]), hub=relative.parts[0])
 
     def _write_json(self, path: Path, payload: dict[str, Any]) -> None:
-        """写一份投影：行尾固定为 LF，保证同一份生成物在各平台字节一致（可复现）。"""
+        """写一份投影：行尾固定为 LF，且**先写同目录临时文件再改名**（原子替换）。
+
+        整份覆盖若在中途被 kill，磁盘上会留下截断的非法 JSON；下一轮 `plan()` 读到它即抛
+        `ConfigFileError`，而引擎的口径是「不自动修」——那个坏文件就此把库锁死，只能人工处理。
+        临时文件 + `os.replace` 让中断时旧文件仍然完整。
+        """
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(_dumps(payload), encoding="utf-8", newline="\n")
+        tmp = path.with_name(f"{path.name}.tmp")
+        tmp.write_text(_dumps(payload), encoding="utf-8", newline="\n")
+        tmp.replace(path)
 
     def _stale(self, path: Path, payload: dict[str, Any]) -> bool:
         """磁盘上这份投影是否已经与生出来的一致（一致则不改动）。"""

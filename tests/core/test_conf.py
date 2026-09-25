@@ -485,6 +485,21 @@ def test_type_schema_does_not_narrow_a_union() -> None:
     assert type_schema(Custom) == {}
 
 
+def test_type_schema_handles_parameterised_generics() -> None:
+    """`list[int]` / `dict[str, int]` 这类泛型提示要认：声明采纳了它们，词表不得静默丢掉。"""
+    assert type_schema(list[int]) == {"type": "array", "items": {"type": "integer"}}
+    assert type_schema(list) == {"type": "array", "items": {}}
+    assert type_schema(dict[str, int]) == {"type": "object"}
+    assert type_schema(list[object]) == {"type": "array", "items": {}}
+
+
+@pytest.mark.usefixtures("declared")
+def test_sync_leaves_no_temporary_files(engine: ConfEngine) -> None:
+    """投影走「临时文件 + 改名」的原子写：写完不得留下 `.tmp` 残渣。"""
+    for path, _touched in engine.sync():
+        assert not path.with_name(f"{path.name}.tmp").exists()
+
+
 def test_blank_docstring_does_not_break_registration() -> None:
     """类 docstring 是空白串时不得在类体定义期抛 `IndexError`（登记仍要完成）。"""
     field = Cfg("core.demo.blank.doc", 1)

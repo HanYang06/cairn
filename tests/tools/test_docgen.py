@@ -91,3 +91,10 @@ def test_coverage_gate_flag_controls_the_exit_code() -> None:
 
     expected = 1 if docgen.coverage_ratio() < docgen.DOCSTRING_MIN else 0
     assert docgen.main(["--coverage", "--gate"]) == expected
+
+
+def test_unknown_argument_is_rejected() -> None:
+    """未知参数必须报错退出：拼错成 `--chek` 不得静默落进默认的防漂移门禁。"""
+    assert docgen.main(["--chek"]) == 1
+    assert docgen.main(["--wrte"]) == 1
+    assert docgen.main(["--gate"]) == 0  # `--gate` 单独出现即普通防漂移检查
