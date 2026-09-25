@@ -8,7 +8,7 @@
 - `core.core.Core`：内核本体（单例；两张对象表 + 引擎挂载点 + 最小 API）
 - `core.signal.Signal`：信号与事件处理引擎
 - `core.storage`：存储实现（桶 / 块 / 目录）与它的引擎角色
-- `core.conf.Conf`：配置
+- `core.conf.Conf`：配置（**预留**：实例化即报错，配置引擎随下一片引入）
 - `core.types`：类型地基（错误 / 标识符 / 类型表 / 标注 / 事件数据结构）
 """
 

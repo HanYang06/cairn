@@ -16,7 +16,6 @@
 | `objects` | 中立视图（`ObjectInfo` / `VerifyReport`） | 结构 |
 | `common` | 通用小函数（`now_ms`） | 工具 |
 | `attr` | `Attr` / `Data`：**字段的高级标注** | 声明 |
-| `action` | `action` / `actions_of`：**行动作的静态标注** | 声明 |
 | `event` | `Event` / `Action` / `Slot` / `Intent`：**事件数据结构** | 结构 |
 
 > 本包**不做 eager 导入**：`attr` 要在存储层导入期被使用（`Block` 子类在类体里声明字段），

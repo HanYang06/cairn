@@ -51,7 +51,6 @@ class Relation:
 
     def __init__(  # noqa: PLR0913, PLR0917 — 关系行的扁平字段构造器
         self,
-        core: Any,
         id: str,
         src: str,
         dst: str,
@@ -61,7 +60,6 @@ class Relation:
         attrs: dict[str, Any] | None = None,
         created: int = 0,
     ) -> None:
-        self._core = core
         self.id = id
         self._src = src
         self._dst = dst
@@ -172,14 +170,13 @@ class Relation:
         rows = _table(core).select(id=str(oid))
         if not rows:
             raise ObjectNotFoundError(f"{oid} 不是关系")
-        return cls._from_row(core, rows[0])
+        return cls._from_row(rows[0])
 
     @classmethod
-    def _from_row(cls, core: Any, row: Any) -> Relation:
+    def _from_row(cls, row: Any) -> Relation:
         raw = row["attrs"]
         attrs = decode_canonical(bytes(raw)) if raw else {}
         return cls(
-            core,
             str(row["id"]),
             str(row["src"]),
             str(row["dst"]),
@@ -193,7 +190,7 @@ class Relation:
     @classmethod
     def list(cls, core: Any) -> Iterator[Relation]:
         for row in _table(core).all():
-            yield cls._from_row(core, row)
+            yield cls._from_row(row)
 
     @classmethod
     def outbound(
@@ -207,7 +204,7 @@ class Relation:
         if relation is not None:
             where["kind"] = relation
         for row in _table(core).select(**where):
-            yield cls._from_row(core, row)
+            yield cls._from_row(row)
 
     @classmethod
     def backlinks(
@@ -221,7 +218,7 @@ class Relation:
         if relation is not None:
             where["kind"] = relation
         for row in _table(core).select(**where):
-            yield cls._from_row(core, row)
+            yield cls._from_row(row)
 
 
 __all__ = [

@@ -43,6 +43,13 @@ class Probe(Managed):
         return self.text
 
 
+class Falsy(Probe):
+    """`__bool__` 为假的对象：身份值为假时链路仍须照常落槽。"""
+
+    def __bool__(self) -> bool:
+        return False
+
+
 @pytest.fixture
 def core() -> Core:
     """内核自带引擎（表**不清空**：继承即注册发生在类定义期）。"""
@@ -115,7 +122,7 @@ def test_handle_runs_actions_in_order_and_stashes(core: Core) -> None:
     event = Event(
         intent=Intent.PUT,
         actions=[
-            Action(role_id="01A", call_function="set_text", call_arges={"text": "改过的字"}),
+            Action(role_id="01A", call_function="set_text", call_args={"text": "改过的字"}),
             Action(role_obj=note, call_function="read"),
         ],
     )
@@ -192,7 +199,7 @@ def test_short_api_put_get_drop(core: Core, tmp_path: Path) -> None:
     assert core.get(Block, block.id).read() == b"hi"  # 一行：取
     core.drop(block.id)  # 一行：删
     outcome = core.send(
-        Intent.GET, Action(role_name="storage", call_function="fetch", call_arges={"oid": block.id})
+        Intent.GET, Action(role_name="storage", call_function="fetch", call_args={"oid": block.id})
     )
     assert not outcome.ok  # 删掉之后再取，取不到
 
@@ -231,6 +238,77 @@ def test_slot_refuses_non_identity_keys() -> None:
     slot = Slot()
     with pytest.raises(KeyError, match="身份"):
         slot.add("随便的名字", 1)
+
+
+def test_outcome_slot_aggregates_every_step(core: Core) -> None:
+    """全貌的槽汇总各步结果（不得只落在各自的 `action.slot` 上留一个空壳）。"""
+    note = Probe("01A", "原文")
+    core.register(note, oid="01A")
+    outcome = core.signal.handle(
+        Event(
+            intent=Intent.PUT,
+            actions=[
+                Action(role_id="01A", call_function="set_text", call_args={"text": "改过"}),
+                Action(role_id="01A", call_function="read"),
+            ],
+        )
+    )
+
+    assert outcome.slot.get("role_id") == "改过"
+
+
+def test_falsy_identity_value_still_stashes(core: Core) -> None:
+    """身份**值**为假（自定义 `__bool__` 返回 False）同样是合法目标，结果不得被丢掉。"""
+    target = Falsy(text="原文")
+    core.register(target, oid="01F")
+    action = Action(role_obj=target, call_function="read")
+
+    outcome = core.signal.handle(Event(intent=Intent.GET, actions=[action]))
+
+    assert outcome.ok
+    assert action.slot.get("role_obj") == "原文"
+
+
+def test_put_fails_loud_when_storage_breaks(core: Core) -> None:
+    """落盘失败必须抛出：吞掉异常等于把"没写进去"报成"存好了"。"""
+
+    class Broken:
+        """存储替身：`store` 一律失败。"""
+
+        name = "storage"
+        id = "storage"
+
+        def store(self, obj: object) -> object:
+            raise OSError(f"磁盘满，写不进 {type(obj).__name__}")
+
+    core.mount("storage", Broken())
+
+    with pytest.raises(OSError, match="磁盘满"):
+        core.put(Probe("01B"))
+
+
+def test_call_fails_loud_instead_of_returning_none(core: Core) -> None:
+    """动作没执行与"方法正常返回 None"不得混为一谈：失败要抛出。"""
+    note = Probe("01A")
+    core.register(note, oid="01A")
+
+    with pytest.raises(ObjectNotFoundError):
+        core.call(note, "no_such_method")
+
+
+def test_role_returns_none_when_nothing_is_registered(core: Core) -> None:
+    """未登记的服务返回 `None`，不得回退成类型表里的**类**（调用方会按实例用）。"""
+    assert core.role("没有这个服务") is None
+
+
+def test_subclass_without_own_name_keeps_parent_registration() -> None:
+    """子类未自报名字时不得改写父类在类型表里的登记。"""
+
+    class SubProbe(Probe):
+        """只继承、不声明 `name`。"""
+
+    assert Core.type_of("probe") is Probe
+    assert Core.type_of("SubProbe") is SubProbe
 
 
 def test_outcome_reports_failures() -> None:

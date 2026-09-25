@@ -501,16 +501,16 @@ class Block:
         self._info = None
         return self
 
-    def save(self, *, search_text: str | None = None) -> Self:
+    def save(self) -> Self:
         """经门户落盘（**纯落盘**；版本由领域服务负责）。需先挂门户。"""
         portal = self._portal()
-        portal.put(self, search_text=search_text)
+        portal.put(self)
         self.sync_info(portal)
         return self
 
     def delete(self) -> None:
-        """经门户删除自身。需先挂门户。"""
-        self._portal().delete(self.id)
+        """经门户删除自身（门户的删除口是 `Core.drop`）。需先挂门户。"""
+        self._portal().drop(self.id)
 
     def sync_info(self, portal: Any = None) -> Self:
         """刷新自身的中立视图（``info``）：``portal`` 缺省用已挂的门户。"""

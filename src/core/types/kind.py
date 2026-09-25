@@ -49,6 +49,8 @@ def unit_names(declared: object) -> tuple[str, ...]:
     """把"声明"归一成 `type` 名元组：单个数据类，或它们的列表 / 元组。
 
     域服务用它把 ``data`` / ``light`` 声明转成类型名（``Block`` 子类自带 ``type``）。
+    声明项取不到 ``type`` 时**抛错**：静默跳过会让 ``units`` 悄悄残缺，
+    下游 ``unit_infos`` 也就不再报错，把"写错了"伪装成"本来就没有"。
     """
     if declared is None:
         return ()
@@ -56,8 +58,9 @@ def unit_names(declared: object) -> tuple[str, ...]:
     names: list[str] = []
     for item in items:
         name = type_name(getattr(item, "type", "") or "")
-        if name:
-            names.append(name)
+        if not name:
+            raise LookupError(f"声明的数据单元取不到 type：{item!r}")
+        names.append(name)
     return tuple(names)
 
 

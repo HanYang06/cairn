@@ -22,9 +22,9 @@ from __future__ import annotations
 
 from typing import Any, ClassVar
 
-from core.signal import Signal
+from core.signal import Outcome, Signal
 from core.storage import Block
-from core.types import CairnError, VerifyReport
+from core.types import CairnError, ObjectInfo, VerifyReport
 from core.types.event import Action, Event, Intent
 from core.types.kind import ROLE_DOMAIN, TypeInfo, identity_key, register, type_name, unit_names
 
@@ -50,13 +50,18 @@ class Core:
         # 只初始化一次（单例重复构造不重置状态）
         if getattr(self, "_ready", False):
             return
-        self._ready = True
         # 表一 · 内核内部对象（固定件，硬编码挂载）
-        self._internal: dict[str, dict[Any, object]] = {key: {} for key in _IDENTITIES}
+        internal: dict[str, dict[Any, object]] = {key: {} for key in _IDENTITIES}
         # 表二 · 内核外部对象（动态，注册进来）
-        self._external: dict[str, dict[Any, object]] = {key: {} for key in _IDENTITIES}
-        self.signal: Signal = Signal()  # 挂载信号引擎
-        self.signal.connect(self._internal, self._external)
+        external: dict[str, dict[Any, object]] = {key: {} for key in _IDENTITIES}
+        signal: Signal = Signal()  # 挂载信号引擎
+        signal.connect(internal, external)
+        # 全部建好之后才置就绪：中途失败时 `_ready` 仍为假，下次 `Core()` 重新初始化；
+        # 先置位会让半初始化实例（无表 / 无引擎）被后续构造直接复用。
+        self._internal = internal
+        self._external = external
+        self.signal = signal
+        self._ready = True
 
     @classmethod
     def type_of(cls, name: str) -> object | None:
@@ -64,11 +69,15 @@ class Core:
         return cls._types.get(name)
 
     def role(self, name: str) -> object | None:
-        """按名字取**受管辖的服务**（类型收成里的那个类，登记时建的实例）。"""
+        """按名字取**受管辖的服务实例**（登记时建的那个）；未登记返回 ``None``。
+
+        只返回**实例**：类型收成（:meth:`type_of`）里存的是类，混进同一条返回路径
+        会让调用方拿到类却按实例使用。要类请走 :meth:`type_of`。
+        """
         for table in (self._external, self._internal):
             if (found := table["role_name"].get(name)) is not None:
                 return found
-        return self._types.get(name)
+        return None
 
     @classmethod
     def register_type(cls, target: Any) -> None:
@@ -92,7 +101,14 @@ class Core:
 
     # ---- 表：挂 / 注册 / 查 ----
     def mount(self, name: str, obj: object) -> object:
-        """把**内核固定件**挂进表一（存储 / 引擎 / 配置……）。"""
+        """把**内核固定件**挂进表一（存储 / 引擎 / 配置……）；同名旧挂件被换下。
+
+        换下时把旧对象从三种身份格里一并摘净：只覆盖 ``role_name`` 会留下
+        查得到的陈旧引用（``lookup("role_obj", 旧存储)`` 仍然命中）。
+        """
+        previous = self._internal["role_name"].get(name)
+        if previous is not None and previous is not obj:
+            _forget(self._internal, previous)
         self._internal["role_name"][name] = obj
         self._internal["role_id"][str(getattr(obj, "id", "") or name)] = obj
         self._internal["role_obj"][identity_key("role_obj", obj)] = obj
@@ -105,10 +121,7 @@ class Core:
 
     def unregister(self, obj: object) -> None:
         """把一个对象从表二摘掉（**显式注销**）。"""
-        for table in self._external.values():
-            for key, value in list(table.items()):
-                if value is obj:
-                    table.pop(key, None)
+        _forget(self._external, obj)
 
     def lookup(self, identity: str, value: Any) -> object | None:
         """按身份查对象：**先表二（外部）、再表一（内部）**；找不到返回 ``None``。
@@ -130,14 +143,14 @@ class Core:
         engine.connect(self._internal, self._external)
         return engine
 
-    # ---- 最小 API（内部替你组包；目标 5 行以内办完一件事）----
-    def put(self, obj: object, *, search_text: str | None = None) -> object:
+    # ---- 最小 API（内部代为组包；目标 5 行以内办完一件事）----
+    def put(self, obj: object) -> object:
         """**存**：组一个事件包交给引擎（角色 = 存储）。
 
-        ``search_text`` 是过渡参数（检索投影随存储收口时会重做），当前忽略。
+        落盘失败**显式抛出**：``store`` 抛的异常只被引擎记进 `Step.error`，
+        在这里吞掉会让调用方把"没写进去"读成"存好了"（静默数据丢失）。
         """
-        del search_text
-        self.send(Intent.PUT, self._act("store", obj=obj))
+        _raise_if_failed(self.send(Intent.PUT, self._act("store", obj=obj)), "存对象")
         return obj
 
     def get[T](self, cls: type[T], oid: str) -> T:
@@ -145,25 +158,28 @@ class Core:
         return self.storage.get(cls, str(oid))  # type: ignore[no-any-return]
 
     def drop(self, oid: str) -> None:
-        """**删**。"""
-        self.send(Intent.DEL, self._act("drop", oid=oid))
+        """**删**；失败显式抛出（口径同 :meth:`put`）。"""
+        _raise_if_failed(self.send(Intent.DEL, self._act("drop", oid=oid)), "删对象")
 
     def call(self, target: object, method: str, **args: Any) -> Any:
-        """**改**：对某个对象上的某个方法发一个动作（同样一行）。"""
+        """**改**：对某个对象上的某个方法发一个动作（同样一行）。
+
+        失败显式抛出：方法正常返回 ``None`` 与"动作根本没执行"不得混为一谈。
+        """
         outcome = self.send(
             Intent.PUT,
-            Action(role_obj=target, call_function=method, call_arges=args),
+            Action(role_obj=target, call_function=method, call_args=args),
         )
-        return outcome.steps[0].result if outcome.ok else None
+        _raise_if_failed(outcome, f"调用 {type(target).__name__}.{method}")
+        return outcome.steps[0].result if outcome.steps else None
 
-    def send(self, intent: Intent, *actions: Action, role: str = "") -> Any:
+    def send(self, intent: Intent, *actions: Action, target: object | str = "") -> Outcome:
         """**发事件**：把动作链交给引擎；返回引擎的处理全貌（`Outcome`）。
 
-        不带动作 = **广播**（谁关心谁听）；``role`` 是过渡参数（旧调用点还给着）。
-        引擎是内核自带的，**永远在场**，不需要判空。
+        不带动作 = **广播**（谁关心谁听）：此时用 ``target`` 带上主体标识
+        （例如"哪条笔记变了"），订阅方从事件里取。引擎是内核自带的，**永远在场**。
         """
-        del role
-        return self.signal.handle(Event(intent=intent, actions=list(actions)))
+        return self.signal.handle(Event(intent=intent, actions=list(actions), target=target))
 
     def storage_ids(self) -> list[str]:
         """列出库里全部对象 id（给领域列出自己那类对象用）。"""
@@ -214,13 +230,16 @@ class Core:
         changed: int = int(self.storage.execute(sql, params))
         return changed
 
-    def iter(self, *, type: Any = None, tags: Any = None) -> list[Any]:
-        """列出对象视图；``type`` / ``tags`` 给出时按其过滤。"""
+    def iter(self, *, type: Any = None, tags: Any = None) -> list[ObjectInfo]:
+        """列出对象视图；``type`` / ``tags`` 给出时按其过滤。
+
+        整表**一次取回**（``storage.infos()``）：逐对象查一遍会让 N 个对象触发
+        N+1 次查询，并逐个把内容读进内存。
+        """
         wanted = type_name(type) if type is not None else None
         wanted_tags = self._wanted_tags(tags)
-        found: list[Any] = []
-        for block_id in self.storage_ids():
-            view = self.info(block_id)
+        found: list[ObjectInfo] = []
+        for view in self.storage.infos():
             if wanted is not None and view.type != wanted:
                 continue
             if wanted_tags and not all(
@@ -250,20 +269,53 @@ class Core:
             close()
 
     def open(self, path: Any) -> Core:
-        """开（或建）一个库并挂到内核上；返回内核自身（便于链式/重开）。"""
+        """开（或建）一个库并挂到内核上；返回内核自身（便于链式/重开）。
+
+        重开之前先关掉旧存储：内核是单例，旧存储若只是被覆盖，其 sqlite 连接
+        与载体文件句柄不会有第二次释放机会。
+        """
         from core.storage import Storage  # noqa: PLC0415 — 避免加载期互引
 
+        self.close()
         self.mount(_STORAGE_ROLE, Storage.open(path))
         return self
 
     def _act(self, method: str, **args: Any) -> Action:
         """给**存储角色**组一个动作（用对象身份：ID 与对象两条路都通）。"""
-        return Action(role_obj=self.storage, call_function=method, call_arges=args)
+        return Action(role_obj=self.storage, call_function=method, call_args=args)
+
+
+def _raise_if_failed(outcome: Outcome, doing: str) -> None:
+    """引擎把机制性失败记进 `Step.error`；此处把首个失败**显式抛出**。
+
+    抛出的是原异常（不是包一层新类型），调用方按类型捕获仍然有效；
+    ``ok`` 为真即无失败。
+    """
+    if outcome.ok:
+        return
+    failed = outcome.failed[0]
+    error = failed.error
+    if error is None:  # 理论上不会发生：ok 为假即至少一步有 error
+        raise CairnError(f"{doing}失败：{failed.action.call_function}")
+    raise error
+
+
+def _forget(table: dict[str, dict[Any, object]], obj: object) -> None:
+    """把对象从表的三种身份格里摘净（注销 / 换挂件时用）。"""
+    for cells in table.values():
+        for key, value in list(cells.items()):
+            if value is obj:
+                cells.pop(key, None)
 
 
 def _store(table: dict[str, dict[Any, object]], obj: object, *, oid: str, name: str) -> None:
-    """按三种身份登记：ID / 名称 / 对象。"""
-    table["role_id"][str(oid or getattr(obj, "id", "") or "")] = obj
+    """按三种身份登记：ID / 名称 / 对象。
+
+    没有 ID 的对象**不登记 ID 格**：空字符串键会让多个无 ID 对象挤在同一格互相覆盖。
+    """
+    obj_id = str(oid or getattr(obj, "id", "") or "")
+    if obj_id:
+        table["role_id"][obj_id] = obj
     table["role_name"][str(name or getattr(obj, "name", "") or getattr(obj, "__name__", ""))] = obj
     table["role_obj"][identity_key("role_obj", obj)] = obj
 
@@ -284,9 +336,11 @@ class Managed:
         """接内核：对象一出生就拿到内核，``self.core.put(...)`` 即可落盘。
 
         域服务在这里**按自己的名字登记实例**（``name = "note"`` → ``core.role("note")``）。
+        只认**本类自己声明**的 ``name``（``type(self).__dict__``）：继承来的名字会让
+        子类实例冒名顶替父类的登记。
         """
         self.core = core if core is not None else Core()
-        declared = getattr(type(self), "name", "")
+        declared = str(type(self).__dict__.get("name", ""))
         if declared:
             self.core.register(self, name=declared)
 
@@ -294,11 +348,14 @@ class Managed:
         """**子类定义时**由父类替它登记。
 
         只有**域服务**（自报短名 ``name``）进最小类型表的 ``domain`` 角色；
-        数据类（``Block`` 子类）归 ``data`` 角色，由数据类自己那条链登记——别混。
+        数据类（``Block`` 子类）归 ``data`` 角色，由数据类自己那条链登记——两类不得混同。
+
+        名字取 ``cls.__dict__``（**本类自己声明**的），不是 ``getattr``：否则子类会
+        继承父类的 ``name``，把父类在类型表里的登记静默改写成子类。
         """
         super().__init_subclass__(**kwargs)
         Core._types[cls.__name__] = cls  # noqa: SLF001 — 登记口是内核的私有收成
-        declared = getattr(cls, "name", "")
+        declared = str(cls.__dict__.get("name", ""))
         if declared != "":
             Core._types[declared] = cls  # noqa: SLF001
             Core.register_type(cls)

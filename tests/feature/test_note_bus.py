@@ -45,7 +45,7 @@ def test_action_dispatches_through_engine(core: Core) -> None:
         Action(
             role_obj=notes,
             call_function="create",
-            call_arges={"text": "hello", "title": "T"},
+            call_args={"text": "hello", "title": "T"},
         ),
     )
 
@@ -75,7 +75,7 @@ def test_action_error_propagates_to_outcome(core: Core) -> None:
     notes = Note(core)
     outcome = core.send(
         Intent.GET,
-        Action(role_obj=notes, call_function="load", call_arges={"oid": str(Oid.new())}),
+        Action(role_obj=notes, call_function="load", call_args={"oid": str(Oid.new())}),
     )
     assert not outcome.ok
     assert isinstance(outcome.failed[0].error, ObjectNotFoundError)
