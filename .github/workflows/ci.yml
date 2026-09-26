@@ -30,11 +30,10 @@ jobs:
       - name: License headers (SPDX)
         run: uv run python tools/spdx.py --check
 
-      # 书面语：文档 / 注释一律非口语化。**当前为报告模式**（`--report`：命中只报告、
-      # 不阻断；工具自身异常仍会让本步失败），全仓清扫归零后去掉 `--report` 转为阻断门禁。
-      # 标准见 rules/references/prose.md，词典本体在 tools/prose.py。
-      - name: Prose report (书面语)
-        run: uv run python tools/prose.py --report
+      # 书面语：文档 / 注释一律非口语化，**阻断式**（全仓已清零）。标准见 rules/references/prose.md，
+      # 词典本体在 tools/prose.py；行首三叹号是 MkDocs admonition 语法，词典已按位置排除。
+      - name: Prose check (书面语)
+        run: uv run python tools/prose.py
 
       # 两个投影（config/ 与 schema/）是否与声明一致：docgen 只比参考页，投影漂移看这里
       - name: Config projections (no drift)

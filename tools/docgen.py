@@ -231,7 +231,7 @@ def _gate() -> int:
 
 
 def _write() -> int:
-    """重新生成参考页；内容没变就不碰文件（免得白改时间戳）。"""
+    """重新生成参考页；内容未变化时不改写文件，避免无谓的时间戳变更。"""
     expected = render_page()
     if expected == current_page():
         _say(f"[docgen] {CONFIG_PAGE.relative_to(ROOT)} 已是最新。")

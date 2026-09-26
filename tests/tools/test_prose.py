@@ -92,12 +92,13 @@ def test_skip_dirs_exclude_generated_output() -> None:
         assert skipped in prose._SKIP_DIRS
 
 
-@pytest.mark.skip(reason="清洗进行中：全仓清扫完成后去掉本 skip（见 progress.md「书面语清扫」）")
 def test_repo_markdown_is_clean_of_lexicon() -> None:
-    """入库的手写 Markdown 不得命中词典（这是本任务的验收条件）。"""
-    targets = [path for path in prose._targets([]) if path.suffix == ".md"]
-    assert targets, "未扫到任何 Markdown，扫描范围配置有误"
-    offenders: set[str] = set()
-    for path in targets:
-        offenders.update(hit.path for hit in prose._scan_file(path))
+    """入库的手写 Markdown 不得命中词典（这是本任务的验收条件）。
+
+    `_targets()` 返回 `(待检文件, 跳过的路径)` 二元组；本用例只要前者。
+    """
+    targets, _skipped = prose._targets([])
+    markdown = [path for path in targets if path.suffix == ".md"]
+    assert markdown, "未扫到任何 Markdown，扫描范围配置有误"
+    offenders = {path.relative_to(ROOT).as_posix() for path in markdown if prose._scan_file(path)}
     assert not offenders, f"以下文档仍有口语命中：{sorted(offenders)}"

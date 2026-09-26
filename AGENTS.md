@@ -24,7 +24,8 @@ uv run ruff check .                       # lint（--fix 自动修）
 uv run ruff format .                      # 格式化（提交前用 --check）
 uv run mypy src tools                     # 类型检查（strict）
 uv run python tools/spdx.py --check       # SPDX 头门禁（缺头用 --fix 自动补）
-uv run pre-commit run --all-files         # 提交前全量门禁（SPDX -> ruff -> mypy）
+uv run python tools/prose.py              # 书面语门禁（文档/注释不得口语，词典即标准）
+uv run pre-commit run --all-files         # 提交前全量门禁（SPDX -> 书面语 -> ruff -> mypy）
 
 uv run mkdocs serve                       # 文档站本地预览 -> http://127.0.0.1:8000
 uv run mkdocs build --strict              # 文档站构建门禁（坏链接/缺页面/未知配置即失败）
