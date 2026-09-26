@@ -173,6 +173,11 @@
   **编辑器层**（2026-09-25）：`.editorconfig` + VS Code 片段 / 任务 / 模板（`.vscode/`、`.fileTemplates.json`）。
   余项（不阻塞）：`LICENSES/Apache-2.0.txt` 未建（只有跑 `reuse lint` 才需要，而该 CLI 是 GPL、不引）。
 - [ ] 可复现构建、代码签名（Authenticode）；包体瘦身。
+- [ ] **CI / 构建改造（未完成；半成品已随旧分支删除，凭本条目重做）**：旧线
+  `refactor/kernel-object-core` 上有一版草稿——用 `build.yaml`（可复用的构建矩阵）取代
+  `build-windows.yml`，并把 `ocr-review.yml` 改名为 `agent-code-review.yml`（顺带去掉显式
+  `pr_number` 入参）。草稿的 job 体是空的（只有一行 `call_workflows:`），带上会让 CI 直接红，
+  故与分支一并删除；重做时按上面的意图重写，不要恢复那份草稿。
 - [ ] Linux 服务端 / CLI / Docker（待服务端）。
 - [ ] **OCR 评审 findings 清理**（进行中）：清单与分诊见 `docs/review/ocr-2026-09-22.md`；
   A 类分批批修已到 PR #18（第七批）、C 类档 1「删 / 简化 9 项」已落 PR #19；
